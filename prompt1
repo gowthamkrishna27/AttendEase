@@ -1,0 +1,500 @@
+# Build a Premium Minimalist Attendance Permission App Frontend
+
+Design and build a **production-quality, minimalist web application** called **PermitCS**. The UI should feel like a blend of **Apple, Linear, Notion, and Raycast**—clean, elegant, and distraction-free. Prioritize usability over decoration.
+
+## Design Principles
+
+* Extremely minimal interface
+* Plenty of whitespace
+* Clean typography
+* No gradients
+* No glassmorphism
+* No neumorphism
+* No skeuomorphic effects
+* No colorful dashboard cards
+* No unnecessary illustrations
+* No shadows heavier than subtle elevation
+* Focus on content instead of decoration
+* Every screen should have only one primary action
+
+The interface should feel calm, modern, and premium.
+
+---
+
+# Theme
+
+Light mode only.
+
+Background:
+
+* #FAFAFA
+
+Surface:
+
+* #FFFFFF
+
+Primary Text:
+
+* #111111
+
+Secondary Text:
+
+* #6B7280
+
+Border:
+
+* #E5E7EB
+
+Success:
+
+* #22C55E
+
+Warning:
+
+* #F59E0B
+
+Danger:
+
+* #EF4444
+
+Do not introduce additional colors.
+
+---
+
+# Typography
+
+Use **Inter** or **Geist**.
+
+Font hierarchy:
+
+Large Heading
+32px
+Bold
+
+Section Heading
+24px
+Semibold
+
+Card Title
+18px
+Medium
+
+Body
+16px
+Regular
+
+Caption
+14px
+Medium
+
+Large line spacing with generous vertical rhythm.
+
+---
+
+# Layout
+
+Maximum content width:
+1200px
+
+Center aligned.
+
+Large margins.
+
+Responsive from mobile to desktop.
+
+8px spacing system.
+
+Border radius:
+16px
+
+Border:
+1px solid #E5E7EB
+
+Minimal shadows only.
+
+---
+
+# Navigation
+
+Top navigation bar.
+
+Left:
+PermitCS logo
+
+Right:
+
+Home
+
+History
+
+Notifications
+
+Profile
+
+Keep navigation clean with no icons unless absolutely necessary.
+
+---
+
+# Student Home
+
+Minimal hero section.
+
+Heading:
+
+Good Morning
+
+Subtitle:
+
+Need attendance permission?
+
+Large primary button:
+
+New Request
+
+Below it:
+
+Recent Requests
+
+Each request appears as a clean list item.
+
+Example:
+
+Internship
+
+Pending
+
+Yesterday
+
+---
+
+Medical Leave
+
+Approved
+
+20 July
+
+---
+
+Sports Event
+
+Rejected
+
+18 July
+
+Status should be represented by small rounded badges only.
+
+No statistics.
+
+No attendance charts.
+
+No dashboard widgets.
+
+---
+
+# New Request Page
+
+Single-column layout.
+
+Sections:
+
+Reason
+
+Dropdown
+
+Date
+
+Calendar Picker
+
+Time
+
+Start Time
+
+End Time
+
+Description
+
+Large multiline textarea
+
+Supporting Document
+
+Drag and Drop Upload Area
+
+Allowed:
+
+PDF
+
+Images
+
+Bottom sticky action:
+
+Submit Request
+
+The form should feel spacious and uncluttered.
+
+---
+
+# Request Success
+
+Centered layout.
+
+Large success icon.
+
+Heading:
+
+Request Submitted
+
+Subtitle:
+
+Waiting for faculty approval.
+
+Primary button:
+
+Back to Home
+
+---
+
+# History
+
+Simple vertical list.
+
+Each request includes:
+
+Reason
+
+Submission Date
+
+Faculty Name
+
+Status Badge
+
+Chevron
+
+Clicking opens request details.
+
+---
+
+# Request Details
+
+Minimal information hierarchy.
+
+Show:
+
+Reason
+
+Student Details
+
+Date
+
+Time
+
+Description
+
+Uploaded Document
+
+Approval Timeline
+
+Submitted
+
+↓
+
+Faculty Review
+
+↓
+
+Approved or Rejected
+
+Bottom actions only if applicable.
+
+---
+
+# Profile
+
+Student photo.
+
+Name.
+
+Roll Number.
+
+Department.
+
+Semester.
+
+Logout button.
+
+No extra cards.
+
+---
+
+# Faculty Dashboard
+
+Clean inbox layout.
+
+Header:
+
+Pending Requests
+
+Below:
+
+Search
+
+Department Filter
+
+Date Filter
+
+Each request row includes:
+
+Student Name
+
+Reason
+
+Submitted Time
+
+View
+
+Approve
+
+Reject
+
+Approval buttons should appear only on hover (desktop) or inside the details page (mobile).
+
+---
+
+# Faculty Request Details
+
+Show:
+
+Student Information
+
+Reason
+
+Description
+
+Attachment Preview
+
+Approval Buttons
+
+Confirmation dialog before approval or rejection.
+
+---
+
+# Components
+
+Design reusable components.
+
+Primary Button
+
+Secondary Button
+
+Input
+
+Dropdown
+
+Textarea
+
+Upload Area
+
+Status Badge
+
+Divider
+
+Modal
+
+Toast
+
+Loader
+
+Skeleton
+
+Empty State
+
+Avatar
+
+List Item
+
+Date Picker
+
+Time Picker
+
+Everything should share one consistent design language.
+
+---
+
+# Animations
+
+Very subtle.
+
+Use Framer Motion.
+
+Page fade:
+
+200ms
+
+Button hover:
+
+Scale 1.02
+
+Button press:
+
+Scale 0.98
+
+List animation:
+
+Fade and slight upward movement.
+
+No bouncing animations.
+
+No flashy effects.
+
+---
+
+# Technical Requirements
+
+Use:
+
+React
+
+Vite
+
+TypeScript
+
+Tailwind CSS
+
+shadcn/ui
+
+Framer Motion
+
+Lucide Icons
+
+React Hook Form
+
+Zod Validation
+
+TanStack Query
+
+Responsive design.
+
+Component-driven architecture.
+
+Accessibility-first.
+
+Dark mode is not required.
+
+---
+
+# Deliverables
+
+Generate:
+
+* Complete responsive frontend
+* Pixel-perfect UI
+* Organized folder structure
+* Reusable components
+* Proper routing
+* Mock JSON data
+* Loading states
+* Empty states
+* Error states
+* Mobile-first design
+* Desktop optimization
+
+The final result should look like a premium SaaS application rather than a traditional college management system. Every page should emphasize simplicity, clarity, and speed, with a refined user experience suitable for daily student and faculty use.
