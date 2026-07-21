@@ -3,20 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { motion } from 'framer-motion';
 import { PageWrapper } from '../../components/layout/PageWrapper';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { Textarea } from '../../components/ui/Textarea';
-import { Select } from '../../components/ui/Select';
 import { UploadArea } from '../../components/forms/UploadArea';
-import { ArrowLeft } from 'lucide-react';
+import {
+  ArrowLeft, CalendarDays, Clock, FileText, Upload,
+  BookOpen, PenLine, Send
+} from 'lucide-react';
 
 const schema = z
   .object({
-    reason: z.string().min(1, 'Please select a reason'),
-    date: z.string().min(1, 'Please select a date'),
-    startTime: z.string().min(1, 'Please enter start time'),
-    endTime: z.string().min(1, 'Please enter end time'),
+    reason:      z.string().min(1, 'Please select a reason'),
+    date:        z.string().min(1, 'Please select a date'),
+    startTime:   z.string().min(1, 'Please enter start time'),
+    endTime:     z.string().min(1, 'Please enter end time'),
     description: z
       .string()
       .min(20, 'Description must be at least 20 characters')
@@ -24,24 +24,61 @@ const schema = z
   })
   .refine(data => data.startTime < data.endTime, {
     message: 'End time must be after start time',
-    path: ['endTime'],
+    path:    ['endTime'],
   });
 
 type FormData = z.infer<typeof schema>;
 
 const reasonOptions = [
-  { value: 'internship', label: 'Internship' },
-  { value: 'medical', label: 'Medical Leave' },
-  { value: 'sports', label: 'Sports Event' },
+  { value: 'internship',       label: 'Internship'       },
+  { value: 'medical',          label: 'Medical Leave'    },
+  { value: 'sports',           label: 'Sports Event'     },
   { value: 'family_emergency', label: 'Family Emergency' },
-  { value: 'competition', label: 'Competition' },
-  { value: 'other', label: 'Other' },
+  { value: 'competition',      label: 'Competition'      },
+  { value: 'other',            label: 'Other'            },
 ];
 
+const card = (extra: object = {}) => ({
+  background: '#ffffff',
+  borderRadius: 16,
+  border: '1px solid #EEF2F7',
+  boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+  ...extra,
+});
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box' as const,
+  height: 46, padding: '0 14px 0 40px',
+  fontSize: 14, color: '#1E293B',
+  background: '#F8FAFC', border: '1.5px solid #E8EDF2',
+  borderRadius: 12, outline: 'none',
+  transition: 'border-color 0.15s, box-shadow 0.15s',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: 13, fontWeight: 600,
+  color: '#374151', marginBottom: 6,
+};
+
 export default function NewRequest() {
-  const navigate = useNavigate();
-  const [file, setFile] = useState<File | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate              = useNavigate();
+  const [file, setFile]       = useState<File | null>(null);
+  const [isSubmitting, setSub] = useState(false);
+
+  const getTodayDate = () => {
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const getCurrentTime = () => {
+    const now = new Date();
+    return now.toTimeString().slice(0, 5);
+  };
+
+  const getHourLaterTime = () => {
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    return now.toTimeString().slice(0, 5);
+  };
 
   const {
     register,
@@ -49,107 +86,220 @@ export default function NewRequest() {
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { reason: '', date: '', startTime: '', endTime: '', description: '' },
+    defaultValues: {
+      reason: '',
+      date: getTodayDate(),
+      startTime: getCurrentTime(),
+      endTime: getHourLaterTime(),
+      description: ''
+    },
   });
 
   const onSubmit = async (_data: FormData) => {
-    setIsSubmitting(true);
-    // Simulate API call
+    setSub(true);
     await new Promise(resolve => setTimeout(resolve, 1200));
-    setIsSubmitting(false);
+    setSub(false);
     navigate('/student/success');
+  };
+
+  const focusStyle = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    e.target.style.borderColor = '#F97316';
+    e.target.style.boxShadow   = '0 0 0 3px rgba(249,115,22,0.08)';
+    e.target.style.background  = '#fff';
+  };
+  const blurStyle = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    e.target.style.borderColor = '#E8EDF2';
+    e.target.style.boxShadow   = 'none';
+    e.target.style.background  = '#F8FAFC';
   };
 
   return (
     <PageWrapper role="student">
-      <div className="max-w-xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+      <div style={{ maxWidth: 720 }}>
+
+        {/* Back button */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}
+        >
           <button
             onClick={() => navigate(-1)}
-            className="p-2 rounded-xl hover:bg-[#F3F4F6] text-[#6B7280] transition-colors"
+            style={{
+              width: 38, height: 38, borderRadius: 11, border: '1px solid #E8EDF2',
+              background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#64748B', flexShrink: 0,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+            }}
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 className="text-[24px] font-semibold text-[#111111]">New Request</h1>
-            <p className="text-[14px] text-[#6B7280] mt-0.5">Fill in the details below</p>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: '0 0 2px' }}>New Attendance Request</h1>
+            <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>Fill in the details below to submit your request</p>
           </div>
-        </div>
+        </motion.div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Reason */}
-          <Select
-            label="Reason"
-            placeholder="Select a reason"
-            options={reasonOptions}
-            error={errors.reason?.message}
-            {...register('reason')}
-          />
+        <motion.form
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.26, delay: 0.05 }}
+          onSubmit={handleSubmit(onSubmit)}
+          style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+        >
 
-          {/* Date */}
-          <Input
-            type="date"
-            label="Date"
-            error={errors.date?.message}
-            min={new Date().toISOString().split('T')[0]}
-            {...register('date')}
-          />
+          {/* Section 1 — Reason */}
+          <div style={{ ...card({ padding: '22px 24px' }) }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #F97316, #EA580C)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FileText size={14} style={{ color: '#fff' }} />
+              </div>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Reason for Absence</h2>
+            </div>
 
-          {/* Time */}
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="time"
-              label="Start Time"
-              error={errors.startTime?.message}
-              {...register('startTime')}
-            />
-            <Input
-              type="time"
-              label="End Time"
-              error={errors.endTime?.message}
-              {...register('endTime')}
-            />
+            <label style={labelStyle}>Select Reason</label>
+            <div style={{ position: 'relative' }}>
+              <BookOpen size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+              <select
+                {...register('reason')}
+                onFocus={focusStyle as any}
+                onBlur={blurStyle as any}
+                style={{ ...inputStyle, appearance: 'none', paddingRight: 36, cursor: 'pointer' }}
+              >
+                <option value="">Select a reason...</option>
+                {reasonOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            {errors.reason && <p style={{ fontSize: 12, color: '#DC2626', margin: '5px 0 0' }}>{errors.reason.message}</p>}
           </div>
 
-          {/* Description */}
-          <Textarea
-            label="Description"
-            placeholder="Describe the reason for your absence in detail..."
-            rows={5}
-            error={errors.description?.message}
-            hint="Minimum 20 characters"
-            {...register('description')}
-          />
+          {/* Section 2 — Date & Time */}
+          <div style={{ ...card({ padding: '22px 24px' }) }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #F97316, #EA580C)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CalendarDays size={14} style={{ color: '#fff' }} />
+              </div>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Date &amp; Duration</h2>
+            </div>
 
-          {/* Document Upload */}
-          <UploadArea file={file} onFileSelect={setFile} />
+            {/* Date */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Date</label>
+              <div style={{ position: 'relative' }}>
+                <CalendarDays size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+                <input
+                  type="date"
+                  {...register('date')}
+                  min={new Date().toISOString().split('T')[0]}
+                  onFocus={focusStyle as any}
+                  onBlur={blurStyle as any}
+                  style={inputStyle}
+                />
+              </div>
+              {errors.date && <p style={{ fontSize: 12, color: '#DC2626', margin: '5px 0 0' }}>{errors.date.message}</p>}
+            </div>
 
-          {/* Divider */}
-          <div className="border-t border-[#E5E7EB]" />
+            {/* Start / End Time */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Start Time</label>
+                <div style={{ position: 'relative' }}>
+                  <Clock size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+                  <input type="time" {...register('startTime')} onFocus={focusStyle as any} onBlur={blurStyle as any} style={inputStyle} />
+                </div>
+                {errors.startTime && <p style={{ fontSize: 12, color: '#DC2626', margin: '5px 0 0' }}>{errors.startTime.message}</p>}
+              </div>
+              <div>
+                <label style={labelStyle}>End Time</label>
+                <div style={{ position: 'relative' }}>
+                  <Clock size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+                  <input type="time" {...register('endTime')} onFocus={focusStyle as any} onBlur={blurStyle as any} style={inputStyle} />
+                </div>
+                {errors.endTime && <p style={{ fontSize: 12, color: '#DC2626', margin: '5px 0 0' }}>{errors.endTime.message}</p>}
+              </div>
+            </div>
+          </div>
 
-          {/* Submit */}
-          <div className="flex gap-3">
-            <Button
+          {/* Section 3 — Description */}
+          <div style={{ ...card({ padding: '22px 24px' }) }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #F97316, #EA580C)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <PenLine size={14} style={{ color: '#fff' }} />
+              </div>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Description</h2>
+            </div>
+
+            <label style={labelStyle}>Describe your absence in detail</label>
+            <textarea
+              {...register('description')}
+              placeholder="Provide a detailed explanation of why you were absent..."
+              rows={5}
+              onFocus={focusStyle as any}
+              onBlur={blurStyle as any}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '12px 14px', fontSize: 14, color: '#1E293B',
+                background: '#F8FAFC', border: '1.5px solid #E8EDF2',
+                borderRadius: 12, outline: 'none', resize: 'vertical',
+                lineHeight: 1.6, fontFamily: 'inherit',
+                transition: 'border-color 0.15s, box-shadow 0.15s',
+              }}
+            />
+            <p style={{ fontSize: 11, color: '#94A3B8', margin: '5px 0 0' }}>Minimum 20 characters</p>
+            {errors.description && <p style={{ fontSize: 12, color: '#DC2626', margin: '4px 0 0' }}>{errors.description.message}</p>}
+          </div>
+
+          {/* Section 4 — Document */}
+          <div style={{ ...card({ padding: '22px 24px' }) }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #F97316, #EA580C)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Upload size={14} style={{ color: '#fff' }} />
+              </div>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Supporting Document <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 400 }}>(Optional)</span></h2>
+            </div>
+            <UploadArea file={file} onFileSelect={setFile} />
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: 12, paddingBottom: 8 }}>
+            <button
               type="button"
-              variant="secondary"
-              size="lg"
               onClick={() => navigate(-1)}
-              className="flex-1"
+              style={{
+                flex: 1, height: 48, borderRadius: 13,
+                background: '#F8FAFC', border: '1.5px solid #E8EDF2',
+                color: '#64748B', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              size="lg"
-              loading={isSubmitting}
-              className="flex-[2]"
+              disabled={isSubmitting}
+              style={{
+                flex: 2, height: 48, borderRadius: 13,
+                background: isSubmitting ? '#FED7AA' : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+                color: '#fff', fontSize: 14, fontWeight: 700,
+                border: 'none', cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: isSubmitting ? 'none' : '0 4px 14px rgba(249,115,22,0.30)',
+                transition: 'all 0.15s',
+              }}
             >
-              Submit Request
-            </Button>
+              {isSubmitting ? (
+                <>
+                  <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send size={15} />
+                  Submit Request
+                </>
+              )}
+            </button>
           </div>
-        </form>
+        </motion.form>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </PageWrapper>
   );
 }

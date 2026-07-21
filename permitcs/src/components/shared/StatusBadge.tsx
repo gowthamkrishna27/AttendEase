@@ -6,18 +6,21 @@ interface StatusBadgeProps {
   className?: string;
 }
 
-const statusConfig: Record<RequestStatus, { label: string; className: string }> = {
+const statusConfig: Record<RequestStatus, { label: string; dot: string; className: string }> = {
   pending: {
     label: 'Pending',
-    className: 'bg-warning/10 text-warning border border-warning/20',
+    dot: 'bg-warning',
+    className: 'bg-amber-50 text-amber-700 border border-amber-200/60',
   },
   approved: {
     label: 'Approved',
-    className: 'bg-success/10 text-success border border-success/20',
+    dot: 'bg-success',
+    className: 'bg-emerald-50 text-emerald-700 border border-emerald-200/60',
   },
   rejected: {
     label: 'Rejected',
-    className: 'bg-danger/10 text-danger border border-danger/20',
+    dot: 'bg-danger',
+    className: 'bg-rose-50 text-rose-700 border border-rose-200/60',
   },
 };
 
@@ -26,11 +29,12 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center px-2.5 py-0.5 rounded-full text-[13px] font-medium',
+        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold tracking-wide',
         config.className,
         className
       )}
     >
+      <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', config.dot)} />
       {config.label}
     </span>
   );

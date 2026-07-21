@@ -3,13 +3,20 @@ import { cn } from '../../lib/utils';
 interface AvatarProps {
   name: string;
   size?: 'sm' | 'md' | 'lg';
+  role?: 'student' | 'faculty' | 'hod';
   className?: string;
 }
 
 const sizeMap = {
-  sm: 'w-8 h-8 text-sm',
-  md: 'w-10 h-10 text-base',
-  lg: 'w-16 h-16 text-xl',
+  sm: 'w-8 h-8 text-[12px]',
+  md: 'w-10 h-10 text-[14px]',
+  lg: 'w-16 h-16 text-[20px]',
+};
+
+const roleGradientMap = {
+  student: 'from-navy-500 to-navy-400',
+  faculty: 'from-teal-500 to-teal-400',
+  hod: 'from-maroon-500 to-maroon-400',
 };
 
 function getInitials(name: string): string {
@@ -21,24 +28,25 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-function getColor(name: string): string {
-  const colors = [
-    'bg-slate-200 text-slate-700',
-    'bg-zinc-200 text-zinc-700',
-    'bg-stone-200 text-stone-700',
-    'bg-neutral-200 text-neutral-700',
+function getGradient(name: string): string {
+  const gradients = [
+    'from-navy-500 to-navy-400',
+    'from-teal-500 to-teal-400',
+    'from-maroon-500 to-maroon-400',
+    'from-navy-600 to-teal-500',
   ];
-  const index = name.charCodeAt(0) % colors.length;
-  return colors[index];
+  const index = name.charCodeAt(0) % gradients.length;
+  return gradients[index];
 }
 
-export function Avatar({ name, size = 'md', className }: AvatarProps) {
+export function Avatar({ name, size = 'md', role, className }: AvatarProps) {
+  const gradient = role ? roleGradientMap[role] : getGradient(name);
   return (
     <div
       className={cn(
-        'rounded-full flex items-center justify-center font-semibold flex-shrink-0',
+        'rounded-full flex items-center justify-center font-bold flex-shrink-0 bg-gradient-to-br text-white shadow-sm',
         sizeMap[size],
-        getColor(name),
+        gradient,
         className
       )}
     >

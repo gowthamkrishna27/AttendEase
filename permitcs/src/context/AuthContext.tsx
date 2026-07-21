@@ -11,6 +11,7 @@ export interface AuthUser {
   department?: string;
   rollNumber?: string;
   semester?: number;
+  avatarUrl?: string;
 }
 
 interface AuthContextValue {
@@ -49,9 +50,10 @@ export const MOCK_CREDENTIALS = {
     email: 'arjun.sharma@college.edu',
     role: 'student' as UserRole,
     department: 'Computer Science',
-    rollNumber: '21CS047',
+    rollNumber: '24B91A0720',
     semester: 6,
     password: 'student123',
+    avatarUrl: 'https://srkrexams.in/SRKR/photo/24B91A0720.jpg',
   },
   faculty: {
     id: 'fac-001',

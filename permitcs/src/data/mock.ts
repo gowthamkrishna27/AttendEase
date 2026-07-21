@@ -3,10 +3,11 @@ import type { AttendanceRequest, Faculty, Student } from '../types';
 export const mockStudent: Student = {
   id: 'stu-001',
   name: 'Arjun Sharma',
-  rollNumber: '21CS047',
+  rollNumber: '24B91A0720',
   department: 'Computer Science',
   semester: 6,
   email: 'arjun.sharma@college.edu',
+  avatarUrl: 'https://srkrexams.in/SRKR/photo/24B91A0720.jpg',
 };
 
 export const mockFaculty: Faculty[] = [
@@ -34,10 +35,11 @@ export const mockStudents: Student[] = [
   {
     id: 'stu-001',
     name: 'Arjun Sharma',
-    rollNumber: '21CS047',
+    rollNumber: '24B91A0720',
     department: 'Computer Science',
     semester: 6,
     email: 'arjun.sharma@college.edu',
+    avatarUrl: 'https://srkrexams.in/SRKR/photo/24B91A0720.jpg',
   },
   {
     id: 'stu-002',

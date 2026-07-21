@@ -1,278 +1,395 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, BookOpen, ShieldCheck, Eye, EyeOff } from 'lucide-react';
-import { Button } from '../../components/ui/Button';
+import {
+  GraduationCap, BookOpen, ShieldCheck,
+  Eye, EyeOff, Lock, User,
+  ArrowRight, Info, Shield, Clock, Users, Sun,
+} from 'lucide-react';
 import { useAuth, MOCK_CREDENTIALS } from '../../context/AuthContext';
 import type { UserRole } from '../../context/AuthContext';
+import srkrEmblem from '../../assets/srkr-emblem.png';
+import campusImg from '../../assets/campus.png';
 
 type Tab = 'student' | 'faculty' | 'hod';
 
 const TABS: { key: Tab; label: string; icon: typeof GraduationCap }[] = [
   { key: 'student', label: 'Student', icon: GraduationCap },
-  { key: 'faculty', label: 'Faculty', icon: BookOpen },
-  { key: 'hod', label: 'HOD', icon: ShieldCheck },
+  { key: 'faculty', label: 'Faculty', icon: BookOpen      },
+  { key: 'hod',     label: 'HOD',     icon: ShieldCheck   },
 ];
 
-const DEMO_HINTS: Record<Tab, { fields: { label: string; value: string }[] }> = {
-  student: {
-    fields: [
-      { label: 'Roll Number', value: '21CS047' },
-      { label: 'Password', value: 'student123' },
-    ],
-  },
-  faculty: {
-    fields: [
-      { label: 'Email', value: 'priya.nair@college.edu' },
-      { label: 'Password', value: 'faculty123' },
-    ],
-  },
-  hod: {
-    fields: [
-      { label: 'Email', value: 'hod.cs@college.edu' },
-      { label: 'Password', value: 'hod123' },
-    ],
-  },
+const DEMO: Record<Tab, { id: string; idLabel: string; pass: string }> = {
+  student: { id: '24B91A0720',             idLabel: 'Roll No', pass: 'student123' },
+  faculty: { id: 'priya.nair@college.edu', idLabel: 'Email',   pass: 'faculty123' },
+  hod:     { id: 'hod.cs@college.edu',     idLabel: 'Email',   pass: 'hod123'     },
 };
 
 export default function LoginPortal() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<Tab>('student');
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+  const [activeTab, setActiveTab]       = useState<Tab>('student');
+  const [identifier, setIdentifier]     = useState('');
+  const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe]     = useState(false);
+  const [error, setError]               = useState('');
+  const [isLoading, setIsLoading]       = useState(false);
 
-  // Reset form when switching tabs
   const handleTabChange = (tab: Tab) => {
-    setActiveTab(tab);
-    setIdentifier('');
-    setPassword('');
-    setError('');
+    setActiveTab(tab); setIdentifier(''); setPassword(''); setError('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (!identifier.trim() || !password) {
-      setError('Please fill in all fields.');
-      return;
-    }
-
+    if (!identifier.trim() || !password) { setError('Please fill in all fields.'); return; }
     setIsLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-
-    const creds = MOCK_CREDENTIALS[activeTab];
-    const identifierField =
-      activeTab === 'student'
-        ? (creds as typeof MOCK_CREDENTIALS.student).rollNumber
-        : creds.email;
-
-    if (
-      identifier.trim().toLowerCase() === identifierField.toLowerCase() &&
-      password === creds.password
-    ) {
+    await new Promise(r => setTimeout(r, 700));
+    const creds   = MOCK_CREDENTIALS[activeTab];
+    const idField = activeTab === 'student'
+      ? (creds as typeof MOCK_CREDENTIALS.student).rollNumber
+      : creds.email;
+    if (identifier.trim().toLowerCase() === idField.toLowerCase() && password === creds.password) {
       const role: UserRole = activeTab;
-      const user =
-        activeTab === 'student'
-          ? {
-              id: creds.id,
-              name: creds.name,
-              email: creds.email,
-              role,
-              department: (creds as typeof MOCK_CREDENTIALS.student).department,
-              rollNumber: (creds as typeof MOCK_CREDENTIALS.student).rollNumber,
-              semester: (creds as typeof MOCK_CREDENTIALS.student).semester,
-            }
-          : {
-              id: creds.id,
-              name: creds.name,
-              email: creds.email,
-              role,
-              department: creds.department,
-            };
-
+      const user = activeTab === 'student'
+        ? { id: creds.id, name: creds.name, email: creds.email, role,
+            department: (creds as typeof MOCK_CREDENTIALS.student).department,
+            rollNumber: (creds as typeof MOCK_CREDENTIALS.student).rollNumber,
+            semester:   (creds as typeof MOCK_CREDENTIALS.student).semester,
+            avatarUrl:  (creds as typeof MOCK_CREDENTIALS.student).avatarUrl }
+        : { id: creds.id, name: creds.name, email: creds.email, role, department: creds.department };
       login(user);
-      navigate(
-        activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod'
-      );
+      navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
     } else {
-      setError(
-        activeTab === 'student'
-          ? 'Invalid roll number or password.'
-          : 'Invalid email or password.'
-      );
+      setError(activeTab === 'student' ? 'Invalid roll number or password.' : 'Invalid email or password.');
     }
-
     setIsLoading(false);
   };
 
-  const currentTab = TABS.find(t => t.key === activeTab)!;
-  const hint = DEMO_HINTS[activeTab];
+  /* ── Shared form section (used in both desktop right panel & mobile card) ── */
+  const renderForm = () => (
+    <>
+      {/* Avatar + heading */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 20 }}>
+        <h2 className="login-heading" style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 5px' }}>
+          Welcome Back!
+        </h2>
+        <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
+      </div>
 
-  return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center p-6">
-      {/* Logo */}
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
-        className="flex items-center gap-2 mb-10"
-      >
-        <div className="w-8 h-8 bg-[#111111] rounded-xl flex items-center justify-center">
-          <span className="text-white text-[12px] font-bold tracking-tight">AE</span>
-        </div>
-        <span className="text-[20px] font-semibold text-[#111111] tracking-tight">AttendEase</span>
-      </motion.div>
+      {/* Role tabs */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
+        background: '#F8FAFC', border: '1px solid #E8EDF2',
+        borderRadius: 16, padding: 6, marginBottom: 20,
+      }}>
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => handleTabChange(tab.key)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '10px 6px', fontSize: 13, fontWeight: 600,
+                borderRadius: 11, cursor: 'pointer',
+                border: isActive ? '1.5px solid #F97316' : '1.5px solid #E2E8F0',
+                background: isActive ? 'rgba(249,115,22,0.08)' : '#ffffff',
+                color: isActive ? '#F97316' : '#64748B',
+                boxShadow: isActive ? '0 1px 6px rgba(249,115,22,0.15)' : 'none',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              <Icon size={13} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.22 }}
-        className="w-full max-w-sm"
-      >
-        {/* Card header */}
-        <div className="text-center mb-6">
-          <h1 className="text-[26px] font-bold text-[#111111]">Login Portal</h1>
-          <p className="text-[14px] text-[#6B7280] mt-1">
-            Select your role and sign in
-          </p>
-        </div>
-
-        <div className="card p-6">
-          {/* Role tab switcher */}
-          <div className="flex items-center gap-1 bg-[#F3F4F6] p-1 rounded-xl mb-6">
-            {TABS.map(tab => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => handleTabChange(tab.key)}
-                  className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 text-[13px] font-medium rounded-lg transition-colors duration-150 ${
-                    isActive
-                      ? 'bg-white text-[#111111] shadow-subtle'
-                      : 'text-[#6B7280] hover:text-[#111111]'
-                  }`}
-                >
-                  <Icon size={14} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
+      {/* Form */}
+      <AnimatePresence mode="wait">
+        <motion.form
+          key={activeTab}
+          initial={{ opacity: 0, x: 8 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -8 }}
+          transition={{ duration: 0.16 }}
+          onSubmit={handleSubmit}
+          style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+        >
+          {/* Identifier */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              {activeTab === 'student' ? 'Roll Number' : 'Email Address'}
+            </label>
+            <div style={{ position: 'relative' }}>
+              <User size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#CBD5E1', pointerEvents: 'none' }} />
+              <input
+                type={activeTab === 'student' ? 'text' : 'email'}
+                placeholder={activeTab === 'student' ? 'e.g. 24B91A0720' : 'name@college.edu'}
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                autoComplete={activeTab === 'student' ? 'username' : 'email'}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  height: 46, paddingLeft: 38, paddingRight: 14,
+                  fontSize: 14, color: '#1E293B',
+                  background: '#F8FAFC', border: '1.5px solid #E2E8F0',
+                  borderRadius: 12, outline: 'none',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                }}
+                onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
+                onBlur={e  => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
+              />
+            </div>
           </div>
 
-          {/* Role icon + title */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.15 }}
-            >
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 rounded-xl bg-[#111111] flex items-center justify-center flex-shrink-0">
-                  <currentTab.icon size={18} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-[15px] font-semibold text-[#111111]">
-                    {currentTab.label} Sign In
-                  </p>
-                  <p className="text-[12px] text-[#9CA3AF]">
-                    {activeTab === 'student'
-                      ? 'Enter your roll number and password'
-                      : 'Enter your college email and password'}
-                  </p>
-                </div>
-              </div>
+          {/* Password */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              Password
+            </label>
+            <div style={{ position: 'relative' }}>
+              <Lock size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#CBD5E1', pointerEvents: 'none' }} />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter your password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                autoComplete="current-password"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  height: 46, paddingLeft: 38, paddingRight: 42,
+                  fontSize: 14, color: '#1E293B',
+                  background: '#F8FAFC', border: '1.5px solid #E2E8F0',
+                  borderRadius: 12, outline: 'none',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                }}
+                onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
+                onBlur={e  => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
+              >
+                {showPassword ? <Eye size={15} /> : <EyeOff size={15} />}
+              </button>
+            </div>
+          </div>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Identifier field */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[14px] font-medium text-[#111111]">
-                    {activeTab === 'student' ? 'Roll Number' : 'Email Address'}
-                  </label>
-                  <input
-                    type={activeTab === 'student' ? 'text' : 'email'}
-                    placeholder={
-                      activeTab === 'student'
-                        ? 'e.g. 21CS047'
-                        : 'your.name@college.edu'
-                    }
-                    value={identifier}
-                    onChange={e => setIdentifier(e.target.value)}
-                    autoComplete={activeTab === 'student' ? 'username' : 'email'}
-                    className="w-full px-4 py-2.5 text-[15px] text-[#111111] bg-white border border-[#E5E7EB] rounded-xl outline-none transition-all duration-150 placeholder:text-[#9CA3AF] focus:border-[#111111] focus:ring-1 focus:ring-[#111111]/10"
-                  />
-                </div>
+          {/* Remember me + Forgot */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#64748B' }}>
+              <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#F97316' }} />
+              Remember me
+            </label>
+            <button type="button" style={{ fontSize: 13, fontWeight: 600, color: '#F97316', background: 'none', border: 'none', cursor: 'pointer' }}>
+              Forgot Password?
+            </button>
+          </div>
 
-                {/* Password */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[14px] font-medium text-[#111111]">Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                      className="w-full px-4 py-2.5 pr-11 text-[15px] text-[#111111] bg-white border border-[#E5E7EB] rounded-xl outline-none transition-all duration-150 placeholder:text-[#9CA3AF] focus:border-[#111111] focus:ring-1 focus:ring-[#111111]/10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#6B7280] transition-colors"
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
+          {/* Error */}
+          {error && (
+            <div style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '9px 13px' }}>
+              {error}
+            </div>
+          )}
 
-                {/* Error */}
-                {error && (
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-[13px] text-danger"
-                  >
-                    {error}
-                  </motion.p>
-                )}
+          {/* Sign In button */}
+          <motion.button
+            type="submit"
+            disabled={isLoading}
+            whileHover={{ scale: isLoading ? 1 : 1.01, y: isLoading ? 0 : -1 }}
+            whileTap={{ scale: 0.985 }}
+            style={{
+              width: '100%', height: 50, borderRadius: 14,
+              background: '#F97316',
+              color: '#fff', fontSize: 15, fontWeight: 700,
+              border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              boxShadow: '0 4px 18px rgba(249,115,22,0.30)',
+              opacity: isLoading ? 0.8 : 1,
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#000000'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#F97316'; }}
+          >
+            {isLoading
+              ? <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+              : <><span>Sign In</span><ArrowRight size={16} /></>
+            }
+          </motion.button>
+        </motion.form>
+      </AnimatePresence>
 
-                {/* Submit */}
-                <Button type="submit" size="lg" fullWidth loading={isLoading}>
-                  Sign In as {currentTab.label}
-                </Button>
-              </form>
+      {/* Demo credentials */}
+      <div style={{ marginTop: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div style={{ flex: 1, height: 1, background: '#F1F5F9' }} />
+          <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>Demo Credentials</span>
+          <div style={{ flex: 1, height: 1, background: '#F1F5F9' }} />
+        </div>
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+          background: '#FFF7ED', border: '1px solid #FFEDD5',
+          borderRadius: 14, padding: '12px 14px',
+        }}>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#F97316', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+            <Info size={14} style={{ color: '#fff' }} />
+          </div>
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#C2410C', margin: '0 0 3px' }}>Demo Access</p>
+            <p style={{ fontSize: 12, color: '#C2410C', margin: '0 0 2px' }}>
+              {DEMO[activeTab].idLabel}: <span style={{ fontWeight: 700 }}>{DEMO[activeTab].id}</span>
+            </p>
+            <p style={{ fontSize: 12, color: '#C2410C', margin: 0 }}>
+              Password: <span style={{ fontWeight: 700 }}>{DEMO[activeTab].pass}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 
-              {/* Demo hint */}
-              <div className="mt-4 bg-[#F9FAFB] rounded-xl px-4 py-3 border border-[#E5E7EB]">
-                <p className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-wide mb-1.5">
-                  Demo credentials
-                </p>
-                {hint.fields.map(f => (
-                  <p key={f.label} className="text-[12px] text-[#9CA3AF]">
-                    {f.label}:{' '}
-                    <span className="text-[#111111] font-medium">{f.value}</span>
-                  </p>
-                ))}
-              </div>
-            </motion.div>
-          </AnimatePresence>
+  return (
+    <>
+      {/* ── Responsive CSS ── */}
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Desktop: side-by-side card */
+        .login-page   { min-height:100vh; width:100%; background:#EEF2F7; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 16px; font-family:'Inter','Segoe UI',system-ui,sans-serif; }
+        .login-card   { width:100%; max-width:1020px; min-height:640px; display:flex; flex-direction:row; background:#fff; border-radius:28px; box-shadow:0 24px 60px rgba(0,0,0,0.10),0 4px 16px rgba(0,0,0,0.05); overflow:hidden; border:1px solid #E8EDF2; }
+        .login-left   { width:46%; flex-shrink:0; display:flex; flex-direction:column; background:#fff; }
+        .login-right  { flex:1; background:#fff; display:flex; flex-direction:column; justify-content:space-between; padding:28px 44px 32px; }
+        .login-mobile-top { display:none; }
+        .login-footer { font-size:12px; color:#94A3B8; margin-top:20px; text-align:center; }
+        .login-lightmode { display:flex; justify-content:flex-end; margin-bottom:16px; }
+
+        /* Mobile: single column */
+        @media (max-width: 767px) {
+          .login-page  { background:#fff; padding:0; justify-content:flex-start; }
+          .login-card  { flex-direction:column; border-radius:0; box-shadow:none; min-height:100vh; max-width:100%; border:none; background:transparent; }
+          .login-left  { display:none; }
+          .login-right { padding:20px 20px 32px; justify-content:flex-start; gap:0; background:#fff; }
+          .login-mobile-top { display:flex; flex-direction:column; align-items:center; text-align:center; padding:36px 24px 24px; background:#fff; }
+          .login-form-card  { background:#F8FAFC; border-radius:24px 24px 0 0; padding:24px 20px 36px; flex:1; box-shadow:0 -4px 24px rgba(0,0,0,0.06); }
+          .login-footer { margin-top:16px; padding-bottom:24px; }
+          .login-lightmode { display:none; }
+          .login-heading { font-size:20px !important; }
+        }
+      `}</style>
+
+      {/* ── Page ── */}
+      <div className="login-page">
+
+        {/* ── Mobile-only top header ── */}
+        <div className="login-mobile-top">
+          <img src={srkrEmblem} alt="SRKR" style={{ width: 72, height: 72, objectFit: 'contain', marginBottom: 6 }} />
+          <p style={{ fontSize: 11, color: '#94A3B8', margin: '0 0 6px', letterSpacing: '0.06em' }}>Estd.1980</p>
+          <h1 style={{ fontSize: 30, fontWeight: 800, margin: '0 0 6px', lineHeight: 1.1 }}>
+            <span style={{ color: '#0F172A' }}>Attend</span>
+            <span style={{ color: '#F97316' }}>Ease</span>
+          </h1>
+          <p style={{ fontSize: 14, color: '#475569', margin: 0, fontWeight: 500 }}>SRKR Engineering College</p>
+          <p style={{ fontSize: 13, color: '#94A3B8', margin: '2px 0 0' }}>Bhimavaram</p>
         </div>
 
-        <p className="text-center text-[12px] text-[#9CA3AF] mt-6">
-          © {new Date().getFullYear()} AttendEase · College Attendance Management
-        </p>
-      </motion.div>
-    </div>
+        {/* ── Main Card ── */}
+        <motion.div
+          className="login-card"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.38, ease: 'easeOut' }}
+        >
+
+          {/* ══ LEFT PANEL (desktop only) ══ */}
+          <div className="login-left">
+            {/* White text area */}
+            <div style={{ padding: '32px 32px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+                <img src={srkrEmblem} alt="SRKR" style={{ width: 38, height: 38, objectFit: 'contain' }} />
+                <div style={{ lineHeight: 1.2 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>SRKREC</p>
+                  <p style={{ fontSize: 11, color: '#94A3B8', margin: 0 }}>Bhimavaram</p>
+                </div>
+              </div>
+              <h1 style={{ fontSize: 34, fontWeight: 800, color: '#0F172A', lineHeight: 1.15, margin: '0 0 6px' }}>
+                Welcome to<br />
+                <span style={{ color: '#F97316' }}>AttendEase</span>
+              </h1>
+              <div style={{ width: 40, height: 3, borderRadius: 99, background: '#F97316', margin: '12px 0 14px' }} />
+              <p style={{ fontSize: 13, color: '#64748B', lineHeight: 1.6, margin: 0, maxWidth: 260 }}>
+                Smart Attendance Management System for Students, Faculty &amp; Administration.
+              </p>
+            </div>
+
+            {/* Campus photo */}
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: 260 }}>
+              <img
+                src={campusImg}
+                alt="SRKR Campus"
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }}
+              />
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 50%, transparent 100%)' }} />
+
+              {/* Feature cards */}
+              <div style={{
+                position: 'absolute', bottom: 18, left: 16, right: 16,
+                background: 'rgba(15,23,42,0.80)', backdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.10)', borderRadius: 18,
+                padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14,
+              }}>
+                {[
+                  { icon: Shield, color: '#F97316', bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.30)', title: 'Secure & Reliable',  desc: 'Your data is protected with enterprise-grade security.' },
+                  { icon: Clock,  color: '#60A5FA', bg: 'rgba(96,165,250,0.15)', border: 'rgba(96,165,250,0.30)',  title: 'Real-time Access',   desc: 'Access attendance records anytime, anywhere.'           },
+                  { icon: Users,  color: '#A78BFA', bg: 'rgba(167,139,250,0.15)',border: 'rgba(167,139,250,0.30)', title: 'Role-based Access',  desc: 'Customized experience for students, faculty & HOD.'     },
+                ].map(({ icon: Icon, color, bg, border, title, desc }) => (
+                  <div key={title} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: bg, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon size={15} style={{ color }} />
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#F8FAFC', margin: '0 0 2px' }}>{title}</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.52)', margin: 0, lineHeight: 1.45 }}>{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ══ RIGHT PANEL / MOBILE CARD ══ */}
+          <div className="login-right">
+            {/* Desktop: Light Mode button */}
+            <div className="login-lightmode">
+              <button style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', fontSize: 12, fontWeight: 500,
+                color: '#475569', background: '#fff', border: '1px solid #E2E8F0',
+                borderRadius: 12, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+              }}>
+                <Sun size={13} style={{ color: '#F59E0B' }} />
+                Light Mode
+              </button>
+            </div>
+
+            {/* Mobile: form inside a rounded card */}
+            <div className="login-form-card" style={{ flex: 1 }}>
+              {renderForm()}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Footer */}
+        <p className="login-footer">© 2026 AttendEase · SRKREC. All rights reserved.</p>
+      </div>
+    </>
   );
 }

@@ -58,7 +58,7 @@ export default function StudentLogin() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Roll Number"
-          placeholder="e.g. 21CS047"
+          placeholder="e.g. 24B91A07"
           value={rollNumber}
           onChange={e => setRollNumber(e.target.value)}
           autoComplete="username"
@@ -96,7 +96,7 @@ export default function StudentLogin() {
         {/* Demo hint */}
         <div className="bg-[#F9FAFB] rounded-xl px-4 py-3 border border-[#E5E7EB]">
           <p className="text-[12px] font-medium text-[#6B7280] mb-1">Demo credentials</p>
-          <p className="text-[12px] text-[#9CA3AF]">Roll Number: <span className="text-[#111111] font-medium">21CS047</span></p>
+          <p className="text-[12px] text-[#9CA3AF]">Roll Number: <span className="text-[#111111] font-medium">24B91A0720</span></p>
           <p className="text-[12px] text-[#9CA3AF]">Password: <span className="text-[#111111] font-medium">student123</span></p>
         </div>
       </form>
