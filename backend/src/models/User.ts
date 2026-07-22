@@ -11,6 +11,7 @@ export interface IUser extends Document {
   rollNumber?: string;
   semester?: number;
   avatarUrl?: string;
+  designation?: string;
   phone?: string;
   dob?: string;
   gender?: string;
@@ -28,6 +29,7 @@ const UserSchema = new Schema<IUser>(
     rollNumber: { type: String },
     semester:   { type: Number },
     avatarUrl:  { type: String },
+    designation: { type: String },
     phone:      { type: String },
     dob:        { type: String },
     gender:     { type: String },

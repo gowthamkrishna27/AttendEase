@@ -82,10 +82,18 @@ export default function HODLogin() {
         </Button>
 
         {/* Demo hint */}
-        <div className="bg-[#F9FAFB] rounded-xl px-4 py-3 border border-[#E5E7EB]">
-          <p className="text-[12px] font-medium text-[#6B7280] mb-1">Demo credentials</p>
-          <p className="text-[12px] text-[#9CA3AF]">Email: <span className="text-[#111111] font-medium">hod.cs@college.edu</span></p>
-          <p className="text-[12px] text-[#9CA3AF]">Password: <span className="text-[#111111] font-medium">hod123</span></p>
+        <div className="bg-[#F9FAFB] rounded-xl px-4 py-3 border border-[#E5E7EB] space-y-2">
+          <p className="text-[12px] font-medium text-[#6B7280]">Demo credentials</p>
+          <div>
+            <p className="text-[11px] font-semibold text-[#F97316] mb-0.5">CSD — Head of Department</p>
+            <p className="text-[12px] text-[#9CA3AF]">Email: <span className="text-[#111111] font-medium">hod.csd@srkrec.ac.in</span></p>
+            <p className="text-[12px] text-[#9CA3AF]">Password: <span className="text-[#111111] font-medium">hodcsd123</span></p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-[#F97316] mb-0.5">CSIT — Head of Department</p>
+            <p className="text-[12px] text-[#9CA3AF]">Email: <span className="text-[#111111] font-medium">hod.csit@srkrec.ac.in</span></p>
+            <p className="text-[12px] text-[#9CA3AF]">Password: <span className="text-[#111111] font-medium">hodcsit123</span></p>
+          </div>
         </div>
       </form>
     </LoginLayout>

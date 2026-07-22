@@ -7,24 +7,25 @@ const router = Router();
 
 function formatUserResponse(user: any) {
   return {
-    id:         user.userId,
-    email:      user.email,
-    role:       user.role,
-    name:       user.name,
-    department: user.department,
-    ...(user.rollNumber && { rollNumber: user.rollNumber }),
-    ...(user.semester   && { semester:   user.semester   }),
-    ...(user.avatarUrl  && { avatarUrl:  user.avatarUrl  }),
-    ...(user.phone      && { phone:      user.phone      }),
-    ...(user.dob        && { dob:        user.dob        }),
-    ...(user.gender     && { gender:     user.gender     }),
-    ...(user.address    && { address:    user.address    }),
+    id:          user.userId,
+    email:       user.email,
+    role:        user.role,
+    name:        user.name,
+    department:  user.department,
+    ...(user.designation && { designation: user.designation }),
+    ...(user.rollNumber  && { rollNumber:  user.rollNumber  }),
+    ...(user.semester    && { semester:    user.semester    }),
+    ...(user.avatarUrl   && { avatarUrl:   user.avatarUrl   }),
+    ...(user.phone       && { phone:       user.phone       }),
+    ...(user.dob         && { dob:         user.dob         }),
+    ...(user.gender      && { gender:      user.gender      }),
+    ...(user.address     && { address:     user.address     }),
   };
 }
 
 /**
  * GET /api/users/faculty
- * Returns list of faculty members in MongoDB.
+ * Returns all faculty members (both CSD and CSIT) — visible to both HODs.
  */
 router.get('/faculty', verifyToken, async (req: Request, res: Response) => {
   try {
