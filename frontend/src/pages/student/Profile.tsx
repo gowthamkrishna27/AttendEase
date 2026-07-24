@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   User, IdCard, Building2, GraduationCap,
   Pencil, Mail, Phone, CalendarDays, MapPin,
   ChevronRight, Lock, CheckCircle2, Circle, Lightbulb,
-  Users, BookOpen, ClipboardList, Check, AlertCircle, Loader2
+  Users, BookOpen, ClipboardList, Check, AlertCircle, Loader2, LogOut
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -62,7 +62,13 @@ function CircularProgress({ pct }: { pct: number }) {
 }
 
 export default function Profile() {
-  const { user, updateProfile } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout, updateProfile } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
   const [tab, setTab] = useState<Tab>('Personal Information');
 
   /* editable fields */
@@ -122,7 +128,7 @@ export default function Profile() {
         address,
         avatarUrl,
       });
-      setMessage({ type: 'success', text: 'Personal information updated and saved to MongoDB!' });
+      setMessage({ type: 'success', text: 'Personal information updated and saved to database!' });
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to save personal information.' });
     } finally {
@@ -147,7 +153,7 @@ export default function Profile() {
         currentPassword,
         password: newPassword,
       });
-      setMessage({ type: 'success', text: 'Password successfully updated and saved to MongoDB!' });
+      setMessage({ type: 'success', text: 'Password successfully updated and saved to database!' });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -546,6 +552,25 @@ export default function Profile() {
                 {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />}
                 <span>{isSaving ? 'Updating Password...' : 'Save New Password'}</span>
               </button>
+
+              {/* Logout Option in Account Settings */}
+              <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #EEF2F7' }}>
+                <h4 style={{ fontSize: 14, fontWeight: 800, color: '#DC2626', margin: '0 0 4px' }}>Session Management</h4>
+                <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 14px' }}>Log out of your AttendEase student account on this device.</p>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '10px 20px', borderRadius: 12, fontSize: 13, fontWeight: 700,
+                    color: '#DC2626', background: '#FEF2F2', border: '1px solid #FCA5A5',
+                    cursor: 'pointer', transition: 'all 0.15s ease',
+                  }}
+                >
+                  <LogOut size={16} />
+                  <span>Log Out</span>
+                </button>
+              </div>
             </form>
           </div>
 
@@ -597,8 +622,28 @@ export default function Profile() {
               <span style={{ fontSize: 12, fontWeight: 700, color: '#92400E' }}>Tip</span>
             </div>
             <p style={{ fontSize: 12, color: '#78350F', margin: 0, lineHeight: 1.5 }}>
-              All edits saved here persist directly to your MongoDB database.
+              All edits saved here persist directly to your database.
             </p>
+          </div>
+
+          {/* Account Settings / Logout Card (Mobile & Desktop) */}
+          <div style={{ ...card({ padding: '18px 20px' }) }}>
+            <h4 style={{ fontSize: 14, fontWeight: 800, color: '#DC2626', margin: '0 0 4px' }}>Account Settings</h4>
+            <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 14px' }}>Log out of your AttendEase account on this device.</p>
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                padding: '11px 16px', borderRadius: 12, fontSize: 13, fontWeight: 700,
+                color: '#DC2626', background: '#FEF2F2', border: '1px solid #FCA5A5',
+                cursor: 'pointer', transition: 'all 0.15s ease',
+              }}
+            >
+              <LogOut size={16} />
+              <span>Log Out</span>
+            </button>
           </div>
 
         </div>

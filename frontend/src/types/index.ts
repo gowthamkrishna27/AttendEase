@@ -25,6 +25,8 @@ export interface Faculty {
   name: string;
   department: string;
   email: string;
+  avatarUrl?: string;
+  designation?: string;
 }
 
 export interface AttendanceRequest {
@@ -43,6 +45,8 @@ export interface AttendanceRequest {
   submittedAt: string; // ISO datetime string
   facultyId?: string;
   faculty?: Faculty;
+  facultyIds?: string[];
+  faculties?: Faculty[];
   reviewedAt?: string;
   rejectionReason?: string;
 }

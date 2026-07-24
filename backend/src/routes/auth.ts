@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { UserModel } from '../models/User.js';
+import { prisma } from '../db/prisma.js';
 import { signToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -12,8 +12,8 @@ const router = Router();
 router.post('/login', async (req: Request, res: Response) => {
   const { identifier, password, role } = req.body as {
     identifier: string;
-    password: string;
-    role: string;
+    password:   string;
+    role:       string;
   };
 
   if (!identifier || !password || !role) {
@@ -22,13 +22,16 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 
   try {
-    // Find by email or rollNumber (case-insensitive)
     const q = identifier.trim().toLowerCase();
-    const user = await UserModel.findOne({
-      $or: [
-        { email: q },
-        { rollNumber: { $regex: new RegExp(`^${q}$`, 'i') } },
-      ],
+
+    // Find by email or rollNumber (case-insensitive via mode: 'insensitive')
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: q, mode: 'insensitive' } },
+          { rollNumber: { equals: q, mode: 'insensitive' } },
+        ],
+      },
     });
 
     if (!user) {

@@ -21,8 +21,8 @@ const TABS: { key: Tab; label: string; icon: typeof GraduationCap }[] = [
 
 const DEMO: Record<Tab, { id: string; idLabel: string; pass: string }> = {
   student: { id: '24B91A0720',             idLabel: 'Roll No', pass: '24B91A0720' },
-  faculty: { id: 'priya.nair@college.edu', idLabel: 'Email',   pass: 'faculty123' },
-  hod:     { id: 'hod.cs@college.edu',     idLabel: 'Email',   pass: 'hod123'     },
+  faculty: { id: 'aapriyanka@srkrec.ac.in', idLabel: 'Email',   pass: 'faculty123' },
+  hod:     { id: 'hod.csit@srkrec.ac.in',  idLabel: 'Email',   pass: 'hodcsit123' },
 };
 
 export default function LoginPortal() {

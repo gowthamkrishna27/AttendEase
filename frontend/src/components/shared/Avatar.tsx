@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { cn } from '../../lib/utils';
 
 interface AvatarProps {
   name: string;
-  size?: 'sm' | 'md' | 'lg';
+  src?: string;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   role?: 'student' | 'faculty' | 'hod';
   className?: string;
 }
@@ -10,18 +12,21 @@ interface AvatarProps {
 const sizeMap = {
   sm: 'w-8 h-8 text-[12px]',
   md: 'w-10 h-10 text-[14px]',
-  lg: 'w-16 h-16 text-[20px]',
+  lg: 'w-14 h-14 text-[18px]',
+  xl: 'w-20 h-20 text-[24px]',
 };
 
 const roleGradientMap = {
-  student: 'from-navy-500 to-navy-400',
-  faculty: 'from-teal-500 to-teal-400',
-  hod: 'from-maroon-500 to-maroon-400',
+  student: 'from-orange-500 to-amber-500',
+  faculty: 'from-blue-600 to-indigo-600',
+  hod: 'from-purple-600 to-indigo-600',
 };
 
 function getInitials(name: string): string {
+  if (!name) return 'S';
   return name
-    .split(' ')
+    .trim()
+    .split(/\s+/)
     .map(n => n[0])
     .slice(0, 2)
     .join('')
@@ -30,24 +35,45 @@ function getInitials(name: string): string {
 
 function getGradient(name: string): string {
   const gradients = [
-    'from-navy-500 to-navy-400',
-    'from-teal-500 to-teal-400',
-    'from-maroon-500 to-maroon-400',
-    'from-navy-600 to-teal-500',
+    'from-orange-500 to-amber-500',
+    'from-blue-600 to-indigo-600',
+    'from-emerald-500 to-teal-600',
+    'from-purple-600 to-indigo-600',
   ];
-  const index = name.charCodeAt(0) % gradients.length;
+  const index = (name || 'S').charCodeAt(0) % gradients.length;
   return gradients[index];
 }
 
-export function Avatar({ name, size = 'md', role, className }: AvatarProps) {
+export function Avatar({ name, src, size = 'md', role, className }: AvatarProps) {
+  const [imgError, setImgError] = useState(false);
   const gradient = role ? roleGradientMap[role] : getGradient(name);
+
+  if (src && !imgError) {
+    return (
+      <div
+        className={cn(
+          'rounded-2xl flex-shrink-0 overflow-hidden bg-slate-100 border border-slate-200/80 shadow-sm',
+          sizeMap[size],
+          className,
+        )}
+      >
+        <img
+          src={src}
+          alt={name}
+          className="w-full h-full object-cover object-top"
+          onError={() => setImgError(true)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
-        'rounded-full flex items-center justify-center font-bold flex-shrink-0 bg-gradient-to-br text-white shadow-sm',
+        'rounded-2xl flex items-center justify-center font-bold flex-shrink-0 bg-gradient-to-br text-white shadow-sm border border-black/5',
         sizeMap[size],
         gradient,
-        className
+        className,
       )}
     >
       {getInitials(name)}

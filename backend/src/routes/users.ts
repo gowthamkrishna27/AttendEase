@@ -1,11 +1,16 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth.js';
-import { UserModel } from '../models/User.js';
+import { prisma } from '../db/prisma.js';
 
 const router = Router();
 
-function formatUserResponse(user: any) {
+function formatUserResponse(user: {
+  userId: string; email: string; role: string; name: string;
+  department: string; designation?: string | null; rollNumber?: string | null;
+  semester?: number | null; avatarUrl?: string | null; phone?: string | null;
+  dob?: string | null; gender?: string | null; address?: string | null;
+}) {
   return {
     id:          user.userId,
     email:       user.email,
@@ -25,11 +30,11 @@ function formatUserResponse(user: any) {
 
 /**
  * GET /api/users/faculty
- * Returns all faculty members (both CSD and CSIT) — visible to both HODs.
+ * Returns all faculty members — visible to both HODs.
  */
-router.get('/faculty', verifyToken, async (req: Request, res: Response) => {
+router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
   try {
-    const docs = await UserModel.find({ role: 'faculty' }).lean();
+    const docs = await prisma.user.findMany({ where: { role: 'faculty' } });
     res.json({ faculty: docs.map(formatUserResponse) });
   } catch (err) {
     console.error('GET /users/faculty error:', err);
@@ -39,11 +44,18 @@ router.get('/faculty', verifyToken, async (req: Request, res: Response) => {
 
 /**
  * GET /api/users/me
- * Returns current user profile from MongoDB.
+ * Returns current user profile from PostgreSQL.
  */
 router.get('/me', verifyToken, async (req: Request, res: Response) => {
   try {
-    const user = await UserModel.findOne({ userId: req.user!.id }).lean();
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { userId: req.user!.id },
+          { email:  req.user!.email },
+        ],
+      },
+    });
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
@@ -57,49 +69,48 @@ router.get('/me', verifyToken, async (req: Request, res: Response) => {
 
 /**
  * PUT /api/users/me
- * Updates current user personal info and saves to MongoDB.
- * Body: { name?, email?, phone?, dob?, gender?, address?, avatarUrl?, password?, currentPassword? }
+ * Updates current user personal info.
  */
 router.put('/me', verifyToken, async (req: Request, res: Response) => {
   try {
-    const user = await UserModel.findOne({ userId: req.user!.id });
-    if (!user) {
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { userId: req.user!.id },
+          { email:  req.user!.email },
+        ],
+      },
+    });
+    if (!existing) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    const {
-      name,
-      email,
-      phone,
-      dob,
-      gender,
-      address,
-      avatarUrl,
-      password,
-      currentPassword,
-    } = req.body;
+    const { name, email, phone, dob, gender, address, avatarUrl, password, currentPassword } = req.body;
 
-    // Handle password change if currentPassword & password are provided
+    // Handle password change
     if (password) {
-      if (currentPassword && user.password !== currentPassword) {
+      if (currentPassword && existing.password !== currentPassword) {
         res.status(400).json({ error: 'Current password does not match' });
         return;
       }
-      user.password = password;
     }
 
-    if (name !== undefined)      user.name = name;
-    if (email !== undefined)     user.email = email;
-    if (phone !== undefined)     user.phone = phone;
-    if (dob !== undefined)       user.dob = dob;
-    if (gender !== undefined)    user.gender = gender;
-    if (address !== undefined)   user.address = address;
-    if (avatarUrl !== undefined) user.avatarUrl = avatarUrl;
+    const updated = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        ...(name      !== undefined && { name      }),
+        ...(email     !== undefined && { email     }),
+        ...(phone     !== undefined && { phone     }),
+        ...(dob       !== undefined && { dob       }),
+        ...(gender    !== undefined && { gender    }),
+        ...(address   !== undefined && { address   }),
+        ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(password  !== undefined && { password  }),
+      },
+    });
 
-    await user.save();
-
-    res.json({ user: formatUserResponse(user) });
+    res.json({ user: formatUserResponse(updated) });
   } catch (err) {
     console.error('PUT /users/me error:', err);
     res.status(500).json({ error: 'Failed to update personal information' });

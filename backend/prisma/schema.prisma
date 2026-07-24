@@ -1,0 +1,148 @@
+// This is your Prisma schema file.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  student
+  faculty
+  hod
+}
+
+enum RequestStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum RequestReason {
+  internship
+  medical
+  sports
+  family_emergency
+  competition
+  other
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id          String   @id @default(cuid())
+  userId      String   @unique          // human-readable: "stu-001", "fac-csit-001"
+  name        String
+  email       String   @unique
+  role        Role
+  department  String
+  password    String
+  rollNumber  String?
+  semester    Int?
+  avatarUrl   String?
+  designation String?
+  phone       String?
+  dob         String?
+  gender      String?
+  address     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  submittedRequests Request[]        @relation("StudentRequests")
+  primaryRequests   Request[]        @relation("PrimaryFacultyRequests")
+  assignedRequests  RequestFaculty[]
+  performedActions  RequestAction[]
+  notifications     Notification[]
+
+  @@index([role])
+  @@index([department])
+  @@index([rollNumber])
+}
+
+model Request {
+  id                  String        @id @default(cuid())
+  requestId           String        @unique  // human-readable: "req-LK4F2J-A3BX"
+  studentId           String                 // references User.userId
+  primaryFacultyId    String?                // references User.userId (primary reviewer)
+
+  reason              RequestReason
+  reasonLabel         String
+  date                String
+  startTime           String
+  endTime             String
+  description         String
+  documentName        String?
+  status              RequestStatus @default(pending)
+  submittedAt         String
+  reviewedAt          String?
+
+  finalDecisionBy     String?       // "Faculty" | "HOD"
+  finalDecisionUserId String?       // references User.userId
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  // Relations
+  student             User          @relation("StudentRequests", fields: [studentId], references: [userId])
+  primaryFaculty      User?         @relation("PrimaryFacultyRequests", fields: [primaryFacultyId], references: [userId])
+  faculties           RequestFaculty[]
+  actions             RequestAction[]
+  notifications       Notification[]
+
+  @@index([studentId])
+  @@index([status])
+  @@index([submittedAt(sort: Desc)])
+  @@index([primaryFacultyId])
+}
+
+/// Join table: which faculty members are assigned to review a request
+model RequestFaculty {
+  requestId  String
+  facultyId  String   // references User.userId
+
+  request    Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  faculty    User     @relation(fields: [facultyId], references: [userId])
+
+  @@id([requestId, facultyId])
+  @@index([facultyId])
+}
+
+/// Audit trail: records every action performed on a request
+model RequestAction {
+  id            String   @id @default(cuid())
+  requestId     String   // references Request.id
+  performedById String   // references User.userId
+  action        String   // "Submitted", "Approved by Faculty", "Rejected by Faculty", "Approved by HOD", "Rejected by HOD", "Overridden by HOD", "Cancelled"
+  remarks       String?
+  performedAt   DateTime @default(now())
+
+  request       Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  performedBy   User     @relation(fields: [performedById], references: [userId])
+
+  @@index([requestId])
+  @@index([performedById])
+}
+
+/// Real-time notifications for users
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   // Target recipient (User.userId)
+  requestId String?
+  type      String   // "approved", "rejected", "pending", "cancelled", "override"
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  request   Request? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}

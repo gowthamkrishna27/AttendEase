@@ -51,11 +51,6 @@ export const REASON_LABELS: Record<string, string> = {
 };
 
 export const DEPARTMENTS = [
+  'CSD',
   'CSIT',
-  'Computer Science',
-  'Electronics',
-  'Mechanical',
-  'Civil',
-  'Chemical',
-  'Information Technology',
 ];

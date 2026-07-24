@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ClipboardList, Clock, CheckCircle2, XCircle, BarChart2 } from 'lucide-react';
+import { FileSpreadsheet, Download, CheckCircle2, Clock, XCircle, BarChart2 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
@@ -33,6 +33,53 @@ export default function HODReports() {
   const pendingRate  = total > 0 ? Math.round((pending  / total) * 100) : 0;
   const rejectedRate = total > 0 ? Math.round((rejected / total) * 100) : 0;
 
+  /* Excel / CSV Download Handler */
+  const downloadExcel = (statusFilter: string = 'all') => {
+    const list = statusFilter === 'all'
+      ? requestsList
+      : requestsList.filter((r: AttendanceRequest) => r.status === statusFilter);
+
+    const headers = [
+      'Request ID',
+      'Student Name',
+      'Roll Number',
+      'Department',
+      'Semester',
+      'Reason',
+      'Date',
+      'Start Time',
+      'End Time',
+      'Status',
+      'Assigned Faculty',
+      'Faculty Email'
+    ];
+
+    const rows = list.map((r: AttendanceRequest) => [
+      `"${r.id || ''}"`,
+      `"${r.student?.name || ''}"`,
+      `"${r.student?.rollNumber || ''}"`,
+      `"${r.student?.department || ''}"`,
+      `"${r.student?.semester || ''}"`,
+      `"${r.reasonLabel || r.reason || ''}"`,
+      `"${r.date || ''}"`,
+      `"${r.startTime || ''}"`,
+      `"${r.endTime || ''}"`,
+      `"${r.status ? r.status.toUpperCase() : ''}"`,
+      `"${r.faculty?.name || ''}"`,
+      `"${r.faculty?.email || ''}"`,
+    ]);
+
+    const csvString = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `AttendEase_${statusFilter.toUpperCase()}_Report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   /* Requests by reason */
   const reasonCounts: Record<string, number> = {};
   requestsList.forEach((r: AttendanceRequest) => {
@@ -62,37 +109,72 @@ export default function HODReports() {
           className="mb-6"
         >
           <p className="text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">HOD</p>
-          <h1 className="text-[26px] font-heading font-bold text-slate-900">Reports</h1>
-          <p className="text-[14px] text-slate-400 mt-1">Department-wide attendance permission analytics</p>
+          <h1 className="text-[26px] font-heading font-bold text-slate-900">Reports &amp; Exports</h1>
+          <p className="text-[14px] text-slate-400 mt-1">Department-wide attendance permission analytics &amp; Excel spreadsheet downloads</p>
         </motion.div>
 
-        {/* ── Summary stat cards ── */}
+        {/* ── Excel Sheet Download Generator (Desktop only) ── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.05 }}
-          className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6"
+          className="card p-6 mb-6 hidden sm:block"
+          style={{
+            background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 100%)',
+            border: '1px solid #FED7AA',
+            borderRadius: 20,
+            boxShadow: '0 4px 20px rgba(249,115,22,0.06)',
+          }}
         >
-          {[
-            { icon: ClipboardList, label: 'Total Requests', value: total,    sub: 'All time',        grad: 'from-orange-500 to-orange-600', text: 'text-orange-600' },
-            { icon: Clock,         label: 'Pending',         value: pending,  sub: `${pendingRate}% of total`,  grad: 'from-amber-500 to-amber-600',   text: 'text-amber-600'  },
-            { icon: CheckCircle2,  label: 'Approved',        value: approved, sub: `${approvalRate}% approval`, grad: 'from-emerald-500 to-emerald-600',text: 'text-emerald-600'},
-            { icon: XCircle,       label: 'Rejected',        value: rejected, sub: `${rejectedRate}% of total`, grad: 'from-rose-500 to-rose-600',     text: 'text-rose-500'  },
-          ].map(s => {
-            const Icon = s.icon;
-            return (
-              <div key={s.label} className="card px-4 py-4 flex flex-col gap-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br ${s.grad}`}>
-                  <Icon size={14} className="text-white" />
-                </div>
-                <div>
-                  <p className={`text-[24px] font-heading font-bold ${s.text}`}>{s.value}</p>
-                  <p className="text-[12px] font-semibold text-slate-700">{s.label}</p>
-                  <p className="text-[11px] text-slate-400">{s.sub}</p>
-                </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+                <FileSpreadsheet size={24} />
               </div>
-            );
-          })}
+              <div>
+                <h2 className="text-[17px] font-heading font-bold text-slate-900">
+                  Attendance Reports Excel Generator
+                </h2>
+                <p className="text-[13px] text-slate-500 mt-0.5">
+                  Export complete department attendance permission spreadsheets with full student &amp; faculty records
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => downloadExcel('all')}
+              className="w-full sm:w-auto px-5 py-2.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold text-[13px] rounded-xl flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
+            >
+              <Download size={16} />
+              <span>Download Full Excel (.csv)</span>
+            </button>
+          </div>
+
+          {/* Quick Filtered Export Buttons */}
+          <div className="pt-4 border-t border-orange-100 flex flex-wrap gap-2 text-[12px]">
+            <span className="text-slate-400 font-semibold flex items-center mr-1">Quick Exports:</span>
+            <button
+              onClick={() => downloadExcel('approved')}
+              className="px-3.5 py-1.5 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-semibold rounded-lg border border-slate-200 hover:border-emerald-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-subtle"
+            >
+              <CheckCircle2 size={13} className="text-emerald-500" />
+              <span>Approved Requests Excel</span>
+            </button>
+            <button
+              onClick={() => downloadExcel('pending')}
+              className="px-3.5 py-1.5 bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-700 font-semibold rounded-lg border border-slate-200 hover:border-amber-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-subtle"
+            >
+              <Clock size={13} className="text-amber-500" />
+              <span>Pending Requests Excel</span>
+            </button>
+            <button
+              onClick={() => downloadExcel('rejected')}
+              className="px-3.5 py-1.5 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-semibold rounded-lg border border-slate-200 hover:border-rose-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-subtle"
+            >
+              <XCircle size={13} className="text-rose-500" />
+              <span>Rejected Requests Excel</span>
+            </button>
+          </div>
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">

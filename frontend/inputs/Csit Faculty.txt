@@ -1,0 +1,60 @@
+SRKR Engineering College -CSIT Faculty Information
+
+1. DR NGK MURTHY
+Designation: Professor
+Email: gopinukala@gmail.com
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/781.jpeg
+
+2. N. NAVYA
+Designation: Assistant Professor
+Area: Machine Learning
+Email: navyanallaparaju@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/1259.jpg
+
+3. NETI PRAVEEN
+Designation: Assistant Professor
+Area: Machine Learning
+Email: npraveen@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/1348.jpg
+
+4. K V SUNIL VARMA
+Designation: Assistant Professor
+Area: Machine Learning
+Email: kvsunilvarma@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/1372.jpg
+
+5. P MOUNA
+Designation: Assistant Professor
+Area: Machine Learning
+Email: mouna.p@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/1398.jpeg
+
+6. P MANOJ
+Designation: Assistant Professor
+Area: Prompt Engineering
+Email: manoj.p@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/1399.jpeg
+
+7. ANUSURI KRISHNA VENI
+Designation: Assistant Professor
+Area: Machine Learning
+Email: akveni@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/1478.jpg
+
+8. K V V Satya Trinadh Naidu
+Designation: Assistant Professor
+Area: Cyber Security, Java, Python
+Email: kvvstnaidu@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/1480.jpg
+
+9. D Parvathi
+Designation: Assistant Professor
+Area: Machine Learning
+Email: parvathiram21@gmail.com
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/1503.jpeg
+
+10. K Sri vigyna
+Designation: Teaching Assistant
+Area: Machine Learning
+Email: vignyak@gmail.com
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csit/1509.jpeg

@@ -1,0 +1,53 @@
+SRKR Engineering College - CSD Faculty Information
+
+1. Dr. Suresh Babu Mudunuri
+Designation: Professor
+Email: suresh.mudunuri@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csd/780.jpeg
+
+2. A. Aswini Priyanka
+Designation: Assistant Professor
+Area: Cloud Computing
+Email: aapriyanka@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csd/1339.jpg
+
+3. S. Mohan Krishna
+Designation: Assistant Professor
+Area: AI & ML
+Email: mohanakrishna.seerla@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csd/1376.jpeg
+
+4. P S V SURYA KUMAR
+Designation: Assistant Professor
+Area: IOT
+Email: psvsuryakumar@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csd/1382.jpg
+
+5. ANGARA SATYAM
+Designation: Assistant Professor
+Area: Artificial Intelligence
+Email: asatyam@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csd/1472.jpg
+
+6. Dr. K. Srinivasa Rao
+Designation: Assistant Professor
+Email: ksrinivasarao@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csd/1474.jpg
+
+7. K. Bhanu Rajesh Naidu
+Designation: Assistant Professor
+Area: Cloud Computing
+Email: kbrnaidu@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csd/1479.jpg
+
+8. N. Aneela
+Designation: Assistant Professor
+Area: Machine Learning
+Email: aneela@srkrec.ac.in
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csd/1483.jpg
+
+9. M Sai Madhuri
+Designation: Teaching Assistant
+Area: Machine Learning
+Email: madhuryamudundi@gmail.com
+Image URL: https://www.srkrec.ac.in/assets/images/faculty/csd/1504.jpeg

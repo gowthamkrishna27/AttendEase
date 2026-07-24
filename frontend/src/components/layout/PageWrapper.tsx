@@ -13,6 +13,7 @@ import srkrEmblem from '../../assets/srkr-emblem.png';
 interface PageWrapperProps {
   children: ReactNode;
   role?: 'student' | 'faculty' | 'hod';
+  showGreeting?: boolean;
 }
 
 const studentNav = [
@@ -21,7 +22,14 @@ const studentNav = [
   { to: '/student/history', label: 'History', icon: Clock },
   { to: '/student/profile', label: 'Profile', icon: User },
 ];
-const facultyNav = [{ to: '/faculty', label: 'Dashboard', icon: Home }];
+const facultyNav = [
+  { to: '/faculty',          label: 'Dashboard', icon: Home          },
+  { to: '/faculty/requests', label: 'Requests',  icon: ClipboardList },
+  { to: '/faculty/students', label: 'Students',  icon: Users         },
+  { to: '/faculty/reports',  label: 'Reports',   icon: BarChart2     },
+  { to: '/faculty/settings', label: 'Settings',  icon: Settings      },
+];
+
 const hodNav = [
   { to: '/hod',          label: 'Overview',     icon: Home          },
   { to: '/hod/requests', label: 'All Requests',  icon: ClipboardList },
@@ -30,13 +38,29 @@ const hodNav = [
   { to: '/hod/settings', label: 'Settings',      icon: Settings      },
 ];
 
-/* Bottom tab bar items (mobile) — center + button is separate */
-const mobileBottomNav = [
+/* Bottom tab bar items (mobile) */
+const studentMobileBottomNav = [
   { id: 'home', to: '/student', label: 'Home', icon: Home, type: 'link' },
   { id: 'notifications', to: '/student/notifications', label: 'Notifications', icon: Bell, type: 'link', hasBadge: true },
-  { id: 'fab', type: 'fab' },
+  { id: 'fab', type: 'fab', to: '/student/new-request' },
   { id: 'history', to: '/student/history', label: 'History', icon: Clock, type: 'link' },
   { id: 'profile', to: '/student/profile', label: 'Profile', icon: User, type: 'link' },
+];
+
+const facultyMobileBottomNav = [
+  { id: 'home', to: '/faculty', label: 'Dashboard', icon: Home, type: 'link' },
+  { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
+  { id: 'students', to: '/faculty/students', label: 'Students', icon: Users, type: 'link' },
+  { id: 'reports', to: '/faculty/reports', label: 'Reports', icon: BarChart2, type: 'link' },
+  { id: 'settings', to: '/faculty/settings', label: 'Settings', icon: Settings, type: 'link' },
+];
+
+const hodMobileBottomNav = [
+  { id: 'home', to: '/hod', label: 'Overview', icon: Home, type: 'link' },
+  { id: 'faculty', to: '/hod/faculty', label: 'Faculty', icon: Users, type: 'link' },
+  { id: 'requests', to: '/hod/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
+  { id: 'reports', to: '/hod/reports', label: 'Reports', icon: BarChart2, type: 'link' },
+  { id: 'settings', to: '/hod/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
 const pageVariants = {
@@ -343,26 +367,28 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           style={{ flex: 1, padding: '28px 32px', overflowY: 'auto', minWidth: 0 }}
           className="main-content"
         >
-          {/* Greeting header */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-            <div>
-              <h1 style={{ fontSize: 24, fontWeight: 800, color: '#000000', margin: '0 0 4px' }}>
-                {greeting}, {firstName} 👋
-              </h1>
-              <p style={{ fontSize: 14, color: '#64748B', margin: 0 }}>
-                Welcome to AttendEase – SRKR Engineering College
-              </p>
+          {/* Greeting header — only on dashboard home pages */}
+          {(location.pathname === '/student' || location.pathname === '/student/' || location.pathname === '/faculty' || location.pathname === '/faculty/' || location.pathname === '/hod' || location.pathname === '/hod/') && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
+              <div>
+                <h1 style={{ fontSize: 24, fontWeight: 800, color: '#000000', margin: '0 0 4px' }}>
+                  {greeting}, {firstName} 👋
+                </h1>
+                <p style={{ fontSize: 14, color: '#64748B', margin: 0 }}>
+                  Welcome to AttendEase – SRKR Engineering College
+                </p>
+              </div>
+              <span className="student-portal-badge" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 20,
+                background: '#FFF7ED', border: '1px solid #FED7AA',
+                fontSize: 12, fontWeight: 600, color: '#F97316',
+              }}>
+                <GraduationCap size={13} />
+                {role === 'student' ? 'Student Portal' : role === 'faculty' ? 'Faculty Portal' : 'HOD Portal'}
+              </span>
             </div>
-            <span className="student-portal-badge" style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '6px 14px', borderRadius: 20,
-              background: '#FFF7ED', border: '1px solid #FED7AA',
-              fontSize: 12, fontWeight: 600, color: '#F97316',
-            }}>
-              <GraduationCap size={13} />
-              {role === 'student' ? 'Student Portal' : role === 'faculty' ? 'Faculty Portal' : 'HOD Portal'}
-            </span>
-          </div>
+          )}
 
           {children}
 
@@ -384,13 +410,13 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         alignItems: 'center', justifyContent: 'space-around',
         padding: '0 8px 4px',
       }}>
-        {mobileBottomNav.map(item => {
+        {(role === 'hod' ? hodMobileBottomNav : role === 'faculty' ? facultyMobileBottomNav : studentMobileBottomNav).map(item => {
           if (item.type === 'fab') {
             // Centre + FAB button -> Navigates to /student/new-request
             return (
               <button
                 key="fab"
-                onClick={() => navigate('/student/new-request')}
+                onClick={() => navigate(item.to || '/student/new-request')}
                 style={{
                   width: 52, height: 52, borderRadius: '50%',
                   background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
@@ -411,7 +437,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             <NavLink
               key={item.to}
               to={item.to!}
-              end={item.to === '/student'}
+              end={item.to === '/student' || item.to === '/hod'}
               style={({ isActive: active }) => ({
                 textDecoration: 'none',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,

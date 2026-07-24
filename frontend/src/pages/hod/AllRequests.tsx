@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, Check, X } from 'lucide-react';
+import { Search, SlidersHorizontal, Check, X, RotateCcw } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -45,12 +45,26 @@ export default function HODAllRequests() {
   const { data: requestsList = [] } = useQuery({
     queryKey: ['requests'],
     queryFn: () => api.getRequests(),
+    refetchInterval: 5000,
   });
 
   const reviewMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
-      api.reviewRequest(id, action),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['requests'] }),
+    mutationFn: ({ id, action, rejectionReason }: { id: string; action: 'approve' | 'reject'; rejectionReason?: string }) =>
+      api.reviewRequest(id, action, rejectionReason),
+    onMutate: async ({ id, action }) => {
+      await queryClient.cancelQueries({ queryKey: ['requests'] });
+      const newStatus = action === 'approve' ? 'approved' : 'rejected';
+      queryClient.setQueryData<api.AttendanceRequest[]>(['requests'], old =>
+        (old || []).map(r => r.id === id ? { ...r, status: newStatus as any } : r)
+      );
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['requests'] });
+    },
+    onError: (err: Error) => {
+      console.error('[AllRequests] review failed:', err.message);
+      alert(`Action failed: ${err.message}`);
+    },
   });
 
   const handleApprove = (id: string) => {
@@ -58,7 +72,9 @@ export default function HODAllRequests() {
   };
 
   const handleReject = (id: string) => {
-    reviewMutation.mutate({ id, action: 'reject' });
+    const reason = window.prompt('Enter rejection reason (required):');
+    if (!reason?.trim()) return; // user cancelled or left blank
+    reviewMutation.mutate({ id, action: 'reject', rejectionReason: reason.trim() });
   };
 
   const filtered = requestsList.filter((req: AttendanceRequest) => {
@@ -104,19 +120,33 @@ export default function HODAllRequests() {
                 placeholder="Search by student, reason, or ID..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/12 transition-all shadow-subtle"
+                className="w-full h-[42px] pl-9 pr-4 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/12 transition-all shadow-subtle"
               />
             </div>
-            <div className="relative w-full sm:w-auto">
-              <SlidersHorizontal size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
-              <select
-                value={department}
-                onChange={e => setDept(e.target.value)}
-                className="w-full sm:w-auto pl-9 pr-4 py-2.5 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 appearance-none cursor-pointer text-slate-700 min-w-[160px] shadow-subtle"
-              >
-                <option value="">All Departments</option>
-                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-initial">
+                <SlidersHorizontal size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
+                <select
+                  value={department}
+                  onChange={e => setDept(e.target.value)}
+                  className="w-full sm:w-auto h-[42px] pl-9 pr-8 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 appearance-none cursor-pointer text-slate-700 min-w-[150px] shadow-subtle font-medium"
+                >
+                  <option value="">All Departments</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              {(search || department || tab !== 'all') && (
+                <button
+                  onClick={() => { setSearch(''); setDept(''); setTab('all'); }}
+                  className="h-[42px] px-3.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 border border-rose-200 rounded-xl text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-subtle cursor-pointer whitespace-nowrap flex-shrink-0"
+                  title="Reset all filters"
+                >
+                  <RotateCcw size={13} />
+                  <span>Clear</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -163,8 +193,8 @@ export default function HODAllRequests() {
                     <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Student</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">ID / Roll No.</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Assigned Faculty</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Requested On</th>
-                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Days</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Action</th>
                   </tr>
@@ -179,7 +209,7 @@ export default function HODAllRequests() {
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2.5">
-                          <Avatar name={req.student?.name || 'S'} size="sm" role="student" />
+                          <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
                           <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
                         </div>
                       </td>
@@ -190,10 +220,12 @@ export default function HODAllRequests() {
                         <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>
                       </td>
                       <td className="px-4 py-3.5">
-                        <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
+                        <span className="text-[12px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200 inline-block">
+                          {req.faculty?.name || 'Department Faculty'}
+                        </span>
                       </td>
                       <td className="px-4 py-3.5">
-                        <span className="text-[13px] font-medium text-slate-700">{getDays(req)}</span>
+                        <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
                       </td>
                       <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
                         <StatusBadge status={req.status} />
@@ -205,8 +237,8 @@ export default function HODAllRequests() {
                             onClick={() => handleApprove(req.id)}
                             className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${
                               req.status === 'approved'
-                                ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
-                                : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-500 hover:text-white hover:border-emerald-500'
+                                ? 'bg-orange-500 text-white border-orange-500 shadow-sm shadow-orange-500/30'
+                                : 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-500 hover:text-white hover:border-orange-500'
                             }`}
                           >
                             <Check size={14} strokeWidth={2.5} />
@@ -243,7 +275,7 @@ export default function HODAllRequests() {
                     {/* Top Row: Avatar, Name & Roll No */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={req.student?.name || 'S'} size="sm" role="student" />
+                        <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
                         <div>
                           <p className="text-[14px] font-semibold text-slate-800 leading-tight">{req.student?.name}</p>
                           <p className="text-[11px] font-mono text-slate-400 mt-0.5">{req.student?.rollNumber}</p>
@@ -269,25 +301,25 @@ export default function HODAllRequests() {
                         <button
                           title="Approve"
                           onClick={() => handleApprove(req.id)}
-                          className={`px-3 py-1 text-[12px] font-semibold rounded-lg border flex items-center gap-1 transition-all ${
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border flex items-center gap-1 transition-all ${
                             req.status === 'approved'
-                              ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
-                              : 'bg-emerald-50 text-emerald-600 border-emerald-200 active:bg-emerald-500 active:text-white'
+                              ? 'bg-orange-500 text-white border-orange-500 shadow-sm shadow-orange-500/20'
+                              : 'bg-orange-50 text-orange-600 border-orange-200 active:bg-orange-500 active:text-white'
                           }`}
                         >
-                          <Check size={13} strokeWidth={2.5} />
+                          <Check size={12} strokeWidth={2.5} />
                           <span>Approve</span>
                         </button>
                         <button
                           title="Reject"
                           onClick={() => handleReject(req.id)}
-                          className={`px-3 py-1 text-[12px] font-semibold rounded-lg border flex items-center gap-1 transition-all ${
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border flex items-center gap-1 transition-all ${
                             req.status === 'rejected'
                               ? 'bg-rose-500 text-white border-rose-500 shadow-sm'
                               : 'bg-rose-50 text-rose-600 border-rose-200 active:bg-rose-500 active:text-white'
                           }`}
                         >
-                          <X size={13} strokeWidth={2.5} />
+                          <X size={12} strokeWidth={2.5} />
                           <span>Reject</span>
                         </button>
                       </div>

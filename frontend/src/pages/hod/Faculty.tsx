@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
 import { PageWrapper } from '../../components/layout/PageWrapper';
-import { Avatar } from '../../components/shared/Avatar';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
@@ -23,6 +22,13 @@ export default function HODFaculty() {
     queryFn: () => api.getRequests(),
   });
 
+  const filteredFaculty = facultyList.filter((fac: Faculty) => {
+    if (fac.role === 'hod') return false;
+    const nameLower = (fac.name || '').toLowerCase();
+    if (nameLower.includes('suresh') || nameLower.includes('gopi') || nameLower.includes('ngk') || nameLower.includes('priya nair')) return false;
+    return true;
+  });
+
   return (
     <PageWrapper role="hod">
       <div className="max-w-4xl mx-auto">
@@ -35,12 +41,12 @@ export default function HODFaculty() {
           className="mb-6"
         >
           <p className="text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">HOD</p>
-          <h1 className="text-[26px] font-heading font-bold text-slate-900">Faculty</h1>
-          <p className="text-[14px] text-slate-400 mt-1">Manage faculty members and view their request statistics</p>
+          <h1 className="text-[26px] font-heading font-bold text-slate-900">Faculty Members</h1>
+          <p className="text-[14px] text-slate-400 mt-1">Faculty directory and attendance request statistics</p>
         </motion.div>
 
         {/* ── Faculty Cards ── */}
-        {facultyList.length === 0 ? (
+        {filteredFaculty.length === 0 ? (
           <EmptyState
             title="No faculty members found"
             description="Faculty members will appear here once registered."
@@ -50,10 +56,10 @@ export default function HODFaculty() {
             variants={listVariants}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-1 gap-4"
+            className="flex flex-col gap-6"
           >
-            {facultyList.map((fac: Faculty) => {
-              const facRequests  = requestsList.filter((r: AttendanceRequest) => r.facultyId === fac.id);
+            {filteredFaculty.map((fac: Faculty) => {
+              const facRequests  = requestsList.filter((r: AttendanceRequest) => r.facultyId === fac.id || r.faculty?.id === fac.id || r.faculty?.email === fac.email);
               const pending      = facRequests.filter((r: AttendanceRequest) => r.status === 'pending').length;
               const approved     = facRequests.filter((r: AttendanceRequest) => r.status === 'approved').length;
               const rejected     = facRequests.filter((r: AttendanceRequest) => r.status === 'rejected').length;
@@ -64,57 +70,81 @@ export default function HODFaculty() {
                 <motion.div
                   key={fac.id}
                   variants={itemVariants}
-                  className="card px-6 py-5"
+                  className="card overflow-hidden"
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: 20,
+                    border: '1px solid #EEF2F7',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+                  }}
                 >
-                  {/* Top row */}
-                  <div className="flex items-center gap-4 mb-4">
-                    <Avatar name={fac.name} size="md" role="faculty" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[16px] font-bold text-slate-900">{fac.name}</p>
-                      <p className="text-[13px] text-slate-400">{fac.department}</p>
+                  <div className="flex flex-row items-stretch">
+                    {/* Photo Container */}
+                    <div className="w-28 sm:w-48 flex-shrink-0 bg-slate-100 overflow-hidden flex items-center justify-center relative">
+                      <img
+                        src={fac.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(fac.name || 'Faculty')}&background=F97316&color=fff&size=240`}
+                        alt={fac.name}
+                        className="w-full h-full object-cover object-top"
+                        onError={e => {
+                          (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fac.name || 'Faculty')}&background=F97316&color=fff&size=240`;
+                        }}
+                      />
                     </div>
-                    <span className="px-3 py-1 text-[11px] font-semibold rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-                      Faculty
-                    </span>
-                  </div>
 
-                  {/* Contact */}
-                  <div className="flex flex-wrap gap-x-6 gap-y-1 mb-4 text-[13px] text-slate-500">
-                    <span>📧 {fac.email}</span>
-                  </div>
+                    {/* Info Container */}
+                    <div className="flex-1 p-3.5 sm:px-6 sm:py-5 flex flex-col justify-center min-w-0">
+                      <p className="text-[10px] sm:text-[11px] font-bold text-orange-500 uppercase tracking-widest mb-1">
+                        {fac.role === 'hod' ? 'HOD OVERVIEW' : 'FACULTY OVERVIEW'}
+                      </p>
+                      <p className="text-[15px] sm:text-[22px] font-heading font-bold text-slate-900 mb-0.5 truncate">
+                        {fac.name}
+                      </p>
+                      <p className="text-[11px] sm:text-[14px] text-slate-500 mb-2 truncate">
+                        {fac.designation || (fac.role === 'hod' ? 'Head of Department' : 'Assistant Professor')}
+                      </p>
+                      
+                      {/* Department & College Badges */}
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-2">
+                        <span className="px-2 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-[12px] font-semibold rounded-full bg-orange-50 text-orange-600 border border-orange-200">
+                          {fac.department ?? 'CSIT'}
+                        </span>
+                        <span className="px-2 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-[12px] font-semibold rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                          SRKR Engineering College
+                        </span>
+                      </div>
 
-                {/* Progress bar */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[12px] text-slate-400 font-medium">Pending load</span>
-                    <span className="text-[12px] font-semibold text-amber-600">{pct}%</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Stats row */}
-                <div className="grid grid-cols-4 gap-3">
-                  {[
-                    { label: 'Total',    value: total,    color: 'text-slate-700'   },
-                    { label: 'Pending',  value: pending,  color: 'text-amber-600'   },
-                    { label: 'Approved', value: approved, color: 'text-emerald-600' },
-                    { label: 'Rejected', value: rejected, color: 'text-rose-500'    },
-                  ].map(s => (
-                    <div key={s.label} className="text-center bg-slate-50 rounded-xl py-2.5">
-                      <p className={`text-[18px] font-heading font-bold ${s.color}`}>{s.value}</p>
-                      <p className="text-[11px] text-slate-400 font-medium">{s.label}</p>
+                      {/* Email */}
+                      <p className="text-[11px] sm:text-[13px] text-slate-400 font-medium truncate">
+                        {fac.email}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+                  </div>
+
+                  {/* Stats Footer */}
+                  <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3">
+                    <div className="w-full sm:w-1/2">
+                      <div className="flex items-center justify-between mb-1 text-[10px] sm:text-[11px]">
+                        <span className="text-slate-400 font-medium">Pending Requests Load</span>
+                        <span className="font-semibold text-amber-600">{pct}% ({pending} pending)</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 sm:gap-4 text-[11px] sm:text-[12px]">
+                      <span className="text-slate-600 font-medium">Total: <strong>{total}</strong></span>
+                      <span className="text-emerald-600 font-medium">Approved: <strong>{approved}</strong></span>
+                      <span className="text-rose-500 font-medium">Rejected: <strong>{rejected}</strong></span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
         )}
 
       </div>

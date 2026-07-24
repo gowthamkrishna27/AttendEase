@@ -22,7 +22,7 @@ export function clearStoredToken(): void {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type RequestStatus = 'pending' | 'approved' | 'rejected';
+export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type RequestReason = 'internship' | 'medical' | 'sports' | 'family_emergency' | 'competition' | 'other';
 export type UserRole = 'student' | 'faculty' | 'hod';
 
@@ -56,6 +56,30 @@ export interface Faculty {
   name: string;
   department: string;
   email: string;
+  designation?: string;
+  avatarUrl?: string;
+}
+
+export interface RequestActionItem {
+  id: string;
+  action: string;
+  remarks?: string;
+  performedAt: string;
+  performedBy: {
+    id: string;
+    name: string;
+    role?: string;
+  };
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  requestId?: string;
 }
 
 export interface AttendanceRequest {
@@ -73,8 +97,11 @@ export interface AttendanceRequest {
   submittedAt: string;
   facultyId?: string;
   faculty?: Faculty;
+  faculties?: Faculty[];
   reviewedAt?: string;
-  rejectionReason?: string;
+  finalDecisionBy?: 'Faculty' | 'HOD';
+  finalDecisionUserId?: string;
+  actions?: RequestActionItem[];
 }
 
 // ─── Fetch wrapper ────────────────────────────────────────────────────────────
@@ -94,10 +121,22 @@ async function apiFetch<T>(
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+  const reqInit = { ...options, headers };
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, reqInit);
+  } catch {
+    // If primary port fetch fails (e.g. backend restarted on port 3001), try fallback port 3001
+    const fallbackBase = BASE.includes('3000') ? BASE.replace('3000', '3001') : 'http://localhost:3000';
+    try {
+      res = await fetch(`${fallbackBase}${path}`, reqInit);
+    } catch {
+      throw new Error('Unable to connect to backend server. Please make sure the backend is running.');
+    }
+  }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
+    const body = await res.json().catch(() => ({ error: res.statusText || 'API error' }));
     throw new Error((body as { error?: string }).error ?? 'API error');
   }
 
@@ -119,15 +158,16 @@ export async function login(
 }
 
 export async function logout(): Promise<void> {
-  await apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  await apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => { });
   clearStoredToken();
 }
 
 // ─── Requests ─────────────────────────────────────────────────────────────────
 
-export async function getRequests(params?: { department?: string }): Promise<AttendanceRequest[]> {
-  const qs = params?.department ? `?department=${encodeURIComponent(params.department)}` : '';
-  const res = await apiFetch<{ requests: AttendanceRequest[] }>(`/api/requests${qs}`);
+// NOTE: ?department= param intentionally removed — scope is always derived from the
+// JWT on the backend. Param kept in signature to avoid call-site breakage.
+export async function getRequests(_params?: { department?: string }): Promise<AttendanceRequest[]> {
+  const res = await apiFetch<{ requests: AttendanceRequest[] }>('/api/requests');
   return res.requests;
 }
 
@@ -143,6 +183,8 @@ export interface CreateRequestPayload {
   endTime: string;
   description: string;
   documentName?: string;
+  facultyId?: string;
+  facultyIds?: string[];
 }
 
 export async function createRequest(data: CreateRequestPayload): Promise<AttendanceRequest> {
@@ -165,6 +207,34 @@ export async function reviewRequest(
   return res.request;
 }
 
+export async function cancelRequest(id: string): Promise<AttendanceRequest> {
+  const res = await apiFetch<{ request: AttendanceRequest }>(
+    `/api/requests/${id}/cancel`,
+    { method: 'POST' },
+  );
+  return res.request;
+}
+
+export async function getRequestActions(id: string): Promise<RequestActionItem[]> {
+  const res = await apiFetch<{ actions: RequestActionItem[] }>(`/api/requests/${id}/actions`);
+  return res.actions;
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export async function getNotifications(): Promise<NotificationItem[]> {
+  const res = await apiFetch<{ notifications: NotificationItem[] }>('/api/notifications');
+  return res.notifications;
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await apiFetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await apiFetch('/api/notifications/read-all', { method: 'PATCH' });
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export async function getFaculty(): Promise<Faculty[]> {
@@ -177,22 +247,20 @@ export async function getMe(): Promise<AuthUser> {
   return res.user;
 }
 
-export type UpdateProfilePayload = Partial<{
-  name: string;
-  email: string;
-  phone: string;
-  dob: string;
-  gender: string;
-  address: string;
-  avatarUrl: string;
-  password: string;
-  currentPassword?: string;
-}>;
+export interface UpdateProfilePayload {
+  name?: string;
+  email?: string;
+  avatarUrl?: string;
+  phone?: string;
+  dob?: string;
+  gender?: string;
+  address?: string;
+}
 
 export async function updateMe(data: UpdateProfilePayload): Promise<AuthUser> {
-  const res = await apiFetch<{ user: AuthUser }>(
-    '/api/users/me',
-    { method: 'PUT', body: JSON.stringify(data) },
-  );
+  const res = await apiFetch<{ user: AuthUser }>('/api/users/me', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
   return res.user;
 }

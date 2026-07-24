@@ -12,12 +12,12 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantMap = {
-  primary: 'bg-gradient-to-br from-navy-500 to-navy-600 text-white shadow-[0_2px_8px_rgba(27,58,140,0.35)] hover:shadow-[0_4px_16px_rgba(27,58,140,0.4)] hover:from-navy-600 hover:to-navy-700 disabled:opacity-60',
-  secondary: 'bg-white text-navy-500 border border-navy-500/20 hover:border-navy-500/40 hover:bg-navy-50 disabled:opacity-60',
-  danger: 'bg-gradient-to-br from-maroon-500 to-maroon-600 text-white shadow-[0_2px_8px_rgba(139,26,46,0.3)] hover:shadow-[0_4px_16px_rgba(139,26,46,0.35)] hover:from-maroon-600 hover:to-maroon-700 disabled:opacity-60',
-  ghost: 'bg-transparent text-slate-500 hover:bg-navy-50 hover:text-navy-500',
-  teal: 'bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-[0_2px_8px_rgba(8,145,178,0.35)] hover:from-teal-600 hover:to-teal-700 disabled:opacity-60',
-  maroon: 'bg-gradient-to-br from-maroon-500 to-maroon-600 text-white shadow-[0_2px_8px_rgba(139,26,46,0.3)] hover:from-maroon-600 hover:to-maroon-700 disabled:opacity-60',
+  primary: 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-[0_2px_8px_rgba(249,115,22,0.3)] hover:shadow-[0_4px_16px_rgba(249,115,22,0.4)] hover:from-orange-600 hover:to-orange-700 disabled:opacity-60',
+  secondary: 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60',
+  danger: 'bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-[0_2px_8px_rgba(225,29,72,0.3)] hover:shadow-[0_4px_16px_rgba(225,29,72,0.35)] hover:from-rose-600 hover:to-rose-700 disabled:opacity-60',
+  ghost: 'bg-transparent text-slate-600 hover:bg-orange-50 hover:text-orange-600',
+  teal: 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-[0_2px_8px_rgba(16,185,129,0.35)] hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60',
+  maroon: 'bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-[0_2px_8px_rgba(225,29,72,0.3)] hover:from-rose-600 hover:to-rose-700 disabled:opacity-60',
 };
 
 const sizeMap = {

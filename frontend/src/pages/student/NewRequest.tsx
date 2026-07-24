@@ -4,18 +4,19 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { UploadArea } from '../../components/forms/UploadArea';
 import * as api from '../../lib/api';
 import {
   ArrowLeft, CalendarDays, Clock, FileText, Upload,
-  BookOpen, PenLine, Send
+  BookOpen, PenLine, Send, UserCheck
 } from 'lucide-react';
 
 const schema = z
   .object({
     reason: z.string().min(1, 'Please select a reason'),
+    facultyId: z.string().optional(),
     date: z.string().min(1, 'Please select a date'),
     startTime: z.string().min(1, 'Please enter start time'),
     endTime: z.string().min(1, 'Please enter end time'),
@@ -66,6 +67,18 @@ export default function NewRequest() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
+  const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
+
+  const { data: facultyList = [] } = useQuery({
+    queryKey: ['faculty'],
+    queryFn: () => api.getFaculty(),
+  });
+
+  const toggleFaculty = (id: string) => {
+    setSelectedFacultyIds(prev =>
+      prev.includes(id) ? prev.filter(fId => fId !== id) : [...prev, id]
+    );
+  };
 
   const getTodayDate = () => {
     return new Date().toISOString().split('T')[0];
@@ -90,6 +103,7 @@ export default function NewRequest() {
     resolver: zodResolver(schema),
     defaultValues: {
       reason: '',
+      facultyId: '',
       date: getTodayDate(),
       startTime: getCurrentTime(),
       endTime: getHourLaterTime(),
@@ -104,6 +118,11 @@ export default function NewRequest() {
       startTime: data.startTime,
       endTime: data.endTime,
       description: data.description,
+      ...(selectedFacultyIds.length > 0
+        ? { facultyIds: selectedFacultyIds, facultyId: selectedFacultyIds[0] }
+        : data.facultyId
+          ? { facultyId: data.facultyId, facultyIds: [data.facultyId] }
+          : {}),
       ...(file ? { documentName: file.name } : {}),
     }),
     onSuccess: () => {
@@ -171,7 +190,7 @@ export default function NewRequest() {
             </div>
 
             <label style={labelStyle}>Select Reason</label>
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', marginBottom: 16 }}>
               <BookOpen size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
               <select
                 {...register('reason')}
@@ -183,7 +202,70 @@ export default function NewRequest() {
                 {reasonOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
-            {errors.reason && <p style={{ fontSize: 12, color: '#DC2626', margin: '5px 0 0' }}>{errors.reason.message}</p>}
+            {errors.reason && <p style={{ fontSize: 12, color: '#DC2626', margin: '-10px 0 12px' }}>{errors.reason.message}</p>}
+
+            {/* Target Faculty — Multi-Selection */}
+            <label style={labelStyle}>
+              Point to Faculty Member(s) <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>(Select one or more: Class Mentor, Counselor, Subject Faculty)</span>
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+              {facultyList.map((f: api.Faculty, idx: number) => {
+                const isSelected = selectedFacultyIds.includes(f.id);
+                // Assign realistic designations for student selection context
+                const designationTag = f.designation || (idx % 3 === 0 ? 'Class Mentor' : idx % 3 === 1 ? 'Counselor' : 'Subject Faculty');
+                return (
+                  <div
+                    key={f.id}
+                    onClick={() => toggleFaculty(f.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: isSelected ? '1.5px solid #F97316' : '1px solid #E8EDF2',
+                      background: isSelected ? '#FFF7ED' : '#F8FAFC',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 34, height: 34, borderRadius: 10, overflow: 'hidden',
+                          background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: 14, color: '#475569'
+                        }}
+                      >
+                        {f.avatarUrl ? (
+                          <img src={f.avatarUrl} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          f.name.charAt(0)
+                        )}
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>{f.name}</p>
+                        <p style={{ fontSize: 11, color: '#64748B', margin: '2px 0 0' }}>{f.department} · {designationTag}</p>
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        width: 20, height: 20, borderRadius: 6,
+                        border: isSelected ? 'none' : '1.5px solid #CBD5E1',
+                        background: isSelected ? '#F97316' : '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#fff', fontSize: 12, fontWeight: 800,
+                      }}
+                    >
+                      {isSelected && '✓'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p style={{ fontSize: 11, color: '#94A3B8', margin: '5px 0 0' }}>
+              Only selected faculty members (e.g. Class Mentor, Counselor, Subject Teacher) will be authorized to view &amp; approve your request.
+            </p>
           </div>
 
           {/* Section 2 — Date & Time */}

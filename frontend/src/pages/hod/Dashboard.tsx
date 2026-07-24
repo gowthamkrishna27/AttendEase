@@ -1,98 +1,68 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, Check, X } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
-import { StatusBadge } from '../../components/shared/StatusBadge';
-import { Avatar } from '../../components/shared/Avatar';
-import { EmptyState } from '../../components/shared/EmptyState';
-import { Button } from '../../components/ui/Button';
-import { formatDate, DEPARTMENTS } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import {
+  ClipboardList, Users, BarChart2, Settings, ArrowRight,
+  Clock, CheckCircle, XCircle, ArrowUpRight
+} from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
+import { Avatar } from '../../components/shared/Avatar';
+import { StatusBadge } from '../../components/shared/StatusBadge';
+import { formatDate } from '../../lib/utils';
 import type { AttendanceRequest } from '../../types';
 
-const listVariants = { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } };
-const itemVariants = {
-  hidden:  { opacity: 0, y: 6 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
-};
-
-const STATUS_TABS = [
-  { label: 'All',      value: 'all'      },
-  { label: 'Pending',  value: 'pending'  },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Rejected', value: 'rejected' },
-] as const;
-
-type TabValue = 'all' | 'pending' | 'approved' | 'rejected';
-
-const tabActiveClass: Record<TabValue, string> = {
-  all:      'bg-orange-500 text-white',
-  pending:  'bg-amber-500 text-white',
-  approved: 'bg-emerald-500 text-white',
-  rejected: 'bg-rose-500 text-white',
-};
-
 export default function HODDashboard() {
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-  const [search, setSearch]     = useState('');
-  const [department, setDept]   = useState('');
-  const [tab, setTab]           = useState<TabValue>('all');
-
-  const { data: requestsList = [] } = useQuery({
+  const { data: requestsList = [], isLoading } = useQuery({
     queryKey: ['requests'],
     queryFn: () => api.getRequests(),
+    refetchInterval: 5000,
   });
 
-  const reviewMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
-      api.reviewRequest(id, action),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['requests'] }),
-  });
+  const pendingCount = requestsList.filter((r: AttendanceRequest) => r.status === 'pending').length;
+  const approvedCount = requestsList.filter((r: AttendanceRequest) => r.status === 'approved').length;
+  const rejectedCount = requestsList.filter((r: AttendanceRequest) => r.status === 'rejected').length;
 
-  const handleApprove = (id: string) => {
-    reviewMutation.mutate({ id, action: 'approve' });
-  };
+  const quickLinks = [
+    { label: 'All Requests', description: 'Review & manage student permission requests', icon: ClipboardList, to: '/hod/requests', color: '#F97316', bg: 'rgba(249,115,22,0.08)' },
+    { label: 'Faculty Directory', description: 'View department faculty members & workloads', icon: Users, to: '/hod/faculty', color: '#10B981', bg: 'rgba(16,185,129,0.08)' },
+    { label: 'Analytics Reports', description: 'Department-wide attendance permission metrics', icon: BarChart2, to: '/hod/reports', color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)' },
+    { label: 'Portal Settings', description: 'Manage department preferences & settings', icon: Settings, to: '/hod/settings', color: '#3B82F6', bg: 'rgba(59,130,246,0.08)' },
+  ];
 
-  const handleReject = (id: string) => {
-    reviewMutation.mutate({ id, action: 'reject' });
-  };
-
-  const filtered = requestsList.filter((req: AttendanceRequest) => {
-    const matchesTab    = tab === 'all' || req.status === tab;
-    const matchesSearch =
-      req.student?.name.toLowerCase().includes(search.toLowerCase()) ||
-      req.reasonLabel.toLowerCase().includes(search.toLowerCase()) ||
-      (req.student?.rollNumber ?? '').toLowerCase().includes(search.toLowerCase()) ||
-      (req.faculty?.name ?? '').toLowerCase().includes(search.toLowerCase());
-    const matchesDept = !department || req.student?.department === department;
-    return matchesTab && matchesSearch && matchesDept;
-  });
-
-  const getDays = (_req: AttendanceRequest) => 1;
+  const recentRequests = requestsList.slice(0, 5);
 
   return (
     <PageWrapper role="hod">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
 
         {/* ── HOD Profile Banner ── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="card overflow-hidden mb-6 sm:mb-8"
+          className="card overflow-hidden"
+          style={{
+            background: '#ffffff',
+            borderRadius: 20,
+            border: '1px solid #EEF2F7',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+          }}
         >
           <div className="flex flex-col sm:flex-row items-stretch">
             {/* Photo */}
-            <div className="sm:w-48 w-full h-52 sm:h-auto flex-shrink-0 bg-slate-100 overflow-hidden">
+            <div className="sm:w-48 w-full h-64 sm:h-auto flex-shrink-0 bg-slate-100 overflow-hidden relative">
               <img
-                src="https://www.srkrec.ac.in/assets/images/faculty/csd/780.jpeg"
+                src={
+                  user?.avatarUrl ??
+                  (user?.department === 'CSIT'
+                    ? 'https://www.srkrec.ac.in/assets/images/faculty/csit/781.jpeg'
+                    : 'https://www.srkrec.ac.in/assets/images/faculty/csd/780.jpeg')
+                }
                 alt="HOD Profile"
                 className="w-full h-full object-cover object-top"
               />
@@ -100,249 +70,187 @@ export default function HODDashboard() {
             {/* Info */}
             <div className="flex-1 p-5 sm:px-6 sm:py-5 flex flex-col justify-center">
               <p className="text-[11px] font-bold text-orange-500 uppercase tracking-widest mb-1.5">
-                HOD Overview
+                HOD OVERVIEW
               </p>
               <p className="text-[20px] sm:text-[22px] font-heading font-bold text-slate-900 mb-0.5">{user?.name}</p>
               <p className="text-[13px] sm:text-[14px] text-slate-500 mb-3">Head of Department</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mb-3">
                 <span className="px-3 py-1 text-[11px] sm:text-[12px] font-semibold rounded-full bg-orange-50 text-orange-600 border border-orange-200">
-                  {user?.department ?? 'Computer Science & Engineering'}
+                  {user?.department ?? 'CSIT'}
                 </span>
                 <span className="px-3 py-1 text-[11px] sm:text-[12px] font-semibold rounded-full bg-slate-100 text-slate-500 border border-slate-200">
                   SRKR Engineering College
                 </span>
               </div>
-              <p className="text-[12px] sm:text-[13px] text-slate-400 mt-2.5">{user?.email}</p>
+              <p className="text-[12px] sm:text-[13px] text-slate-400 font-medium">{user?.email}</p>
             </div>
           </div>
         </motion.div>
 
-        {/* ── All Requests ── */}
+        {/* ── Request Statistics Grid ── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.14 }}
-          className="mb-8"
+          transition={{ duration: 0.3, delay: 0.05 }}
+          className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4"
         >
-          <h2 className="text-[16px] font-heading font-bold text-slate-900 mb-3">All Requests</h2>
-
-          {/* Search + Department Filter */}
-          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 mb-3.5">
-            <div className="relative flex-1">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
-              <input
-                type="text"
-                placeholder="Search by student, reason, or ID..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/12 transition-all shadow-subtle"
-              />
+          <div className="card p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-semibold text-slate-400">Total Requests</span>
+              <ClipboardList size={16} className="text-orange-500" />
             </div>
-            <div className="relative w-full sm:w-auto">
-              <SlidersHorizontal size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
-              <select
-                value={department}
-                onChange={e => setDept(e.target.value)}
-                className="w-full sm:w-auto pl-9 pr-4 py-2.5 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 appearance-none cursor-pointer text-slate-700 min-w-[160px] shadow-subtle"
-              >
-                <option value="">All Departments</option>
-                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
+            <p className="text-[22px] font-bold text-slate-900">{requestsList.length}</p>
           </div>
 
-          {/* Status pill tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 sm:pb-0 mb-4 no-scrollbar">
-            {STATUS_TABS.map(t => (
-              <button
-                key={t.value}
-                onClick={() => setTab(t.value)}
-                className={`px-3.5 sm:px-4 py-1.5 text-[12px] sm:text-[13px] font-semibold rounded-full whitespace-nowrap transition-all duration-150 ${
-                  tab === t.value
-                    ? tabActiveClass[t.value] + ' shadow-subtle'
-                    : 'bg-white text-slate-500 border border-slate-200 hover:border-orange-300 hover:text-orange-600'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="card p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-semibold text-slate-400">Pending Review</span>
+              <Clock size={16} className="text-amber-500" />
+            </div>
+            <p className="text-[22px] font-bold text-amber-600">{pendingCount}</p>
           </div>
 
-          {/* Table / Mobile Cards */}
-          {filtered.length === 0 ? (
-            <EmptyState
-              title="No requests found"
-              description="Try adjusting your filters."
-              action={
-                <Button variant="secondary" onClick={() => { setSearch(''); setDept(''); setTab('all'); }}>
-                  Clear filters
-                </Button>
-              }
-            />
+          <div className="card p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-semibold text-slate-400">Approved</span>
+              <CheckCircle size={16} className="text-emerald-500" />
+            </div>
+            <p className="text-[22px] font-bold text-emerald-600">{approvedCount}</p>
+          </div>
+
+          <div className="card p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-semibold text-slate-400">Rejected</span>
+              <XCircle size={16} className="text-rose-500" />
+            </div>
+            <p className="text-[22px] font-bold text-rose-600">{rejectedCount}</p>
+          </div>
+        </motion.div>
+
+        {/* ── Recent Requests Live Table ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="card overflow-hidden bg-white border border-slate-200/80 rounded-2xl shadow-sm"
+        >
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-[16px] font-bold text-slate-900">Recent Permission Requests</h2>
+              <p className="text-[12px] text-slate-400 mt-0.5">Latest attendance permission requests across department</p>
+            </div>
+            <button
+              onClick={() => navigate('/hod/requests')}
+              className="text-[13px] font-semibold text-orange-600 hover:text-orange-700 flex items-center gap-1 transition-colors"
+            >
+              View All <ArrowUpRight size={15} />
+            </button>
+          </div>
+
+          {isLoading ? (
+            <div className="p-8 text-center text-[13px] text-slate-400">Loading requests...</div>
+          ) : recentRequests.length === 0 ? (
+            <div className="p-8 text-center text-[13px] text-slate-400">No requests submitted yet.</div>
           ) : (
-            <div className="card overflow-hidden">
-              
-              {/* Desktop / Tablet View (Table) */}
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/60">
-                      <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Student</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">ID / Roll No.</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Requested On</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Days</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Action</th>
-                    </tr>
-                  </thead>
-                  <motion.tbody variants={listVariants} initial="hidden" animate="visible">
-                    {filtered.map(req => (
-                      <motion.tr
-                        key={req.id}
-                        variants={itemVariants}
-                        onClick={() => navigate(`/hod/request/${req.id}`)}
-                        className="border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50/70 transition-colors group"
-                      >
-                        {/* Student */}
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2.5">
-                            <Avatar name={req.student?.name || 'S'} size="sm" role="student" />
-                            <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
-                          </div>
-                        </td>
-                        {/* ID / Roll No. */}
-                        <td className="px-4 py-3.5">
-                          <span className="text-[13px] font-mono text-slate-500">{req.student?.rollNumber}</span>
-                        </td>
-                        {/* Reason */}
-                        <td className="px-4 py-3.5">
-                          <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>
-                        </td>
-                        {/* Requested On */}
-                        <td className="px-4 py-3.5">
-                          <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
-                        </td>
-                        {/* Days */}
-                        <td className="px-4 py-3.5">
-                          <span className="text-[13px] font-medium text-slate-700">{getDays(req)}</span>
-                        </td>
-                        {/* Status */}
-                        <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
-                          <StatusBadge status={req.status} />
-                        </td>
-                        {/* Action */}
-                        <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              title="Approve"
-                              onClick={() => handleApprove(req.id)}
-                              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${
-                                req.status === 'approved'
-                                  ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
-                                  : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-500 hover:text-white hover:border-emerald-500'
-                              }`}
-                            >
-                              <Check size={14} strokeWidth={2.5} />
-                            </button>
-                            <button
-                              title="Reject"
-                              onClick={() => handleReject(req.id)}
-                              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${
-                                req.status === 'rejected'
-                                  ? 'bg-rose-500 text-white border-rose-500 shadow-sm'
-                                  : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-500 hover:text-white hover:border-rose-500'
-                              }`}
-                            >
-                              <X size={14} strokeWidth={2.5} />
-                            </button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </motion.tbody>
-                </table>
-              </div>
-
-              {/* Mobile View (Card List) */}
-              <div className="block sm:hidden divide-y divide-slate-100">
-                <motion.div variants={listVariants} initial="hidden" animate="visible">
-                  {filtered.map(req => (
-                    <motion.div
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <th className="px-5 py-3">Student</th>
+                    <th className="px-4 py-3">Roll No</th>
+                    <th className="px-4 py-3">Reason</th>
+                    <th className="px-4 py-3">Faculty</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {recentRequests.map(req => (
+                    <tr
                       key={req.id}
-                      variants={itemVariants}
                       onClick={() => navigate(`/hod/request/${req.id}`)}
-                      className="p-4 cursor-pointer hover:bg-slate-50/80 transition-colors flex flex-col gap-2.5"
+                      className="cursor-pointer hover:bg-slate-50/80 transition-colors"
                     >
-                      {/* Top Row: Avatar, Name & Roll No */}
-                      <div className="flex items-center justify-between">
+                      <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2.5">
-                          <Avatar name={req.student?.name || 'S'} size="sm" role="student" />
-                          <div>
-                            <p className="text-[14px] font-semibold text-slate-800 leading-tight">{req.student?.name}</p>
-                            <p className="text-[11px] font-mono text-slate-400 mt-0.5">{req.student?.rollNumber}</p>
-                          </div>
+                          <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
+                          <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
                         </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-[13px] font-mono text-slate-500">
+                        {req.student?.rollNumber}
+                      </td>
+                      <td className="px-4 py-3.5 text-[13px] text-slate-700 font-medium">
+                        {req.reasonLabel}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="text-[11px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200 inline-block">
+                          {req.faculty?.name || 'Department Faculty'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-[12px] text-slate-500">
+                        {formatDate(req.date)}
+                      </td>
+                      <td className="px-4 py-3.5">
                         <StatusBadge status={req.status} />
-                      </div>
-
-                      {/* Middle Row: Reason, Date & Duration */}
-                      <div className="flex items-center justify-between text-[12px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                        <span className="font-medium text-slate-700">{req.reasonLabel}</span>
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <span>{formatDate(req.date)}</span>
-                          <span>•</span>
-                          <span>{getDays(req)} days</span>
-                        </div>
-                      </div>
-
-                      {/* Bottom Row: Actions */}
-                      <div className="flex items-center justify-between pt-0.5" onClick={e => e.stopPropagation()}>
-                        <span className="text-[11px] text-slate-400 font-medium">Quick Actions</span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            title="Approve"
-                            onClick={() => handleApprove(req.id)}
-                            className={`px-3 py-1 text-[12px] font-semibold rounded-lg border flex items-center gap-1 transition-all ${
-                              req.status === 'approved'
-                                ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
-                                : 'bg-emerald-50 text-emerald-600 border-emerald-200 active:bg-emerald-500 active:text-white'
-                            }`}
-                          >
-                            <Check size={13} strokeWidth={2.5} />
-                            <span>Approve</span>
-                          </button>
-                          <button
-                            title="Reject"
-                            onClick={() => handleReject(req.id)}
-                            className={`px-3 py-1 text-[12px] font-semibold rounded-lg border flex items-center gap-1 transition-all ${
-                              req.status === 'rejected'
-                                ? 'bg-rose-500 text-white border-rose-500 shadow-sm'
-                                : 'bg-rose-50 text-rose-600 border-rose-200 active:bg-rose-500 active:text-white'
-                            }`}
-                          >
-                            <X size={13} strokeWidth={2.5} />
-                            <span>Reject</span>
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
+                      </td>
+                    </tr>
                   ))}
-                </motion.div>
-              </div>
-
-              {/* View All Requests footer */}
-              <div className="flex items-center justify-center py-3.5 border-t border-slate-100 bg-slate-50/40">
-                <button
-                  onClick={() => navigate('/hod/requests')}
-                  className="flex items-center gap-1.5 text-[13px] font-semibold text-orange-600 hover:text-orange-700 transition-colors"
-                >
-                  View All Requests
-                  <span className="text-[15px]">→</span>
-                </button>
-              </div>
+                </tbody>
+              </table>
             </div>
           )}
+        </motion.div>
+
+        {/* ── Quick Navigation Cards ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.15 }}
+          className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+        >
+          {quickLinks.map(link => {
+            const Icon = link.icon;
+            return (
+              <div
+                key={link.label}
+                onClick={() => navigate(link.to)}
+                className="card p-5 cursor-pointer hover:border-orange-200 transition-all duration-200 group flex items-start gap-4"
+                style={{
+                  background: '#ffffff',
+                  borderRadius: 16,
+                  border: '1px solid #EEF2F7',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.03)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: link.bg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon size={22} style={{ color: link.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-orange-600 transition-colors">
+                      {link.label}
+                    </h3>
+                    <ArrowRight size={16} className="text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                  </div>
+                  <p className="text-[12px] text-slate-400 leading-snug">
+                    {link.description}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
         </motion.div>
 
       </div>

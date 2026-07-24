@@ -17,8 +17,8 @@ export interface UserRecord {
 export const users: UserRecord[] = [
   {
     id: 'stu-001',
-    name: 'Arjun Sharma',
-    email: 'arjun.sharma@college.edu',
+    name: 'Student',
+    email: 'student@college.edu',
     role: 'student',
     department: 'Computer Science',
     rollNumber: '24B91A0720',
@@ -49,11 +49,11 @@ export const users: UserRecord[] = [
 export const students: Student[] = [
   {
     id: 'stu-001',
-    name: 'Arjun Sharma',
+    name: 'Student',
     rollNumber: '24B91A0720',
     department: 'Computer Science',
     semester: 6,
-    email: 'arjun.sharma@college.edu',
+    email: 'student@college.edu',
     avatarUrl: 'https://srkrexams.in/SRKR/photo/24B91A0720.jpg',
   },
   {

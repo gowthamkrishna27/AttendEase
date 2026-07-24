@@ -20,8 +20,12 @@ import Profile from './pages/student/Profile';
 import StudentNotifications from './pages/student/Notifications';
 
 // Pages — faculty
-import FacultyDashboard from './pages/faculty/Dashboard';
-import FacultyRequestDetails from './pages/faculty/RequestDetails';
+import FacultyDashboard from './pages/faculty_portal/Dashboard';
+import FacultyRequests from './pages/faculty_portal/Requests';
+import FacultyRequestDetails from './pages/faculty_portal/RequestDetails';
+import FacultyStudents from './pages/faculty_portal/Students';
+import FacultyReports from './pages/faculty_portal/Reports';
+import FacultySettings from './pages/faculty_portal/Settings';
 
 // Pages — HOD
 import HODDashboard from './pages/hod/Dashboard';
@@ -33,7 +37,7 @@ import HODSettings from './pages/hod/Settings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 1000 * 60 * 5, retry: 1 },
+    queries: { staleTime: 0, retry: 1 },
   },
 });
 
@@ -91,7 +95,11 @@ function AppRoutes() {
 
         {/* Faculty (protected) */}
         <Route path="/faculty" element={<ProtectedRoute role="faculty"><FacultyDashboard /></ProtectedRoute>} />
+        <Route path="/faculty/requests" element={<ProtectedRoute role="faculty"><FacultyRequests /></ProtectedRoute>} />
         <Route path="/faculty/request/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
+        <Route path="/faculty/students" element={<ProtectedRoute role="faculty"><FacultyStudents /></ProtectedRoute>} />
+        <Route path="/faculty/reports" element={<ProtectedRoute role="faculty"><FacultyReports /></ProtectedRoute>} />
+        <Route path="/faculty/settings" element={<ProtectedRoute role="faculty"><FacultySettings /></ProtectedRoute>} />
 
         {/* HOD (protected) */}
         <Route path="/hod" element={<ProtectedRoute role="hod"><HODDashboard /></ProtectedRoute>} />

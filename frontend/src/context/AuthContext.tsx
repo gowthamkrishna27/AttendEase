@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import * as api from '../lib/api';
 import type { AuthUser, UpdateProfilePayload } from '../lib/api';
 import { getStoredToken, setStoredToken, clearStoredToken } from '../lib/api';
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<AuthUser | null>(null);
   const [isLoading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   // Rehydrate user from stored token on mount
   useEffect(() => {
@@ -37,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (identifier: string, password: string, role: UserRole) => {
+    queryClient.clear();
     const { token, user: u } = await api.login(identifier, password, role);
     setStoredToken(token);
     setUser(u);
@@ -49,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    queryClient.clear();
     clearStoredToken();
     setUser(null);
     api.logout().catch(() => {});

@@ -261,7 +261,7 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* Right Side: Live HTML/CSS render of Arjun Sharma's student dashboard */}
+        {/* Right Side: Live HTML/CSS render of student dashboard */}
         <div style={{ flex: '1 1 500px', minWidth: 320, display: 'flex', justifyContent: 'center', position: 'relative' }}>
           
           {/* Main Dashboard Window Mockup */}
@@ -282,7 +282,7 @@ export default function Landing() {
 
             {/* Content Area */}
             <div style={{ flex: 1, padding: 18, background: '#F8FAFC', overflowY: 'auto' }}>
-              <p style={{ fontSize: 16, fontWeight: 800, color: '#000000', margin: '0 0 2px' }}>Hello, Arjun Sharma 👋</p>
+              <p style={{ fontSize: 16, fontWeight: 800, color: '#000000', margin: '0 0 2px' }}>Hello, Student 👋</p>
               <p style={{ fontSize: 10, color: '#94A3B8', margin: '0 0 16px' }}>Welcome back to AttendEase</p>
 
               {/* Stats Grid inside Mockup */}

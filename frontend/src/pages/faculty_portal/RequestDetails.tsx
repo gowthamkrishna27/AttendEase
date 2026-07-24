@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FileText, CreditCard, Building2, GraduationCap } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -27,7 +27,20 @@ export default function FacultyRequestDetails() {
   const reviewMutation = useMutation({
     mutationFn: ({ action, reason }: { action: 'approve' | 'reject'; reason?: string }) =>
       api.reviewRequest(id!, action, reason),
-    onSuccess: () => {
+    onMutate: async ({ action }) => {
+      await queryClient.cancelQueries({ queryKey: ['request', id] });
+      await queryClient.cancelQueries({ queryKey: ['requests'] });
+
+      const newStatus = action === 'approve' ? 'approved' : 'rejected';
+      queryClient.setQueryData<api.AttendanceRequest>(['request', id], old =>
+        old ? { ...old, status: newStatus as any } : old
+      );
+
+      queryClient.setQueryData<api.AttendanceRequest[]>(['requests'], old =>
+        (old || []).map(r => r.id === id ? { ...r, status: newStatus as any } : r)
+      );
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
       void queryClient.invalidateQueries({ queryKey: ['request', id] });
       setConfirmModal(null);
@@ -36,7 +49,7 @@ export default function FacultyRequestDetails() {
 
   if (isLoading) {
     return (
-      <PageWrapper role="faculty">
+      <PageWrapper role="faculty" showGreeting={false}>
         <div className="max-w-xl mx-auto text-center py-20">
           <p className="text-[16px] text-[#6B7280]">Loading...</p>
         </div>
@@ -46,7 +59,7 @@ export default function FacultyRequestDetails() {
 
   if (isError || !request) {
     return (
-      <PageWrapper role="faculty">
+      <PageWrapper role="faculty" showGreeting={false}>
         <div className="max-w-xl mx-auto text-center py-20">
           <p className="text-[16px] text-[#6B7280]">Request not found.</p>
           <Button className="mt-4" onClick={() => navigate('/faculty')}>
@@ -67,7 +80,7 @@ export default function FacultyRequestDetails() {
   };
 
   return (
-    <PageWrapper role="faculty">
+    <PageWrapper role="faculty" showGreeting={false}>
       <div className="max-w-xl mx-auto">
         {/* Back */}
         <button
@@ -91,19 +104,75 @@ export default function FacultyRequestDetails() {
           <StatusBadge status={currentStatus} />
         </div>
 
-        {/* Student Info */}
-        <div className="card p-5 mb-4">
-          <p className="text-[13px] font-medium text-[#6B7280] mb-3">Student Information</p>
-          <div className="flex items-center gap-4">
-            <Avatar name={request.student?.name || 'S'} size="md" />
+        {/* Student Info — profile card style (Flush photo fit) */}
+        <div
+          className="mb-6 flex flex-col sm:flex-row items-stretch"
+          style={{
+            background: '#ffffff',
+            borderRadius: 20,
+            border: '1px solid #EEF2F7',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Flush photo on left edge */}
+          <div className="w-full sm:w-36 h-36 sm:h-auto flex-shrink-0 relative bg-slate-100 flex items-center justify-center overflow-hidden">
+            {request.student?.avatarUrl ? (
+              <img
+                src={request.student.avatarUrl}
+                alt={request.student.name}
+                className="w-full h-full object-cover object-top"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : null}
+            <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white text-3xl font-bold -z-10">
+              {(request.student?.name || 'S').charAt(0)}
+            </div>
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 p-5 sm:px-6 sm:py-5 flex flex-col justify-center">
+            <p className="text-[17px] font-heading font-bold text-slate-900 mb-1">
+              {request.student?.name}
+            </p>
             <div>
-              <p className="text-[15px] font-semibold text-[#111111]">{request.student?.name}</p>
-              <p className="text-[13px] text-[#6B7280]">
-                {request.student?.rollNumber} · {request.student?.department}
-              </p>
-              <p className="text-[13px] text-[#6B7280]">
-                Semester {request.student?.semester} · {request.student?.email}
-              </p>
+              <span
+                style={{
+                  display: 'inline-block',
+                  fontSize: 11, fontWeight: 700,
+                  color: '#EA580C',
+                  background: '#FFF7ED',
+                  border: '1px solid #FED7AA',
+                  borderRadius: 999,
+                  padding: '2px 10px',
+                  marginBottom: 12,
+                }}
+              >
+                Student · {request.student?.department}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              <div className="flex items-center gap-1.5">
+                <CreditCard size={13} className="text-slate-400" />
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-800 leading-tight">{request.student?.rollNumber}</p>
+                  <p className="text-[10px] text-slate-400">Roll Number</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Building2 size={13} className="text-slate-400" />
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-800 leading-tight">{request.student?.department}</p>
+                  <p className="text-[10px] text-slate-400">Branch</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <GraduationCap size={13} className="text-slate-400" />
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-800 leading-tight">Sem {request.student?.semester}</p>
+                  <p className="text-[10px] text-slate-400">Semester</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -169,7 +238,7 @@ export default function FacultyRequestDetails() {
             </Button>
             <Button
               size="lg"
-              className="flex-[2]"
+              className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white shadow-sm shadow-orange-500/25 border-none font-semibold active:scale-[0.98]"
               onClick={() => setConfirmModal('approve')}
             >
               Approve Request

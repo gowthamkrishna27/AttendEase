@@ -81,18 +81,63 @@ export default function HODLogin() {
           Sign In
         </Button>
 
-        {/* Demo hint */}
-        <div className="bg-[#F9FAFB] rounded-xl px-4 py-3 border border-[#E5E7EB] space-y-2">
-          <p className="text-[12px] font-medium text-[#6B7280]">Demo credentials</p>
-          <div>
-            <p className="text-[11px] font-semibold text-[#F97316] mb-0.5">CSD — Head of Department</p>
-            <p className="text-[12px] text-[#9CA3AF]">Email: <span className="text-[#111111] font-medium">hod.csd@srkrec.ac.in</span></p>
-            <p className="text-[12px] text-[#9CA3AF]">Password: <span className="text-[#111111] font-medium">hodcsd123</span></p>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-[#F97316] mb-0.5">CSIT — Head of Department</p>
-            <p className="text-[12px] text-[#9CA3AF]">Email: <span className="text-[#111111] font-medium">hod.csit@srkrec.ac.in</span></p>
-            <p className="text-[12px] text-[#9CA3AF]">Password: <span className="text-[#111111] font-medium">hodcsit123</span></p>
+        {/* Demo HOD Cards */}
+        <div style={{ marginTop: 4 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Quick Login — HOD</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              {
+                name: 'Dr. Suresh Babu Mudunuri',
+                email: 'hod.csd@srkrec.ac.in',
+                password: 'hodcsd123',
+                dept: 'CSD',
+                designation: 'Professor & HOD',
+                photo: 'https://www.srkrec.ac.in/assets/images/faculty/csd/780.jpeg',
+                color: '#F97316',
+                bg: '#FFF7ED',
+                border: '#FED7AA',
+              },
+              {
+                name: 'Dr. NGK Murthy',
+                email: 'hod.csit@srkrec.ac.in',
+                password: 'hodcsit123',
+                dept: 'CSIT',
+                designation: 'Professor & HOD',
+                photo: 'https://www.srkrec.ac.in/assets/images/faculty/csit/781.jpeg',
+                color: '#8B5CF6',
+                bg: '#F5F3FF',
+                border: '#DDD6FE',
+              },
+            ].map(h => (
+              <button
+                key={h.email}
+                type="button"
+                onClick={() => { setEmail(h.email); setPassword(h.password); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  background: h.bg, border: `1.5px solid ${h.border}`,
+                  borderRadius: 14, padding: '10px 14px',
+                  cursor: 'pointer', textAlign: 'left', width: '100%',
+                  transition: 'box-shadow 0.15s, transform 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.10)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
+              >
+                <img
+                  src={h.photo}
+                  alt={h.name}
+                  style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', objectPosition: 'top', flexShrink: 0, border: `2px solid ${h.color}` }}
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</p>
+                  <p style={{ fontSize: 11, color: '#6B7280', margin: '1px 0 0' }}>{h.designation} · {h.dept}</p>
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 600, color: h.color, background: '#fff', border: `1px solid ${h.border}`, borderRadius: 20, padding: '3px 8px', flexShrink: 0 }}>
+                  Click to fill
+                </span>
+              </button>
+            ))}
           </div>
         </div>
       </form>
