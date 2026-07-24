@@ -130,11 +130,16 @@ router.get('/', async (req: Request, res: Response) => {
         ],
       };
     } else if (user.role === 'hod') {
-      // HOD can view every request within their department + filter by status, faculty, student, date
+      // HOD can view every request within their department (by student OR faculty department) + filter by status, faculty, student, date
       const { status, facultyId, studentId, date } = req.query;
+      const deptStr = user.department.trim();
 
       where = {
-        student: { department: user.department },
+        OR: [
+          { student: { department: { equals: deptStr, mode: 'insensitive' } } },
+          { primaryFaculty: { department: { equals: deptStr, mode: 'insensitive' } } },
+          { faculties: { some: { faculty: { department: { equals: deptStr, mode: 'insensitive' } } } } },
+        ],
         ...(status && { status: status as RequestStatus }),
         ...(date && { date: String(date) }),
         ...(studentId && {
@@ -211,9 +216,21 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     // HOD can only view requests from their own department
-    if (user.role === 'hod' && doc.student?.department !== user.department) {
-      res.status(403).json({ error: 'This request does not belong to your department' });
-      return;
+    if (user.role === 'hod') {
+      const deptStr = user.department.trim().toLowerCase();
+      const studentDept = doc.student?.department?.trim().toLowerCase();
+      const primaryFacDept = doc.primaryFaculty?.department?.trim().toLowerCase();
+      const assignedFacDepts = doc.faculties.map(rf => rf.faculty.department?.trim().toLowerCase());
+
+      const isMatch =
+        studentDept === deptStr ||
+        primaryFacDept === deptStr ||
+        assignedFacDepts.includes(deptStr);
+
+      if (!isMatch) {
+        res.status(403).json({ error: 'This request does not belong to your department' });
+        return;
+      }
     }
 
     res.json({ request: toApi(doc) });
@@ -430,9 +447,21 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     // ── HOD authorization ─────────────────────────────────────────────────────
-    if (user.role === 'hod' && existing.student?.department !== user.department) {
-      res.status(403).json({ error: 'This request does not belong to your department' });
-      return;
+    if (user.role === 'hod') {
+      const deptStr = user.department.trim().toLowerCase();
+      const studentDept = existing.student?.department?.trim().toLowerCase();
+      const primaryFacDept = existing.primaryFaculty?.department?.trim().toLowerCase();
+      const assignedFacDepts = existing.faculties.map(rf => rf.faculty.department?.trim().toLowerCase());
+
+      const isMatch =
+        studentDept === deptStr ||
+        primaryFacDept === deptStr ||
+        assignedFacDepts.includes(deptStr);
+
+      if (!isMatch) {
+        res.status(403).json({ error: 'This request does not belong to your department' });
+        return;
+      }
     }
 
     // ── Determine Action Name & Status ────────────────────────────────────────
