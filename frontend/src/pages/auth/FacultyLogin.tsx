@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { BookOpen, Eye, EyeOff } from 'lucide-react';
 import { LoginLayout } from '../../components/layout/LoginLayout';
 import { Input } from '../../components/ui/Input';
@@ -81,64 +81,17 @@ export default function FacultyLogin() {
           Sign In
         </Button>
 
-        {/* Demo Faculty Cards */}
-        <div style={{ marginTop: 4 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Quick Login — Faculty</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[
-              {
-                name: 'A. Aswini Priyanka',
-                email: 'aapriyanka@srkrec.ac.in',
-                dept: 'CSD',
-                designation: 'Assistant Professor',
-                photo: 'https://www.srkrec.ac.in/assets/images/faculty/csd/1339.jpg',
-                color: '#F97316',
-                bg: '#FFF7ED',
-                border: '#FED7AA',
-              },
-              {
-                name: 'N. Navya',
-                email: 'navyanallaparaju@srkrec.ac.in',
-                dept: 'CSIT',
-                designation: 'Assistant Professor',
-                photo: 'https://www.srkrec.ac.in/assets/images/faculty/csit/1259.jpg',
-                color: '#6366F1',
-                bg: '#EEF2FF',
-                border: '#C7D2FE',
-              },
-            ].map(f => (
-              <button
-                key={f.email}
-                type="button"
-                onClick={() => { setEmail(f.email); setPassword('faculty123'); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  background: f.bg, border: `1.5px solid ${f.border}`,
-                  borderRadius: 14, padding: '10px 14px',
-                  cursor: 'pointer', textAlign: 'left', width: '100%',
-                  transition: 'box-shadow 0.15s, transform 0.15s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.10)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
-              >
-                <img
-                  src={f.photo}
-                  alt={f.name}
-                  style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', objectPosition: 'top', flexShrink: 0, border: `2px solid ${f.color}` }}
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#111', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</p>
-                  <p style={{ fontSize: 11, color: '#6B7280', margin: '1px 0 0' }}>{f.designation} · {f.dept}</p>
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 600, color: f.color, background: '#fff', border: `1px solid ${f.border}`, borderRadius: 20, padding: '3px 8px', flexShrink: 0 }}>
-                  Click to fill
-                </span>
-              </button>
-            ))}
-            <p style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', margin: '4px 0 0' }}>Password: <strong style={{ color: '#374151' }}>faculty123</strong> for all faculty</p>
+        <div className="mt-5 pt-4 border-t border-[#F1F5F9] text-center text-[12px] text-[#64748B]">
+          <span className="block mb-1.5 text-[#94A3B8]">Need another portal?</span>
+          <div className="flex items-center justify-center gap-3">
+            <Link to="/login/student" className="text-[#F97316] font-semibold hover:underline">Student Login</Link>
+            <span className="text-[#CBD5E1]">·</span>
+            <Link to="/login/hod" className="text-[#F97316] font-semibold hover:underline">HOD Login</Link>
+            <span className="text-[#CBD5E1]">·</span>
+            <Link to="/admin/login" className="text-[#F97316] font-semibold hover:underline">Admin Login</Link>
           </div>
         </div>
+
       </form>
     </LoginLayout>
   );

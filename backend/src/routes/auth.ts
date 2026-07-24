@@ -28,7 +28,8 @@ router.post('/login', async (req: Request, res: Response) => {
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: { equals: q, mode: 'insensitive' } },
+          { email:  { equals: q, mode: 'insensitive' } },
+          { userId: { equals: q, mode: 'insensitive' } },
           { rollNumber: { equals: q, mode: 'insensitive' } },
         ],
       },
@@ -62,9 +63,9 @@ router.post('/login', async (req: Request, res: Response) => {
 
     const token = signToken(payload);
     res.json({ token, user: payload });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 

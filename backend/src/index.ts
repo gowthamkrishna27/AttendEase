@@ -12,6 +12,9 @@ import authRoutes         from './routes/auth.js';
 import requestRoutes      from './routes/requests.js';
 import userRoutes         from './routes/users.js';
 import notificationRoutes  from './routes/notifications.js';
+import adminRouter from './admin/index.js';
+import { rateLimiter } from './middleware/rateLimiter.js';
+import { globalErrorHandler } from './middleware/errorHandler.js';
 
 const app  = express();
 const PORT = process.env['PORT'] ?? 3000;
@@ -21,10 +24,11 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 // ── API Routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth',          authRoutes);
+app.use('/api/auth',          rateLimiter(15 * 60 * 1000, 100), authRoutes);
 app.use('/api/requests',      requestRoutes);
 app.use('/api/users',         userRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin',         adminRouter);
 
 // ── Root & Health check ───────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
@@ -53,6 +57,9 @@ if (process.env['NODE_ENV'] === 'production') {
     });
   }
 }
+
+// ── Global Error Handler ──────────────────────────────────────────────────────
+app.use(globalErrorHandler);
 
 // ── 404 fallback ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 export interface JwtPayload {
   id: string;
   email: string;
-  role: 'student' | 'faculty' | 'hod';
+  role: 'student' | 'faculty' | 'hod' | 'admin';
   name: string;
   department: string;
   rollNumber?: string;
@@ -21,6 +21,8 @@ declare global {
   }
 }
 
+const JWT_SECRET = process.env['JWT_SECRET'] || 'attendease_dev_secret_key_2026';
+
 export function verifyToken(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
   if (!authHeader?.startsWith('Bearer ')) {
@@ -30,7 +32,7 @@ export function verifyToken(req: Request, res: Response, next: NextFunction): vo
 
   const token = authHeader.slice(7);
   try {
-    const payload = jwt.verify(token, process.env['JWT_SECRET'] as string) as JwtPayload;
+    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
     req.user = payload;
     next();
   } catch {
@@ -39,5 +41,5 @@ export function verifyToken(req: Request, res: Response, next: NextFunction): vo
 }
 
 export function signToken(payload: JwtPayload): string {
-  return jwt.sign(payload, process.env['JWT_SECRET'] as string, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }

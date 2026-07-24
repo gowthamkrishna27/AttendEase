@@ -76,7 +76,20 @@ const HOD_USERS = [
   },
 ];
 
-const ALL_USERS = [...csitStudents, ...CSD_FACULTY, ...CSIT_FACULTY, ...HOD_USERS];
+// ── Admin Accounts ─────────────────────────────────────────────────────────────
+const ADMIN_USERS = [
+  {
+    userId: 'admin-001',
+    name: 'System Admin',
+    email: 'admin@college.edu',
+    role: 'admin' as Role,
+    department: 'Administration',
+    password: 'admin123',
+    avatarUrl: 'https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff',
+  },
+];
+
+const ALL_USERS = [...csitStudents, ...CSD_FACULTY, ...CSIT_FACULTY, ...HOD_USERS, ...ADMIN_USERS];
 
 export async function seedDatabase(): Promise<void> {
   console.log('🌱  Seeding/Updating PostgreSQL with CSIT students, CSD/CSIT faculty and HODs...');

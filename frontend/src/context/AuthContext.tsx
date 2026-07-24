@@ -5,7 +5,7 @@ import * as api from '../lib/api';
 import type { AuthUser, UpdateProfilePayload } from '../lib/api';
 import { getStoredToken, setStoredToken, clearStoredToken } from '../lib/api';
 
-export type UserRole = 'student' | 'faculty' | 'hod';
+export type UserRole = 'student' | 'faculty' | 'hod' | 'admin';
 export type { AuthUser };
 
 interface AuthContextValue {

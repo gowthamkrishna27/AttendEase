@@ -38,6 +38,12 @@ const hodNav = [
   { to: '/hod/settings', label: 'Settings',      icon: Settings      },
 ];
 
+const adminNav = [
+  { to: '/admin',          label: 'Dashboard',     icon: Home     },
+  { to: '/admin/users',    label: 'User & Students', icon: Users    },
+  { to: '/admin/settings', label: 'Settings',      icon: Settings },
+];
+
 /* Bottom tab bar items (mobile) */
 const studentMobileBottomNav = [
   { id: 'home', to: '/student', label: 'Home', icon: Home, type: 'link' },
@@ -61,6 +67,12 @@ const hodMobileBottomNav = [
   { id: 'requests', to: '/hod/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
   { id: 'reports', to: '/hod/reports', label: 'Reports', icon: BarChart2, type: 'link' },
   { id: 'settings', to: '/hod/settings', label: 'Settings', icon: Settings, type: 'link' },
+];
+
+const adminMobileBottomNav = [
+  { id: 'home', to: '/admin', label: 'Dashboard', icon: Home, type: 'link' },
+  { id: 'users', to: '/admin/users', label: 'Users', icon: Users, type: 'link' },
+  { id: 'settings', to: '/admin/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
 const pageVariants = {
@@ -154,8 +166,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
     );
   };
 
-  const navLinks = role === 'student' ? studentNav : role === 'faculty' ? facultyNav : hodNav;
-  const homeLink = role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod';
+  const navLinks = role === 'student' ? studentNav : role === 'faculty' ? facultyNav : role === 'hod' ? hodNav : adminNav;
+  const homeLink = role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : role === 'hod' ? '/hod' : '/admin';
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -368,7 +380,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           className="main-content"
         >
           {/* Greeting header — only on dashboard home pages */}
-          {(location.pathname === '/student' || location.pathname === '/student/' || location.pathname === '/faculty' || location.pathname === '/faculty/' || location.pathname === '/hod' || location.pathname === '/hod/') && (
+          {(location.pathname === '/student' || location.pathname === '/student/' || location.pathname === '/faculty' || location.pathname === '/faculty/' || location.pathname === '/hod' || location.pathname === '/hod/' || location.pathname === '/admin' || location.pathname === '/admin/') && (
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
               <div>
                 <h1 style={{ fontSize: 24, fontWeight: 800, color: '#000000', margin: '0 0 4px' }}>
@@ -385,14 +397,14 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                 fontSize: 12, fontWeight: 600, color: '#F97316',
               }}>
                 <GraduationCap size={13} />
-                {role === 'student' ? 'Student Portal' : role === 'faculty' ? 'Faculty Portal' : 'HOD Portal'}
+                {role === 'student' ? 'Student Portal' : role === 'faculty' ? 'Faculty Portal' : role === 'hod' ? 'HOD Portal' : 'Admin Portal'}
               </span>
             </div>
           )}
 
           {children}
 
-          <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #EEF2F7', textAlign: 'center', fontSize: 12, color: '#94A3B8' }}>
+          <div className="footer-line" style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #EEF2F7', textAlign: 'center', fontSize: 12, color: '#94A3B8' }}>
             © 2026 AttendEase • SRKR Engineering College, Bhimavaram. All rights reserved.
           </div>
         </motion.main>
@@ -410,7 +422,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         alignItems: 'center', justifyContent: 'space-around',
         padding: '0 8px 4px',
       }}>
-        {(role === 'hod' ? hodMobileBottomNav : role === 'faculty' ? facultyMobileBottomNav : studentMobileBottomNav).map(item => {
+        {(role === 'admin' ? adminMobileBottomNav : role === 'hod' ? hodMobileBottomNav : role === 'faculty' ? facultyMobileBottomNav : studentMobileBottomNav).map(item => {
           if (item.type === 'fab') {
             // Centre + FAB button -> Navigates to /student/new-request
             return (
@@ -437,13 +449,12 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             <NavLink
               key={item.to}
               to={item.to!}
-              end={item.to === '/student' || item.to === '/hod'}
+              end={item.to === '/student' || item.to === '/faculty' || item.to === '/hod' || item.to === '/admin'}
               style={({ isActive: active }) => ({
                 textDecoration: 'none',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                 flex: 1, padding: '6px 0 4px',
-                borderTop: active ? '3px solid #F97316' : '3px solid transparent',
-                transition: 'border-color 0.15s',
+                transition: 'all 0.15s',
               })}
             >
               {({ isActive: active }) => (

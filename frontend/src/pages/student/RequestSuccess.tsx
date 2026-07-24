@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, ArrowRight, Clock } from 'lucide-react';
+import { Check, Clock } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 
 export default function RequestSuccess() {
@@ -8,109 +8,186 @@ export default function RequestSuccess() {
 
   return (
     <PageWrapper role="student">
-      <div className="max-w-md mx-auto py-8 sm:py-12 px-4 flex flex-col items-center justify-center text-center">
-        
-        {/* Card Container */}
+      <div className="max-w-md mx-auto py-6 sm:py-10 px-4 flex flex-col items-center justify-center text-center">
+
+        {/* Card */}
         <motion.div
-          initial={{ scale: 0.9, opacity: 0, y: 12 }}
+          initial={{ scale: 0.92, opacity: 0, y: 14 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="w-full card p-8 sm:p-10 flex flex-col items-center text-center"
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+          className="w-full flex flex-col items-center text-center"
           style={{
-            background: 'linear-gradient(180deg, #FFF7ED 0%, #FFFFFF 100%)',
             borderRadius: 24,
-            border: '1px solid #FED7AA',
-            boxShadow: '0 10px 30px rgba(249,115,22,0.08)',
+            border: '1px solid #F1F5F9',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.05)',
+            background: '#FFFFFF',
           }}
         >
-          {/* Animated Success Check Badge */}
-          <motion.div
-            initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.35, delay: 0.1, type: 'spring', stiffness: 200 }}
-            className="mb-6"
-          >
-            <div
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 8px 24px rgba(249,115,22,0.35)',
-              }}
+          <div className="px-7 pt-12 pb-10 sm:px-10 sm:pt-14 sm:pb-12 w-full flex flex-col items-center">
+
+            {/* ── Orange check circle ── */}
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.45, delay: 0.1, type: 'spring', stiffness: 170, damping: 14 }}
+              className="mb-6"
             >
-              <CheckCircle2 size={44} className="text-white" strokeWidth={2.2} />
-            </div>
-          </motion.div>
+              <div
+                style={{
+                  width: 76,
+                  height: 76,
+                  borderRadius: '50%',
+                  background: '#F97316',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 6px 20px rgba(249,115,22,0.30)',
+                }}
+              >
+                <Check size={40} className="text-white" strokeWidth={2.8} />
+              </div>
+            </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, delay: 0.2 }}
-          >
-            <span className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-orange-600 bg-orange-100/80 rounded-full border border-orange-200 inline-block mb-3">
-              Request Submitted Successfully
-            </span>
-            <h1 className="text-[26px] sm:text-[30px] font-heading font-extrabold text-slate-900 mb-2.5 leading-tight">
-              Permission Request Sent
-            </h1>
-            <p className="text-[14px] sm:text-[15px] text-slate-600 leading-relaxed mb-8 max-w-xs mx-auto">
-              Your attendance permission request has been submitted and is currently pending faculty &amp; department review.
-            </p>
+            {/* ── Title ── */}
+            <motion.h1
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: 0.22 }}
+              className="text-[26px] sm:text-[30px] font-heading font-extrabold text-slate-900 mb-2.5 leading-tight"
+            >
+              Request Sent
+            </motion.h1>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
+            {/* ── Subtitle ── */}
+            <motion.p
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: 0.28 }}
+              className="text-[14px] sm:text-[15px] text-slate-400 leading-relaxed max-w-[300px] mx-auto mb-10"
+            >
+              Your attendance permission request has been submitted and is under review.
+            </motion.p>
+
+            {/* ── Status Timeline ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.34 }}
+              className="w-full mb-10"
+            >
+              <div className="flex items-start justify-center gap-0 w-full" style={{ maxWidth: 300, margin: '0 auto' }}>
+                {/* Step 1: Submitted */}
+                <div className="flex flex-col items-center gap-2" style={{ minWidth: 70 }}>
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center"
+                    style={{ background: '#F97316' }}
+                  >
+                    <Check size={20} className="text-white" strokeWidth={3} />
+                  </div>
+                  <span className="text-[11px] font-bold text-orange-500">Submitted</span>
+                </div>
+
+                {/* Connector 1 */}
+                <div className="flex-1 pt-5">
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: 0.5, delay: 0.5, ease: 'easeOut' }}
+                    style={{
+                      height: 2.5,
+                      borderRadius: 999,
+                      background: '#F97316',
+                      transformOrigin: 'left',
+                    }}
+                  />
+                </div>
+
+                {/* Step 2: Reviewing */}
+                <div className="flex flex-col items-center gap-2" style={{ minWidth: 70 }}>
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center"
+                    style={{ background: '#FFFFFF', border: '2px solid #F97316' }}
+                  >
+                    <Clock size={18} className="text-orange-500" />
+                  </div>
+                  <span className="text-[11px] font-bold text-orange-500">Reviewing</span>
+                </div>
+
+                {/* Connector 2 */}
+                <div className="flex-1 pt-5">
+                  <div
+                    style={{
+                      height: 2.5,
+                      borderRadius: 999,
+                      background: '#E2E8F0',
+                    }}
+                  />
+                </div>
+
+                {/* Step 3: Decision */}
+                <div className="flex flex-col items-center gap-2" style={{ minWidth: 70 }}>
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center"
+                    style={{ background: '#FFFFFF', border: '2px solid #CBD5E1' }}
+                  >
+                    <Check size={18} className="text-slate-300" />
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-400">Decision</span>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* ── Buttons ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.42 }}
+              className="flex flex-col items-center gap-4 w-full"
+            >
               <button
                 onClick={() => navigate('/student')}
+                className="active:scale-[0.97] transition-all"
                 style={{
                   width: '100%',
-                  height: 48,
+                  height: 52,
                   borderRadius: 14,
-                  background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+                  background: '#F97316',
                   color: '#ffffff',
-                  fontSize: 14,
+                  fontSize: 15,
                   fontWeight: 700,
                   border: 'none',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 8,
-                  boxShadow: '0 4px 16px rgba(249,115,22,0.30)',
-                  transition: 'all 0.15s ease',
                 }}
               >
-                <span>Back to Home</span>
-                <ArrowRight size={16} />
+                Back to Home
               </button>
 
               <button
                 onClick={() => navigate('/student/history')}
+                className="active:opacity-70 transition-all"
                 style={{
-                  width: '100%',
-                  height: 48,
-                  borderRadius: 14,
-                  background: '#F8FAFC',
-                  border: '1.5px solid #E8EDF2',
-                  color: '#475569',
-                  fontSize: 14,
-                  fontWeight: 700,
+                  background: 'none',
+                  border: 'none',
+                  color: '#64748B',
+                  fontSize: 15,
+                  fontWeight: 600,
                   cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  transition: 'all 0.15s ease',
+                  padding: '4px 0',
+                  textDecoration: 'underline',
+                  textDecorationColor: 'transparent',
+                  textUnderlineOffset: 3,
                 }}
+                onMouseEnter={e => (e.currentTarget.style.textDecorationColor = '#94A3B8')}
+                onMouseLeave={e => (e.currentTarget.style.textDecorationColor = 'transparent')}
               >
-                <Clock size={16} />
-                <span>View History</span>
+                View History
               </button>
-            </div>
-          </motion.div>
+            </motion.div>
+
+          </div>
         </motion.div>
 
       </div>

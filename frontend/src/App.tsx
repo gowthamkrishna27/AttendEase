@@ -6,9 +6,10 @@ import { AnimatePresence } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import type { UserRole } from './context/AuthContext';
 
-// Pages — public
+// Pages — public & auth
 import Landing from './pages/Landing';
 import LoginPortal from './pages/auth/LoginPortal';
+import AdminLogin from './pages/admin/Login';
 
 // Pages — student
 import StudentHome from './pages/student/Home';
@@ -34,6 +35,12 @@ import HODAllRequests from './pages/hod/AllRequests';
 import HODFaculty from './pages/hod/Faculty';
 import HODReports from './pages/hod/Reports';
 import HODSettings from './pages/hod/Settings';
+
+// Pages — admin
+import AdminDashboard from './pages/admin/Dashboard';
+import AdminUsers from './pages/admin/Users';
+import AdminRequests from './pages/admin/Requests';
+import AdminSettings from './pages/admin/Settings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,7 +68,7 @@ function ProtectedRoute({
   }
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to={role === 'admin' ? '/admin/login' : '/login'} state={{ from: location }} replace />;
   }
 
   if (user.role !== role) {
@@ -79,7 +86,7 @@ function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<LoginPortal />} />
 
-        {/* Legacy redirects — keep old URLs working */}
+        {/* Legacy redirects */}
         <Route path="/login/student" element={<Navigate to="/login" replace />} />
         <Route path="/login/faculty" element={<Navigate to="/login" replace />} />
         <Route path="/login/hod" element={<Navigate to="/login" replace />} />
@@ -108,6 +115,13 @@ function AppRoutes() {
         <Route path="/hod/faculty" element={<ProtectedRoute role="hod"><HODFaculty /></ProtectedRoute>} />
         <Route path="/hod/reports" element={<ProtectedRoute role="hod"><HODReports /></ProtectedRoute>} />
         <Route path="/hod/settings" element={<ProtectedRoute role="hod"><HODSettings /></ProtectedRoute>} />
+
+        {/* Admin (protected & standalone login) */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute role="admin"><AdminUsers /></ProtectedRoute>} />
+        <Route path="/admin/requests" element={<ProtectedRoute role="admin"><AdminRequests /></ProtectedRoute>} />
+        <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

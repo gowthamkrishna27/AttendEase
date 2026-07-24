@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, FileText, CreditCard, Building2, GraduationCap } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FileText } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -104,19 +104,19 @@ export default function FacultyRequestDetails() {
           <StatusBadge status={currentStatus} />
         </div>
 
-        {/* Student Info — profile card style (Flush photo fit) */}
+        {/* Student info card */}
         <div
-          className="mb-6 flex flex-col sm:flex-row items-stretch"
+          className="mb-6 flex flex-row items-stretch"
           style={{
             background: '#ffffff',
-            borderRadius: 20,
-            border: '1px solid #EEF2F7',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
+            borderRadius: 16,
+            border: '1px solid #E8ECF0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
             overflow: 'hidden',
           }}
         >
-          {/* Flush photo on left edge */}
-          <div className="w-full sm:w-36 h-36 sm:h-auto flex-shrink-0 relative bg-slate-100 flex items-center justify-center overflow-hidden">
+          {/* Photo */}
+          <div className="w-28 sm:w-32 flex-shrink-0 relative bg-slate-100 flex items-center justify-center overflow-hidden">
             {request.student?.avatarUrl ? (
               <img
                 src={request.student.avatarUrl}
@@ -125,55 +125,25 @@ export default function FacultyRequestDetails() {
                 onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             ) : null}
-            <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white text-3xl font-bold -z-10">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-500 text-3xl font-bold -z-10">
               {(request.student?.name || 'S').charAt(0)}
             </div>
           </div>
 
           {/* Info */}
-          <div className="flex-1 p-5 sm:px-6 sm:py-5 flex flex-col justify-center">
-            <p className="text-[17px] font-heading font-bold text-slate-900 mb-1">
+          <div className="flex-1 p-4 sm:px-5 sm:py-4 flex flex-col justify-center gap-1.5">
+            <p className="text-[17px] font-heading font-bold text-slate-900">
               {request.student?.name}
             </p>
-            <div>
-              <span
-                style={{
-                  display: 'inline-block',
-                  fontSize: 11, fontWeight: 700,
-                  color: '#EA580C',
-                  background: '#FFF7ED',
-                  border: '1px solid #FED7AA',
-                  borderRadius: 999,
-                  padding: '2px 10px',
-                  marginBottom: 12,
-                }}
-              >
-                Student · {request.student?.department}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              <div className="flex items-center gap-1.5">
-                <CreditCard size={13} className="text-slate-400" />
-                <div>
-                  <p className="text-[13px] font-semibold text-slate-800 leading-tight">{request.student?.rollNumber}</p>
-                  <p className="text-[10px] text-slate-400">Roll Number</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Building2 size={13} className="text-slate-400" />
-                <div>
-                  <p className="text-[13px] font-semibold text-slate-800 leading-tight">{request.student?.department}</p>
-                  <p className="text-[10px] text-slate-400">Branch</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <GraduationCap size={13} className="text-slate-400" />
-                <div>
-                  <p className="text-[13px] font-semibold text-slate-800 leading-tight">Sem {request.student?.semester}</p>
-                  <p className="text-[10px] text-slate-400">Semester</p>
-                </div>
-              </div>
-            </div>
+            <p className="text-[13px] text-slate-500">
+              Roll No: <span className="font-bold text-slate-800">{request.student?.rollNumber}</span>
+            </p>
+            <p className="text-[13px] text-slate-500">
+              Department: <span className="font-bold text-slate-800">{request.student?.department}</span>
+            </p>
+            <p className="text-[13px] text-slate-500">
+              Semester: <span className="font-bold text-slate-800">{request.student?.semester ? `${request.student.semester}th Sem` : '—'}</span>
+            </p>
           </div>
         </div>
 

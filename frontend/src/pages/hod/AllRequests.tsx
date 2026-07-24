@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, Check, X, RotateCcw } from 'lucide-react';
+import { Search, SlidersHorizontal, RotateCcw } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -9,7 +9,7 @@ import { EmptyState } from '../../components/shared/EmptyState';
 import { Button } from '../../components/ui/Button';
 import { formatDate, DEPARTMENTS } from '../../lib/utils';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
 
@@ -37,7 +37,6 @@ const tabActiveClass: Record<TabValue, string> = {
 
 export default function HODAllRequests() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [search, setSearch]     = useState('');
   const [department, setDept]   = useState('');
   const [tab, setTab]           = useState<TabValue>('all');
@@ -47,35 +46,6 @@ export default function HODAllRequests() {
     queryFn: () => api.getRequests(),
     refetchInterval: 5000,
   });
-
-  const reviewMutation = useMutation({
-    mutationFn: ({ id, action, rejectionReason }: { id: string; action: 'approve' | 'reject'; rejectionReason?: string }) =>
-      api.reviewRequest(id, action, rejectionReason),
-    onMutate: async ({ id, action }) => {
-      await queryClient.cancelQueries({ queryKey: ['requests'] });
-      const newStatus = action === 'approve' ? 'approved' : 'rejected';
-      queryClient.setQueryData<api.AttendanceRequest[]>(['requests'], old =>
-        (old || []).map(r => r.id === id ? { ...r, status: newStatus as any } : r)
-      );
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['requests'] });
-    },
-    onError: (err: Error) => {
-      console.error('[AllRequests] review failed:', err.message);
-      alert(`Action failed: ${err.message}`);
-    },
-  });
-
-  const handleApprove = (id: string) => {
-    reviewMutation.mutate({ id, action: 'approve' });
-  };
-
-  const handleReject = (id: string) => {
-    const reason = window.prompt('Enter rejection reason (required):');
-    if (!reason?.trim()) return; // user cancelled or left blank
-    reviewMutation.mutate({ id, action: 'reject', rejectionReason: reason.trim() });
-  };
 
   const filtered = requestsList.filter((req: AttendanceRequest) => {
     const matchesTab    = tab === 'all' || req.status === tab;
@@ -196,7 +166,6 @@ export default function HODAllRequests() {
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Assigned Faculty</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Requested On</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Action</th>
                   </tr>
                 </thead>
                 <motion.tbody variants={listVariants} initial="hidden" animate="visible">
@@ -227,34 +196,8 @@ export default function HODAllRequests() {
                       <td className="px-4 py-3.5">
                         <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
                       </td>
-                      <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                      <td className="px-4 py-3.5">
                         <StatusBadge status={req.status} />
-                      </td>
-                      <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            title="Approve"
-                            onClick={() => handleApprove(req.id)}
-                            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${
-                              req.status === 'approved'
-                                ? 'bg-orange-500 text-white border-orange-500 shadow-sm shadow-orange-500/30'
-                                : 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-500 hover:text-white hover:border-orange-500'
-                            }`}
-                          >
-                            <Check size={14} strokeWidth={2.5} />
-                          </button>
-                          <button
-                            title="Reject"
-                            onClick={() => handleReject(req.id)}
-                            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${
-                              req.status === 'rejected'
-                                ? 'bg-rose-500 text-white border-rose-500 shadow-sm'
-                                : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-500 hover:text-white hover:border-rose-500'
-                            }`}
-                          >
-                            <X size={14} strokeWidth={2.5} />
-                          </button>
-                        </div>
                       </td>
                     </motion.tr>
                   ))}
@@ -294,35 +237,12 @@ export default function HODAllRequests() {
                       </div>
                     </div>
 
-                    {/* Bottom Row: Actions */}
-                    <div className="flex items-center justify-between pt-0.5" onClick={e => e.stopPropagation()}>
-                      <span className="text-[11px] text-slate-400 font-medium">Quick Actions</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          title="Approve"
-                          onClick={() => handleApprove(req.id)}
-                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border flex items-center gap-1 transition-all ${
-                            req.status === 'approved'
-                              ? 'bg-orange-500 text-white border-orange-500 shadow-sm shadow-orange-500/20'
-                              : 'bg-orange-50 text-orange-600 border-orange-200 active:bg-orange-500 active:text-white'
-                          }`}
-                        >
-                          <Check size={12} strokeWidth={2.5} />
-                          <span>Approve</span>
-                        </button>
-                        <button
-                          title="Reject"
-                          onClick={() => handleReject(req.id)}
-                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border flex items-center gap-1 transition-all ${
-                            req.status === 'rejected'
-                              ? 'bg-rose-500 text-white border-rose-500 shadow-sm'
-                              : 'bg-rose-50 text-rose-600 border-rose-200 active:bg-rose-500 active:text-white'
-                          }`}
-                        >
-                          <X size={12} strokeWidth={2.5} />
-                          <span>Reject</span>
-                        </button>
-                      </div>
+                    {/* Faculty Badge */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-400 font-medium">Faculty:</span>
+                      <span className="text-[11px] font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                        {req.faculty?.name || 'Department Faculty'}
+                      </span>
                     </div>
                   </motion.div>
                 ))}

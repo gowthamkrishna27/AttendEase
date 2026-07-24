@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   User, IdCard, Building2, GraduationCap,
-  Pencil, Mail, Phone, CalendarDays, MapPin,
+  Mail, Phone, CalendarDays, MapPin,
   ChevronRight, Lock, CheckCircle2, Circle, Lightbulb,
   Users, BookOpen, ClipboardList, Check, AlertCircle, Loader2, LogOut
 } from 'lucide-react';
@@ -63,13 +63,14 @@ function CircularProgress({ pct }: { pct: number }) {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout, updateProfile } = useAuth();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
-  const [tab, setTab] = useState<Tab>('Personal Information');
+  const [tab, setTab] = useState<Tab>((location.state as any)?.tab || 'Personal Information');
 
   /* editable fields */
   const [fullName, setFullName] = useState(user?.name || '');
@@ -79,6 +80,7 @@ export default function Profile() {
   const [gender, setGender] = useState(user?.gender || 'Male');
   const [address, setAddress] = useState(user?.address || 'Bhimavaram, Andhra Pradesh, India');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
+  const [semester, setSemester] = useState<number | string>(user?.semester || 6);
 
   /* Password settings state */
   const [currentPassword, setCurrentPassword] = useState('');
@@ -100,6 +102,7 @@ export default function Profile() {
       if (user.gender) setGender(user.gender);
       if (user.address) setAddress(user.address);
       if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
+      if (user.semester) setSemester(user.semester);
     }
   }, [user]);
 
@@ -127,6 +130,7 @@ export default function Profile() {
         gender,
         address,
         avatarUrl,
+        semester: Number(semester),
       });
       setMessage({ type: 'success', text: 'Personal information updated and saved to database!' });
     } catch (err: any) {
@@ -139,7 +143,11 @@ export default function Profile() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
-    if (!newPassword) {
+    if (!currentPassword || !currentPassword.trim()) {
+      setMessage({ type: 'error', text: 'Please enter your current password.' });
+      return;
+    }
+    if (!newPassword || !newPassword.trim()) {
       setMessage({ type: 'error', text: 'Please enter a new password.' });
       return;
     }
@@ -150,8 +158,8 @@ export default function Profile() {
     setIsSaving(true);
     try {
       await updateProfile({
-        currentPassword,
-        password: newPassword,
+        currentPassword: currentPassword.trim(),
+        password: newPassword.trim(),
       });
       setMessage({ type: 'success', text: 'Password successfully updated and saved to database!' });
       setCurrentPassword('');
@@ -193,14 +201,16 @@ export default function Profile() {
           .profile-hero-card { flex-direction: column !important; align-items: stretch !important; gap: 16px !important; padding: 20px 16px !important; width: 100% !important; box-sizing: border-box !important; }
           .profile-info-block { width: 100% !important; min-width: 0 !important; }
           .profile-info-chips { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 12px 14px !important; width: 100% !important; }
-          .profile-tabs-card { display: none !important; }
+          .profile-tabs-card { padding: 0 16px !important; overflow-x: auto !important; }
+          .profile-tabs-header { width: max-content !important; min-width: 100% !important; }
           .profile-tab-wrapper { flex-direction: column !important; gap: 18px !important; width: 100% !important; align-items: stretch !important; }
           .profile-main-column { width: 100% !important; flex: none !important; box-sizing: border-box !important; }
-          .profile-section-personal { display: block !important; width: 100% !important; margin-bottom: 24px !important; box-sizing: border-box !important; }
-          .profile-section-account { display: none !important; }
+          .profile-section-personal.tab-hidden { display: none !important; }
+          .profile-section-account.tab-hidden { display: none !important; }
           .profile-form-card { padding: 20px 16px !important; width: 100% !important; box-sizing: border-box !important; }
           .profile-form-row { grid-template-columns: 1fr !important; gap: 14px !important; width: 100% !important; }
           .profile-sidebar { width: 100% !important; box-sizing: border-box !important; }
+          .session-mgmt-block { display: none !important; }
         }
         @media (min-width: 769px) {
           .profile-section-personal.tab-hidden { display: none !important; }
@@ -290,20 +300,7 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Edit tab trigger */}
-        <button
-          onClick={() => setTab('Personal Information')}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '9px 18px', borderRadius: 12, fontSize: 13, fontWeight: 600,
-            color: '#F97316', background: '#fff', border: '1.5px solid rgba(249,115,22,0.2)',
-            cursor: 'pointer', flexShrink: 0,
-            boxShadow: '0 1px 6px rgba(37,99,235,0.10)',
-          }}
-        >
-          <Pencil size={13} />
-          Edit Profile
-        </button>
+
       </motion.div>
 
       {/* Avatar URL Edit Prompt */}
@@ -449,12 +446,31 @@ export default function Profile() {
                 </div>
               </div>
 
-              {/* Row 4: Address */}
-              <div style={{ marginBottom: 24 }}>
-                <label style={labelStyle}>Address</label>
-                <div style={{ position: 'relative' }}>
-                  <MapPin size={14} style={icoWrap} />
-                  <input value={address} onChange={e => setAddress(e.target.value)} style={inputStyle} onFocus={focusIn} onBlur={focusOut} />
+              {/* Row 4: Semester & Address */}
+              <div className="profile-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 24 }}>
+                <div>
+                  <label style={labelStyle}>Semester</label>
+                  <div style={{ position: 'relative' }}>
+                    <GraduationCap size={14} style={icoWrap} />
+                    <select
+                      value={semester}
+                      onChange={e => setSemester(e.target.value)}
+                      style={{ ...inputStyle, appearance: 'none', paddingRight: 32, cursor: 'pointer' }}
+                      onFocus={focusIn}
+                      onBlur={focusOut}
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
+                        <option key={s} value={s}>Sem {s}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Address</label>
+                  <div style={{ position: 'relative' }}>
+                    <MapPin size={14} style={icoWrap} />
+                    <input value={address} onChange={e => setAddress(e.target.value)} style={inputStyle} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
                 </div>
               </div>
 
@@ -554,7 +570,7 @@ export default function Profile() {
               </button>
 
               {/* Logout Option in Account Settings */}
-              <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #EEF2F7' }}>
+              <div className="session-mgmt-block" style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #EEF2F7' }}>
                 <h4 style={{ fontSize: 14, fontWeight: 800, color: '#DC2626', margin: '0 0 4px' }}>Session Management</h4>
                 <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 14px' }}>Log out of your AttendEase student account on this device.</p>
                 <button

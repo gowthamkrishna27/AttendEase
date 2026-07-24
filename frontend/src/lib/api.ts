@@ -24,7 +24,7 @@ export function clearStoredToken(): void {
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type RequestReason = 'internship' | 'medical' | 'sports' | 'family_emergency' | 'competition' | 'other';
-export type UserRole = 'student' | 'faculty' | 'hod';
+export type UserRole = 'student' | 'faculty' | 'hod' | 'admin';
 
 export interface AuthUser {
   id: string;
@@ -255,6 +255,9 @@ export interface UpdateProfilePayload {
   dob?: string;
   gender?: string;
   address?: string;
+  semester?: number;
+  currentPassword?: string;
+  password?: string;
 }
 
 export async function updateMe(data: UpdateProfilePayload): Promise<AuthUser> {
@@ -263,4 +266,53 @@ export async function updateMe(data: UpdateProfilePayload): Promise<AuthUser> {
     body: JSON.stringify(data),
   });
   return res.user;
+}
+
+// ─── Admin Users API ──────────────────────────────────────────────────────────
+
+export interface CreateUserPayload {
+  name: string;
+  email: string;
+  role: UserRole;
+  department: string;
+  password?: string;
+  rollNumber?: string;
+  semester?: number;
+  designation?: string;
+  phone?: string;
+  dob?: string;
+  gender?: string;
+  address?: string;
+}
+
+export async function getUsers(): Promise<AuthUser[]> {
+  const res = await apiFetch<{ users: AuthUser[] }>('/api/admin/users');
+  return res.users ?? [];
+}
+
+export async function createUser(data: CreateUserPayload): Promise<AuthUser> {
+  const res = await apiFetch<{ user: AuthUser }>('/api/admin/users', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.user;
+}
+
+export async function updateUser(id: string, data: Partial<CreateUserPayload>): Promise<AuthUser> {
+  const res = await apiFetch<{ user: AuthUser }>(`/api/admin/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res.user;
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+}
+
+export async function resetUserPassword(id: string, newPassword: string): Promise<void> {
+  await apiFetch(`/api/admin/users/${id}/password`, {
+    method: 'PATCH',
+    body: JSON.stringify({ password: newPassword }),
+  });
 }

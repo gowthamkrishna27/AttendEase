@@ -15,27 +15,21 @@ type Tab = 'student' | 'faculty' | 'hod';
 
 const TABS: { key: Tab; label: string; icon: typeof GraduationCap }[] = [
   { key: 'student', label: 'Student', icon: GraduationCap },
-  { key: 'faculty', label: 'Faculty', icon: BookOpen      },
-  { key: 'hod',     label: 'HOD',     icon: ShieldCheck   },
+  { key: 'faculty', label: 'Faculty', icon: BookOpen },
+  { key: 'hod', label: 'HOD', icon: ShieldCheck },
 ];
-
-const DEMO: Record<Tab, { id: string; idLabel: string; pass: string }> = {
-  student: { id: '24B91A0720',             idLabel: 'Roll No', pass: '24B91A0720' },
-  faculty: { id: 'aapriyanka@srkrec.ac.in', idLabel: 'Email',   pass: 'faculty123' },
-  hod:     { id: 'hod.csit@srkrec.ac.in',  idLabel: 'Email',   pass: 'hodcsit123' },
-};
 
 export default function LoginPortal() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const [activeTab, setActiveTab]       = useState<Tab>('student');
-  const [identifier, setIdentifier]     = useState('');
-  const [password, setPassword]         = useState('');
+  const [activeTab, setActiveTab] = useState<Tab>('student');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe]     = useState(false);
-  const [error, setError]               = useState('');
-  const [isLoading, setIsLoading]       = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab); setIdentifier(''); setPassword(''); setError('');
@@ -121,7 +115,7 @@ export default function LoginPortal() {
               <User size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#CBD5E1', pointerEvents: 'none' }} />
               <input
                 type={activeTab === 'student' ? 'text' : 'email'}
-                placeholder={activeTab === 'student' ? 'e.g. 24B91A0720' : 'name@college.edu'}
+                placeholder={activeTab === 'student' ? ' 24B91A0724' : 'name@college.edu'}
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
                 autoComplete={activeTab === 'student' ? 'username' : 'email'}
@@ -134,7 +128,7 @@ export default function LoginPortal() {
                   transition: 'border-color 0.15s, box-shadow 0.15s',
                 }}
                 onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
-                onBlur={e  => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
+                onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
               />
             </div>
           </div>
@@ -161,7 +155,7 @@ export default function LoginPortal() {
                   transition: 'border-color 0.15s, box-shadow 0.15s',
                 }}
                 onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
-                onBlur={e  => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
+                onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
               />
               <button
                 type="button"
@@ -215,35 +209,21 @@ export default function LoginPortal() {
               : <><span>Sign In</span><ArrowRight size={16} /></>
             }
           </motion.button>
+
+          {/* Admin Login link */}
+          <div style={{ marginTop: 12, textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/login')}
+              style={{ fontSize: 12, fontWeight: 600, color: '#64748B', background: 'none', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#F97316')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#64748B')}
+            >
+              Are you an Administrator? <span style={{ textDecoration: 'underline' }}>Login to Admin Portal →</span>
+            </button>
+          </div>
         </motion.form>
       </AnimatePresence>
-
-      {/* Demo credentials */}
-      <div style={{ marginTop: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <div style={{ flex: 1, height: 1, background: '#F1F5F9' }} />
-          <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>Demo Credentials</span>
-          <div style={{ flex: 1, height: 1, background: '#F1F5F9' }} />
-        </div>
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', gap: 12,
-          background: '#FFF7ED', border: '1px solid #FFEDD5',
-          borderRadius: 14, padding: '12px 14px',
-        }}>
-          <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#F97316', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-            <Info size={14} style={{ color: '#fff' }} />
-          </div>
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#C2410C', margin: '0 0 3px' }}>Demo Access</p>
-            <p style={{ fontSize: 12, color: '#C2410C', margin: '0 0 2px' }}>
-              {DEMO[activeTab].idLabel}: <span style={{ fontWeight: 700 }}>{DEMO[activeTab].id}</span>
-            </p>
-            <p style={{ fontSize: 12, color: '#C2410C', margin: 0 }}>
-              Password: <span style={{ fontWeight: 700 }}>{DEMO[activeTab].pass}</span>
-            </p>
-          </div>
-        </div>
-      </div>
     </>
   );
 
@@ -337,9 +317,9 @@ export default function LoginPortal() {
                 padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14,
               }}>
                 {[
-                  { icon: Shield, color: '#F97316', bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.30)', title: 'Secure & Reliable',  desc: 'Your data is protected with enterprise-grade security.' },
-                  { icon: Clock,  color: '#60A5FA', bg: 'rgba(96,165,250,0.15)', border: 'rgba(96,165,250,0.30)',  title: 'Real-time Access',   desc: 'Access attendance records anytime, anywhere.'           },
-                  { icon: Users,  color: '#A78BFA', bg: 'rgba(167,139,250,0.15)',border: 'rgba(167,139,250,0.30)', title: 'Role-based Access',  desc: 'Customized experience for students, faculty & HOD.'     },
+                  { icon: Shield, color: '#F97316', bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.30)', title: 'Secure & Reliable', desc: 'Your data is protected with enterprise-grade security.' },
+                  { icon: Clock, color: '#60A5FA', bg: 'rgba(96,165,250,0.15)', border: 'rgba(96,165,250,0.30)', title: 'Real-time Access', desc: 'Access attendance records anytime, anywhere.' },
+                  { icon: Users, color: '#A78BFA', bg: 'rgba(167,139,250,0.15)', border: 'rgba(167,139,250,0.30)', title: 'Role-based Access', desc: 'Customized experience for students, faculty & HOD.' },
                 ].map(({ icon: Icon, color, bg, border, title, desc }) => (
                   <div key={title} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                     <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: bg, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

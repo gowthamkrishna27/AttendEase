@@ -9,7 +9,7 @@ import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
 
 const cardVariants = {
-  hidden:  { opacity: 0, y: 10 },
+  hidden: { opacity: 0, y: 10 },
   visible: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.28, delay: i * 0.07 } }),
 };
 
@@ -22,16 +22,16 @@ export default function FacultyDashboard() {
     queryFn: () => api.getRequests(),
   });
 
-  const total    = requestsList.length;
-  const pending  = requestsList.filter((r: AttendanceRequest) => r.status === 'pending').length;
+  const total = requestsList.length;
+  const pending = requestsList.filter((r: AttendanceRequest) => r.status === 'pending').length;
   const approved = requestsList.filter((r: AttendanceRequest) => r.status === 'approved').length;
   const rejected = requestsList.filter((r: AttendanceRequest) => r.status === 'rejected').length;
 
   const quickLinks = [
-    { label: 'Requests', desc: 'Review student requests',     icon: ClipboardList, to: '/faculty/requests', color: 'text-orange-500',  bg: 'bg-orange-50',  border: 'border-orange-200'  },
-    { label: 'Students', desc: 'View student submissions',    icon: Users,         to: '/faculty/students', color: 'text-blue-500',    bg: 'bg-blue-50',    border: 'border-blue-200'    },
-    { label: 'Reports',  desc: 'Attendance analytics',        icon: BarChart2,     to: '/faculty/reports',  color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-    { label: 'Settings', desc: 'Profile & preferences',       icon: Settings,      to: '/faculty/settings', color: 'text-slate-500',   bg: 'bg-slate-100',  border: 'border-slate-200'   },
+    { label: 'Requests', desc: 'Review student requests', icon: ClipboardList, to: '/faculty/requests', color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-200' },
+    { label: 'Students', desc: 'View student submissions', icon: Users, to: '/faculty/students', color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-200' },
+    { label: 'Reports', desc: 'Attendance analytics', icon: BarChart2, to: '/faculty/reports', color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+    { label: 'Settings', desc: 'Profile & preferences', icon: Settings, to: '/faculty/settings', color: 'text-slate-500', bg: 'bg-slate-100', border: 'border-slate-200' },
   ];
 
   return (
@@ -85,10 +85,10 @@ export default function FacultyDashboard() {
           className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8"
         >
           {[
-            { label: 'Total',    value: total,    color: 'text-slate-700',   bg: 'bg-white'        },
-            { label: 'Pending',  value: pending,  color: 'text-amber-600',   bg: 'bg-amber-50'     },
-            { label: 'Approved', value: approved, color: 'text-emerald-600', bg: 'bg-emerald-50'   },
-            { label: 'Rejected', value: rejected, color: 'text-rose-500',    bg: 'bg-rose-50'      },
+            { label: 'Total', value: total, color: 'text-slate-700', bg: 'bg-white' },
+            { label: 'Pending', value: pending, color: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'Approved', value: approved, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'Rejected', value: rejected, color: 'text-rose-500', bg: 'bg-rose-50' },
           ].map((s, i) => (
             <motion.div
               key={s.label}

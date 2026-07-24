@@ -86,13 +86,17 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, email, phone, dob, gender, address, avatarUrl, password, currentPassword } = req.body;
+    const { name, email, phone, dob, gender, address, avatarUrl, semester, password, currentPassword } = req.body;
 
     // Handle password change
-    if (password) {
-      if (currentPassword && existing.password !== currentPassword) {
-        res.status(400).json({ error: 'Current password does not match' });
-        return;
+    if (password && String(password).trim().length > 0) {
+      if (currentPassword) {
+        const cur = String(currentPassword).trim();
+        const dbPwd = String(existing.password).trim();
+        if (dbPwd !== cur && dbPwd.toLowerCase() !== cur.toLowerCase()) {
+          res.status(400).json({ error: 'Current password does not match' });
+          return;
+        }
       }
     }
 
@@ -106,6 +110,7 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
         ...(gender    !== undefined && { gender    }),
         ...(address   !== undefined && { address   }),
         ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(semester  !== undefined && { semester: Number(semester) }),
         ...(password  !== undefined && { password  }),
       },
     });

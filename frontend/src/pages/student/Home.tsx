@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ClipboardList, Clock, Plus, MoreVertical, User as UserIcon, ArrowRight
+  ClipboardList, Clock, Plus, MoreVertical, User as UserIcon, ArrowRight, Lock
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useQuery } from '@tanstack/react-query';
@@ -50,8 +50,8 @@ export default function StudentHome() {
   const quickActions = [
     { label: 'New Request', icon: Plus, color: '#F97316', bg: 'rgba(249,115,22,0.09)', to: '/student/new-request' },
     { label: 'History', icon: Clock, color: '#8B5CF6', bg: 'rgba(139,92,246,0.09)', to: '/student/history' },
-    { label: 'Profile', icon: UserIcon, color: '#F97316', bg: 'rgba(249,115,22,0.09)', to: '/student/profile' },
-    { label: 'View All', icon: ClipboardList, color: '#10B981', bg: 'rgba(16,185,129,0.09)', to: '/student/history' },
+    { label: 'Profile', icon: UserIcon, color: '#3B82F6', bg: 'rgba(59,130,246,0.09)', to: '/student/profile' },
+    { label: 'Change Password', icon: Lock, color: '#EF4444', bg: 'rgba(239,68,68,0.09)', to: '/student/profile', state: { tab: 'Account Settings' } },
   ];
 
   return (
@@ -132,8 +132,8 @@ export default function StudentHome() {
           <p style={{ fontSize: 16, fontWeight: 800, color: '#000000', margin: 0 }}>Quick Actions</p>
           <button onClick={() => navigate('/student/history')} style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', background: 'none', border: 'none', cursor: 'pointer' }}>View All</button>
         </div>
-        {quickActions.map(({ label, icon: Icon, color, bg, to }) => (
-          <button key={label} onClick={() => navigate(to)} style={{ ...card({ padding: '16px' }), display: 'flex', alignItems: 'center', gap: 12, border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+        {quickActions.map(({ label, icon: Icon, color, bg, to, state }) => (
+          <button key={label} onClick={() => navigate(to, state ? { state } : undefined)} style={{ ...card({ padding: '16px' }), display: 'flex', alignItems: 'center', gap: 12, border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
             <div style={{ width: 42, height: 42, borderRadius: 13, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Icon size={20} style={{ color }} />
             </div>

@@ -1,0 +1,130 @@
+/**
+ * user.service.ts
+ *
+ * Business logic for admin User Management.
+ * Key responsibility: guard against deleting the last admin account.
+ */
+import * as userRepo from '../repositories/user.repository.js';
+import { hashPassword, verifyPassword } from './password.service.js';
+import type {
+  CreateUserBody,
+  UpdateUserBody,
+  UserResponse,
+  UserListResponse,
+} from '../types/user.types.js';
+
+// ── Custom errors ─────────────────────────────────────────────────────────────
+
+export class UserNotFoundError extends Error {
+  constructor(id: string) {
+    super(`User with id "${id}" not found.`);
+    this.name = 'UserNotFoundError';
+  }
+}
+
+export class DuplicateUserError extends Error {
+  constructor(field: string, value: string) {
+    super(`A user with ${field} "${value}" already exists.`);
+    this.name = 'DuplicateUserError';
+  }
+}
+
+export class LastAdminError extends Error {
+  constructor() {
+    super('Cannot delete the last active admin account. Add another admin first.');
+    this.name = 'LastAdminError';
+  }
+}
+
+export class InvalidCurrentPasswordError extends Error {
+  constructor() {
+    super('Current password is incorrect.');
+    this.name = 'InvalidCurrentPasswordError';
+  }
+}
+
+// ── Internal helper ───────────────────────────────────────────────────────────
+
+function toResponse(doc: Record<string, unknown>): UserResponse {
+  return {
+    id:         doc['userId'] as string,
+    name:       doc['name'] as string,
+    email:      doc['email'] as string,
+    role:       doc['role'] as UserResponse['role'],
+    department: doc['department'] as string,
+    isActive:   (doc['isActive'] as boolean) ?? true,
+    ...(doc['rollNumber'] ? { rollNumber: doc['rollNumber'] as string } : {}),
+    ...(doc['semester']   ? { semester:   doc['semester'] as number   } : {}),
+    ...(doc['avatarUrl']  ? { avatarUrl:  doc['avatarUrl'] as string  } : {}),
+  };
+}
+
+// ── Service functions ─────────────────────────────────────────────────────────
+
+export async function listUsers(): Promise<UserListResponse> {
+  const docs = await userRepo.listAllUsers();
+  return { users: docs.map((d) => toResponse(d as unknown as Record<string, unknown>)) };
+}
+
+export async function createUser(body: CreateUserBody): Promise<UserResponse> {
+  const byId = await userRepo.findUserByUserId(body.userId);
+  if (byId) throw new DuplicateUserError('userId', body.userId);
+
+  const byEmail = await userRepo.findUserByEmail(body.email);
+  if (byEmail) throw new DuplicateUserError('email', body.email);
+
+  const hashedPassword = await hashPassword(body.password);
+  const doc = await userRepo.createUser({ ...body, password: hashedPassword });
+  return toResponse(doc as unknown as Record<string, unknown>);
+}
+
+export async function updateUser(userId: string, patch: UpdateUserBody): Promise<UserResponse> {
+  if (patch.email) {
+    const byEmail  = await userRepo.findUserByEmail(patch.email);
+    const existing = byEmail as unknown as Record<string, unknown> | null;
+    if (existing && existing['userId'] !== userId) {
+      throw new DuplicateUserError('email', patch.email);
+    }
+  }
+
+  const doc = await userRepo.updateUser(userId, patch);
+  if (!doc) throw new UserNotFoundError(userId);
+  return toResponse(doc as unknown as Record<string, unknown>);
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  const target    = await userRepo.findUserByUserId(userId);
+  const asRecord  = target as unknown as Record<string, unknown> | null;
+  if (!asRecord) throw new UserNotFoundError(userId);
+
+  if (asRecord['role'] === 'admin') {
+    const adminCount = await userRepo.countActiveAdmins();
+    if (adminCount <= 1) throw new LastAdminError();
+  }
+
+  const deleted = await userRepo.softDeleteUser(userId);
+  if (!deleted) throw new UserNotFoundError(userId);
+}
+
+export async function changeSelfPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const record = await userRepo.findUserWithPasswordByUserId(userId);
+  if (!record) throw new UserNotFoundError(userId);
+
+  const isValid = await verifyPassword(currentPassword, record.password);
+  if (!isValid) throw new InvalidCurrentPasswordError();
+
+  const hashed = await hashPassword(newPassword);
+  await userRepo.updateUserPassword(userId, hashed);
+}
+
+export async function resetUserPassword(userId: string, newPassword: string): Promise<void> {
+  const user = await userRepo.findUserByUserId(userId);
+  if (!user) throw new UserNotFoundError(userId);
+
+  const hashed = await hashPassword(newPassword);
+  await userRepo.updateUserPassword(userId, hashed);
+}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { GraduationCap, Eye, EyeOff } from 'lucide-react';
 import { LoginLayout } from '../../components/layout/LoginLayout';
 import { Input } from '../../components/ui/Input';
@@ -80,13 +80,17 @@ export default function StudentLogin() {
           Sign In
         </Button>
 
-        {/* Demo hint */}
-        <div className="bg-[#F9FAFB] rounded-xl px-4 py-3 border border-[#E5E7EB]">
-          <p className="text-[12px] font-medium text-[#6B7280] mb-1">Demo credentials</p>
-          <p className="text-[12px] text-[#9CA3AF]">Roll Number: <span className="text-[#111111] font-medium">24B91A0720</span></p>
-          <p className="text-[12px] text-[#9CA3AF]">Password: <span className="text-[#111111] font-medium">24B91A0720</span></p>
-          <p className="text-[10px] text-[#B0B8C4] mt-1">💡 Password = your roll number</p>
+        <div className="mt-5 pt-4 border-t border-[#F1F5F9] text-center text-[12px] text-[#64748B]">
+          <span className="block mb-1.5 text-[#94A3B8]">Need another portal?</span>
+          <div className="flex items-center justify-center gap-3">
+            <Link to="/login/faculty" className="text-[#F97316] font-semibold hover:underline">Faculty Login</Link>
+            <span className="text-[#CBD5E1]">·</span>
+            <Link to="/login/hod" className="text-[#F97316] font-semibold hover:underline">HOD Login</Link>
+            <span className="text-[#CBD5E1]">·</span>
+            <Link to="/admin/login" className="text-[#F97316] font-semibold hover:underline">Admin Login</Link>
+          </div>
         </div>
+
       </form>
     </LoginLayout>
   );
