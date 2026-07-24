@@ -80,6 +80,7 @@ model Request {
   description         String
   documentName        String?
   status              RequestStatus @default(pending)
+  rejectionReason     String?
   submittedAt         String
   reviewedAt          String?
 

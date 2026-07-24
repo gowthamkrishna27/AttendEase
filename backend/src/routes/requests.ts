@@ -53,6 +53,7 @@ function toApi(r: any) {
     description:         r.description,
     documentName:        r.documentName ?? undefined,
     status:              r.status,
+    rejectionReason:     r.rejectionReason ?? undefined,
     submittedAt:         r.submittedAt,
     reviewedAt:          r.reviewedAt   ?? undefined,
     finalDecisionBy:     r.finalDecisionBy ?? undefined,
@@ -456,6 +457,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
         where: { requestId: req.params['id'] },
         data: {
           status:              newStatus,
+          rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || null) : null,
           reviewedAt:          new Date().toISOString(),
           finalDecisionBy:     decisionRole,
           finalDecisionUserId: user.id,
