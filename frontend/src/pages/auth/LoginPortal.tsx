@@ -209,19 +209,6 @@ export default function LoginPortal() {
               : <><span>Sign In</span><ArrowRight size={16} /></>
             }
           </motion.button>
-
-          {/* Admin Login link */}
-          <div style={{ marginTop: 12, textAlign: 'center' }}>
-            <button
-              type="button"
-              onClick={() => navigate('/admin/login')}
-              style={{ fontSize: 12, fontWeight: 600, color: '#64748B', background: 'none', border: 'none', cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#F97316')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#64748B')}
-            >
-              Are you an Administrator? <span style={{ textDecoration: 'underline' }}>Login to Admin Portal →</span>
-            </button>
-          </div>
         </motion.form>
       </AnimatePresence>
     </>

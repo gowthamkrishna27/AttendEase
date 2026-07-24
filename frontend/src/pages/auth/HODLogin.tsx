@@ -87,8 +87,6 @@ export default function HODLogin() {
             <Link to="/login/student" className="text-[#F97316] font-semibold hover:underline">Student Login</Link>
             <span className="text-[#CBD5E1]">·</span>
             <Link to="/login/faculty" className="text-[#F97316] font-semibold hover:underline">Faculty Login</Link>
-            <span className="text-[#CBD5E1]">·</span>
-            <Link to="/admin/login" className="text-[#F97316] font-semibold hover:underline">Admin Login</Link>
           </div>
         </div>
 

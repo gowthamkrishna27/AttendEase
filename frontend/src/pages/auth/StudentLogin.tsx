@@ -86,8 +86,6 @@ export default function StudentLogin() {
             <Link to="/login/faculty" className="text-[#F97316] font-semibold hover:underline">Faculty Login</Link>
             <span className="text-[#CBD5E1]">·</span>
             <Link to="/login/hod" className="text-[#F97316] font-semibold hover:underline">HOD Login</Link>
-            <span className="text-[#CBD5E1]">·</span>
-            <Link to="/admin/login" className="text-[#F97316] font-semibold hover:underline">Admin Login</Link>
           </div>
         </div>
 
