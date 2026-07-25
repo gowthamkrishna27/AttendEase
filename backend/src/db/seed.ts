@@ -43,7 +43,7 @@ const CSD_FACULTY = [
   { userId: 'fac-csd-007', name: 'K. Bhanu Rajesh Naidu', email: 'kbrnaidu@srkrec.ac.in', designation: 'Assistant Professor', avatarUrl: 'https://www.srkrec.ac.in/assets/images/faculty/csd/1479.jpg' },
   { userId: 'fac-csd-008', name: 'N. Aneela', email: 'aneela@srkrec.ac.in', designation: 'Assistant Professor', avatarUrl: 'https://www.srkrec.ac.in/assets/images/faculty/csd/1483.jpg' },
   { userId: 'fac-csd-009', name: 'M Sai Madhuri', email: 'madhuryamudundi@gmail.com', designation: 'Teaching Assistant', avatarUrl: 'https://www.srkrec.ac.in/assets/images/faculty/csd/1504.jpeg' },
-].map(f => ({ ...f, role: 'faculty' as Role, department: 'CSD', password: 'faculty123' }));
+].map(f => ({ ...f, role: 'faculty' as Role, department: 'CSD', password: '1234' }));
 
 // ── CSIT Faculty ───────────────────────────────────────────────────────────────
 const CSIT_FACULTY = [
@@ -57,20 +57,20 @@ const CSIT_FACULTY = [
   { userId: 'fac-csit-008', name: 'K V V Satya Trinadh Naidu', email: 'kvvstnaidu@srkrec.ac.in', designation: 'Assistant Professor', avatarUrl: 'https://www.srkrec.ac.in/assets/images/faculty/csit/1480.jpg' },
   { userId: 'fac-csit-009', name: 'D Parvathi', email: 'parvathiram21@gmail.com', designation: 'Assistant Professor', avatarUrl: 'https://www.srkrec.ac.in/assets/images/faculty/csit/1503.jpeg' },
   { userId: 'fac-csit-010', name: 'K Sri Vigyna', email: 'vignyak@gmail.com', designation: 'Teaching Assistant', avatarUrl: 'https://www.srkrec.ac.in/assets/images/faculty/csit/1509.jpeg' },
-].map(f => ({ ...f, role: 'faculty' as Role, department: 'CSIT', password: 'faculty123' }));
+].map(f => ({ ...f, role: 'faculty' as Role, department: 'CSIT', password: '1234' }));
 
 // ── HOD Accounts ───────────────────────────────────────────────────────────────
 const HOD_USERS = [
   {
     userId: 'hod-csd', name: 'Dr. Suresh Babu Mudunuri',
     email: 'hod.csd@srkrec.ac.in', role: 'hod' as Role,
-    department: 'CSD', password: 'hodcsd123',
+    department: 'CSD', password: '1234',
     avatarUrl: 'https://www.srkrec.ac.in/assets/images/faculty/csd/780.jpeg',
   },
   {
     userId: 'hod-csit', name: 'Dr. NGK Murthy',
     email: 'hod.csit@srkrec.ac.in', role: 'hod' as Role,
-    department: 'CSIT', password: 'hodcsit123',
+    department: 'CSIT', password: '1234',
     avatarUrl: 'https://www.srkrec.ac.in/assets/images/faculty/csit/781.jpeg',
   },
 ];
@@ -83,7 +83,7 @@ const ADMIN_USERS = [
     email: 'admin@college.edu',
     role: 'admin' as Role,
     department: 'Administration',
-    password: 'admin123',
+    password: '1234',
     avatarUrl: 'https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff',
   },
 ];
