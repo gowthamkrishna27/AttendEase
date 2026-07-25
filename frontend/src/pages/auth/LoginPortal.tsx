@@ -150,14 +150,34 @@ export default function LoginPortal() {
       // 1. Fetch challenge & allowed credential IDs from PostgreSQL for this user
       const challengeRes = await api.loginPasskeyChallenge(targetIdentifier);
 
+      if (!challengeRes.hasPasskey || !challengeRes.allowCredentials || challengeRes.allowCredentials.length === 0) {
+        setError('No passkey registered for this account on this device yet. Please enter your 4-digit PIN (1234) to log in first.');
+        setPasskeyLoading(false);
+        return;
+      }
+
       // 2. Convert base64url challenge bytes
       const challengeBytes = new Uint8Array(32);
       window.crypto.getRandomValues(challengeBytes);
 
-      // 3. Trigger native WebAuthn get prompt (NEVER call create() during login)
+      // Convert stored credential IDs
+      const allowCredentials = challengeRes.allowCredentials.map((c: any) => {
+        try {
+          const raw = atob(c.id.replace(/-/g, '+').replace(/_/g, '/'));
+          const arr = new Uint8Array(raw.length);
+          for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+          return { id: arr, type: 'public-key' as const };
+        } catch {
+          return { id: new TextEncoder().encode(c.id), type: 'public-key' as const };
+        }
+      });
+
+      // 3. Trigger native WebAuthn get prompt with explicit allowCredentials filter
       const credential = (await navigator.credentials.get({
         publicKey: {
           challenge: challengeBytes,
+          rpId: window.location.hostname,
+          allowCredentials,
           timeout: 30000,
           userVerification: 'preferred',
         },
@@ -180,7 +200,7 @@ export default function LoginPortal() {
       if (msg.includes('cancel') || (err as any)?.name === 'AbortError') {
         setError('Passkey authentication was cancelled by user.');
       } else {
-        setError('No passkey registered for this account/device yet. Please log in with your 4-digit PIN first.');
+        setError('No passkey registered for this account on this device yet. Please enter your 4-digit PIN (1234) to log in.');
       }
     } finally {
       setPasskeyLoading(false);
@@ -250,7 +270,7 @@ export default function LoginPortal() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
           <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
-            v1.1.4.1
+            v1.1.4.2
           </span>
         </div>
       </div>
