@@ -27,6 +27,7 @@ export default function AdminUsers() {
   const [formPass, setFormPass]     = useState('');
   const [formRoll, setFormRoll]     = useState('');
   const [formSem, setFormSem]       = useState(6);
+  const [formAvatar, setFormAvatar] = useState('');
   const [formError, setFormError]   = useState('');
 
   const { data: usersList = [], isLoading } = useQuery({
@@ -75,6 +76,7 @@ export default function AdminUsers() {
     setFormPass('');
     setFormRoll('');
     setFormSem(6);
+    setFormAvatar('');
     setFormError('');
   };
 
@@ -93,6 +95,7 @@ export default function AdminUsers() {
     setFormPass(''); // don't fill password
     setFormRoll(u.rollNumber || '');
     setFormSem(u.semester || 6);
+    setFormAvatar(u.avatarUrl || '');
     setFormError('');
     setShowFormModal(true);
   };
@@ -119,6 +122,7 @@ export default function AdminUsers() {
 
     const effectiveId = formId.trim() || (formRole === 'student' ? `stu-${formRoll.trim()}` : '');
     const effectivePass = formPass || (formRole === 'student' ? formRoll.trim() : '');
+    const effectiveAvatar = formAvatar.trim() || (formRole === 'student' && formRoll.trim() ? `https://srkrexams.in/SRKR/photo/${formRoll.trim()}.jpg` : '');
 
     if (!editingUser) {
       if (!effectiveId || !effectivePass) {
@@ -133,6 +137,7 @@ export default function AdminUsers() {
         department: formDept,
         password: effectivePass,
         ...(formRole === 'student' && { rollNumber: formRoll.trim(), semester: formSem }),
+        ...(effectiveAvatar && { avatarUrl: effectiveAvatar }),
       });
     } else {
       updateMutation.mutate({
@@ -144,6 +149,7 @@ export default function AdminUsers() {
           department: formDept,
           ...(formPass && { password: formPass }),
           ...(formRole === 'student' && { rollNumber: formRoll.trim(), semester: formSem }),
+          avatarUrl: effectiveAvatar,
         }
       });
     }
@@ -447,10 +453,22 @@ export default function AdminUsers() {
                 Password {editingUser ? <span className="text-[10px] text-slate-400">(leave blank to keep current)</span> : formRole === 'student' && <span className="text-[10px] text-slate-400 font-normal">(optional — defaults to roll number)</span>}
               </label>
               <Input
-                type="password"
-                placeholder={editingUser ? '••••••••' : formRole === 'student' ? 'Defaults to Roll Number if blank' : 'Enter login password'}
+                type="text"
+                placeholder={editingUser ? 'Leave blank to keep current' : formRole === 'student' ? 'Defaults to Roll Number if blank' : 'Enter login password'}
                 value={formPass}
                 onChange={e => setFormPass(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                Avatar Image URL <span className="text-[10px] text-slate-400 font-normal">(optional photo link)</span>
+              </label>
+              <Input
+                type="text"
+                placeholder="https://srkrexams.in/SRKR/photo/24B91A0702.jpg"
+                value={formAvatar}
+                onChange={e => setFormAvatar(e.target.value)}
               />
             </div>
 

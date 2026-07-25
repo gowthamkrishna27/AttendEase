@@ -40,10 +40,10 @@ export const createUserSchema = z
     email:      z.string().email('Must be a valid email').toLowerCase().trim(),
     role:       userRoleEnum,
     department: z.string().trim().min(1, 'Department is required').max(50),
-    password:   buildPasswordSchema('Password'),
+    password:   z.string().min(1, 'Password is required'),
     rollNumber: z.string().trim().max(20).optional(),
     semester:   z.number().int().min(1).max(10).optional(),
-    avatarUrl:  z.string().url('avatarUrl must be a valid URL').optional(),
+    avatarUrl:  z.string().trim().optional(),
   })
   .refine(
     (data) => data.role !== 'student' || (!!data.rollNumber && !!data.semester),
@@ -59,7 +59,8 @@ export const updateUserSchema = z.object({
   department: z.string().trim().min(1).max(50).optional(),
   rollNumber: z.string().trim().max(20).optional(),
   semester:   z.number().int().min(1).max(10).optional(),
-  avatarUrl:  z.string().url().optional(),
+  avatarUrl:  z.string().trim().optional(),
+  password:   z.string().trim().optional(),
 }).refine(
   (body) => Object.values(body).some((v) => v !== undefined),
   { message: 'At least one field must be provided for update' },
