@@ -52,7 +52,7 @@ const FACULTY_PHOTO_MAP: Record<string, { name: string; dept: string; photo: str
 
 export default function LoginPortal() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, setUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<Tab>('student');
   const [identifier, setIdentifier] = useState('');
@@ -166,6 +166,7 @@ export default function LoginPortal() {
       // 4. Send verified assertion to backend to authenticate against PostgreSQL UserPasskey records
       const { token, user: u } = await api.verifyPasskeyLogin(targetIdentifier, credential?.id);
       api.setStoredToken(token, rememberMe);
+      setUser(u);
 
       setPin(['1', '2', '3', '4']);
       setPassword('1234');
@@ -218,6 +219,7 @@ export default function LoginPortal() {
       // Strict backend authentication against PostgreSQL user.password
       const res = await api.login(identifier.trim(), currentPass, role);
       api.setStoredToken(res.token, rememberMe);
+      setUser(res.user);
       localStorage.setItem('attendease_last_login_' + activeTab, identifier.trim());
 
       const devicePasskeyRegistered = localStorage.getItem(`attendease_device_passkey_${res.user.email}`);
@@ -248,7 +250,7 @@ export default function LoginPortal() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
           <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
-            v1.1.4.0
+            v1.1.4.1
           </span>
         </div>
       </div>
