@@ -10,7 +10,7 @@ export type { AuthUser };
 
 interface AuthContextValue {
   user: AuthUser | null;
-  login: (identifier: string, password: string, role: UserRole) => Promise<void>;
+  login: (identifier: string, password: string, role: UserRole, rememberMe?: boolean) => Promise<void>;
   logout: () => void;
   updateProfile: (data: UpdateProfilePayload) => Promise<AuthUser>;
   setUser: (user: AuthUser | null) => void;
@@ -38,10 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = async (identifier: string, password: string, role: UserRole) => {
+  const login = async (identifier: string, password: string, role: UserRole, rememberMe: boolean = true) => {
     queryClient.clear();
     const { token, user: u } = await api.login(identifier, password, role);
-    setStoredToken(token);
+    setStoredToken(token, rememberMe);
     setUser(u);
   };
 

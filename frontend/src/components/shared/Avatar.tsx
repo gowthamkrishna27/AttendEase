@@ -4,8 +4,9 @@ import { cn } from '../../lib/utils';
 interface AvatarProps {
   name: string;
   src?: string;
+  rollNumber?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
-  role?: 'student' | 'faculty' | 'hod';
+  role?: 'student' | 'faculty' | 'hod' | 'admin';
   className?: string;
 }
 
@@ -16,10 +17,11 @@ const sizeMap = {
   xl: 'w-20 h-20 text-[24px]',
 };
 
-const roleGradientMap = {
+const roleGradientMap: Record<string, string> = {
   student: 'from-orange-500 to-amber-500',
   faculty: 'from-blue-600 to-indigo-600',
   hod: 'from-purple-600 to-indigo-600',
+  admin: 'from-slate-700 to-slate-900',
 };
 
 function getInitials(name: string): string {
@@ -44,11 +46,12 @@ function getGradient(name: string): string {
   return gradients[index];
 }
 
-export function Avatar({ name, src, size = 'md', role, className }: AvatarProps) {
+export function Avatar({ name, src, rollNumber, size = 'md', role, className }: AvatarProps) {
   const [imgError, setImgError] = useState(false);
-  const gradient = role ? roleGradientMap[role] : getGradient(name);
+  const effectiveSrc = src || (rollNumber ? `https://srkrexams.in/SRKR/photo/${rollNumber.toUpperCase()}.jpg` : undefined);
+  const gradient = role ? (roleGradientMap[role] || getGradient(name)) : getGradient(name);
 
-  if (src && !imgError) {
+  if (effectiveSrc && !imgError) {
     return (
       <div
         className={cn(
@@ -58,7 +61,7 @@ export function Avatar({ name, src, size = 'md', role, className }: AvatarProps)
         )}
       >
         <img
-          src={src}
+          src={effectiveSrc}
           alt={name}
           className="w-full h-full object-cover object-top"
           onError={() => setImgError(true)}

@@ -9,15 +9,23 @@ const BASE = import.meta.env['VITE_API_URL'] ?? 'http://localhost:3000';
 const TOKEN_KEY = 'attendease_token';
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 }
 
-export function setStoredToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+export function setStoredToken(token: string, remember: boolean = true): void {
+  if (remember) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem('attendease_remember_me', 'true');
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  }
 }
 
 export function clearStoredToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('attendease_remember_me');
+  localStorage.removeItem('attendease_saved_user');
+  sessionStorage.removeItem(TOKEN_KEY);
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────

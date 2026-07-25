@@ -528,7 +528,7 @@ export default function PermissionsPage() {
                     <div className="col-span-3 flex justify-end">
                       <div className="w-[72px] h-[90px] border-2 border-slate-900 rounded-sm bg-white overflow-hidden flex flex-col items-center justify-center relative shadow-2xs">
                         <img
-                          src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${selectedPass.student?.rollNumber || selectedPass.studentId}.jpg`}
+                          src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${(selectedPass.student?.rollNumber || selectedPass.studentId).toUpperCase()}.jpg`}
                           alt="Student Photo"
                           className="w-full h-full object-cover block"
                           onError={(e) => {

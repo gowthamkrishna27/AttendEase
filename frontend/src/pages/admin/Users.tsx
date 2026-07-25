@@ -110,45 +110,52 @@ export default function AdminUsers() {
     e.preventDefault();
     setFormError('');
 
-    if (!formName.trim() || !formEmail.trim() || !formDept.trim()) {
-      setFormError('Name, Email, and Department are required.');
-      return;
+    if (formRole === 'student') {
+      if (!formRoll.trim() || !formName.trim()) {
+        setFormError('Register / Roll Number and Student Name are required.');
+        return;
+      }
+    } else {
+      if (!formName.trim() || !formEmail.trim() || !formDept.trim()) {
+        setFormError('Name, Email, and Department are required for non-student accounts.');
+        return;
+      }
     }
 
-    if (formRole === 'student' && !formRoll.trim()) {
-      setFormError('Roll Number is required for Student accounts.');
-      return;
-    }
+    const cleanRoll = formRoll.trim();
+    const cleanName = formName.trim();
 
-    const effectiveId = formId.trim() || (formRole === 'student' ? `stu-${formRoll.trim()}` : '');
-    const effectivePass = formPass || (formRole === 'student' ? formRoll.trim() : '');
-    const effectiveAvatar = formAvatar.trim() || (formRole === 'student' && formRoll.trim() ? `https://srkrexams.in/SRKR/photo/${formRoll.trim()}.jpg` : '');
+    const effectiveEmail  = formEmail.trim() || (formRole === 'student' ? `${cleanRoll.toLowerCase()}@srkrec.ac.in` : '');
+    const effectiveDept   = formDept.trim()  || 'CSD';
+    const effectiveId     = formId.trim()    || (formRole === 'student' ? `stu-${cleanRoll}` : '');
+    const effectivePass   = formPass.trim()  || (formRole === 'student' ? cleanRoll : (formRole === 'faculty' || formRole === 'hod' ? '1234' : 'password123'));
+    const effectiveAvatar = formAvatar.trim() || (formRole === 'student' && cleanRoll ? `https://srkrexams.in/SRKR/photo/${cleanRoll.toUpperCase()}.jpg` : '');
 
     if (!editingUser) {
       if (!effectiveId || !effectivePass) {
-        setFormError('User ID and Password are required for non-student accounts.');
+        setFormError('User ID and Password could not be generated.');
         return;
       }
       createMutation.mutate({
         userId: effectiveId,
-        name: formName.trim(),
-        email: formEmail.trim(),
+        name: cleanName,
+        email: effectiveEmail,
         role: formRole,
-        department: formDept,
+        department: effectiveDept,
         password: effectivePass,
-        ...(formRole === 'student' && { rollNumber: formRoll.trim(), semester: formSem }),
+        ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem || 6 }),
         ...(effectiveAvatar && { avatarUrl: effectiveAvatar }),
       });
     } else {
       updateMutation.mutate({
         id: editingUser.id,
         data: {
-          name: formName.trim(),
-          email: formEmail.trim(),
+          name: cleanName,
+          email: effectiveEmail,
           role: formRole,
-          department: formDept,
+          department: effectiveDept,
           ...(formPass && { password: formPass }),
-          ...(formRole === 'student' && { rollNumber: formRoll.trim(), semester: formSem }),
+          ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem }),
           avatarUrl: effectiveAvatar,
         }
       });
@@ -258,7 +265,7 @@ export default function AdminUsers() {
                     >
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-3">
-                          <Avatar name={u.name} src={u.avatarUrl} size="sm" role={u.role} />
+                          <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} />
                           <div>
                             <p className="text-[13px] font-semibold text-slate-800">{u.name}</p>
                             <p className="text-[11px] text-slate-400 mt-0.5">{u.email}</p>
@@ -309,7 +316,7 @@ export default function AdminUsers() {
               {sorted.map(u => (
                 <div key={u.id} className="p-4 flex flex-col gap-3">
                   <div className="flex items-center gap-3">
-                    <Avatar name={u.name} src={u.avatarUrl} size="sm" role={u.role} />
+                    <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} />
                     <div className="min-w-0 flex-1">
                       <p className="text-[14px] font-semibold text-slate-800 truncate">{u.name}</p>
                       <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
@@ -360,59 +367,91 @@ export default function AdminUsers() {
           open={showFormModal}
           onClose={() => setShowFormModal(false)}
           title={editingUser ? 'Edit Portal Account' : 'Add New Account'}
+          description={formRole === 'student' ? 'Fill Register Number and Name to auto-generate student details' : 'Enter account details below'}
         >
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
-            {!editingUser && (
-              <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                  User ID {formRole === 'student' && <span className="text-[10px] text-slate-400 font-normal">(optional — defaults to stu-&lt;rollNumber&gt;)</span>}
-                </label>
-                <Input
-                  placeholder={formRole === 'student' ? 'Auto-generated if blank (e.g. stu-24B91A0799)' : 'e.g. fac-002'}
-                  value={formId}
-                  onChange={e => setFormId(e.target.value)}
-                />
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 mt-2">
+            {/* System Role Selector */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Account Type / Role
+              </label>
+              <select
+                value={formRole}
+                onChange={e => setFormRole(e.target.value as api.UserRole)}
+                className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 font-bold text-slate-800 text-[13px] shadow-2xs"
+              >
+                <option value="student">Student Account</option>
+                <option value="faculty">Faculty Account</option>
+                <option value="hod">HOD Account</option>
+                <option value="admin">Admin Account</option>
+              </select>
+            </div>
+
+            {/* Mandatory Student Inputs Box */}
+            {formRole === 'student' ? (
+              <div className="p-3.5 bg-orange-50/70 border border-orange-200/80 rounded-xl space-y-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-orange-700 flex items-center gap-1">
+                  <span>Required Student Details</span>
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                      Register Number <span className="text-orange-600 font-extrabold">*</span>
+                    </label>
+                    <Input
+                      placeholder="e.g. 24B91A0702"
+                      value={formRoll}
+                      onChange={e => setFormRoll(e.target.value)}
+                      className="bg-white font-mono font-bold"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                      Student Name <span className="text-orange-600 font-extrabold">*</span>
+                    </label>
+                    <Input
+                      placeholder="e.g. Gowtham Krishna"
+                      value={formName}
+                      onChange={e => setFormName(e.target.value)}
+                      className="bg-white font-bold"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Full Name <span className="text-orange-600 font-bold">*</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. Dr. K. V. Sharma"
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Email Address <span className="text-orange-600 font-bold">*</span>
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="name@college.edu"
+                    value={formEmail}
+                    onChange={e => setFormEmail(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
             )}
 
+            {/* Department & Semester / User ID */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Full Name</label>
-                <Input
-                  placeholder="e.g. Arjun Sharma"
-                  value={formName}
-                  onChange={e => setFormName(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Email Address</label>
-                <Input
-                  type="email"
-                  placeholder="name@college.edu"
-                  value={formEmail}
-                  onChange={e => setFormEmail(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">System Role</label>
-                <select
-                  value={formRole}
-                  onChange={e => setFormRole(e.target.value as api.UserRole)}
-                  className="w-full h-[40px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 font-medium text-slate-700 text-[13px]"
-                >
-                  <option value="student">Student</option>
-                  <option value="faculty">Faculty</option>
-                  <option value="hod">HOD</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Department</label>
+                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Department</label>
                 <select
                   value={formDept}
                   onChange={e => setFormDept(e.target.value)}
@@ -422,21 +461,10 @@ export default function AdminUsers() {
                   <option value="CSIT">CSIT</option>
                 </select>
               </div>
-            </div>
 
-            {formRole === 'student' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {formRole === 'student' ? (
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Roll Number</label>
-                  <Input
-                    placeholder="e.g. 24B91A0799"
-                    value={formRoll}
-                    onChange={e => setFormRoll(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Semester</label>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Semester</label>
                   <select
                     value={formSem}
                     onChange={e => setFormSem(Number(e.target.value))}
@@ -445,24 +473,78 @@ export default function AdminUsers() {
                     {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Semester {s}</option>)}
                   </select>
                 </div>
+              ) : !editingUser ? (
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">User ID</label>
+                  <Input
+                    placeholder="e.g. fac-002"
+                    value={formId}
+                    onChange={e => setFormId(e.target.value)}
+                  />
+                </div>
+              ) : null}
+            </div>
+
+            {/* Student optional details: Email & User ID */}
+            {formRole === 'student' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                    Email Address <span className="text-[10px] text-slate-400 font-normal">(auto-filled)</span>
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="rollNumber@srkrec.ac.in"
+                    value={formEmail}
+                    onChange={e => setFormEmail(e.target.value)}
+                  />
+                </div>
+                {!editingUser && (
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                      User ID <span className="text-[10px] text-slate-400 font-normal">(auto-filled)</span>
+                    </label>
+                    <Input
+                      placeholder="stu-24B91A0702"
+                      value={formId}
+                      onChange={e => setFormId(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
+            {/* Password / 4-Digit Passcode Field */}
             <div>
-              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                Password {editingUser ? <span className="text-[10px] text-slate-400">(leave blank to keep current)</span> : formRole === 'student' && <span className="text-[10px] text-slate-400 font-normal">(optional — defaults to roll number)</span>}
+              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                {formRole === 'faculty' || formRole === 'hod' ? '4-Digit Passcode' : 'Password'}{' '}
+                {editingUser ? (
+                  <span className="text-[10px] text-slate-400">(leave blank to keep current)</span>
+                ) : formRole === 'faculty' || formRole === 'hod' ? (
+                  <span className="text-[10px] text-slate-400 font-normal">(defaults to 1234)</span>
+                ) : (
+                  <span className="text-[10px] text-slate-400 font-normal">(defaults to Roll Number)</span>
+                )}
               </label>
               <Input
                 type="text"
-                placeholder={editingUser ? 'Leave blank to keep current' : formRole === 'student' ? 'Defaults to Roll Number if blank' : 'Enter login password'}
+                maxLength={formRole === 'faculty' || formRole === 'hod' ? 4 : undefined}
+                placeholder={
+                  editingUser
+                    ? 'Leave blank to keep current'
+                    : formRole === 'faculty' || formRole === 'hod'
+                    ? 'e.g. 1234'
+                    : 'Defaults to Roll Number'
+                }
                 value={formPass}
                 onChange={e => setFormPass(e.target.value)}
               />
             </div>
 
+            {/* Avatar URL Field */}
             <div>
-              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                Avatar Image URL <span className="text-[10px] text-slate-400 font-normal">(optional photo link)</span>
+              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                Avatar Photo Link <span className="text-[10px] text-slate-400 font-normal">(optional — defaults to SRKR photo)</span>
               </label>
               <Input
                 type="text"
@@ -473,14 +555,14 @@ export default function AdminUsers() {
             </div>
 
             {formError && (
-              <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
+              <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 font-medium">
                 {formError}
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 mt-1">
               <Button type="button" variant="secondary" onClick={() => setShowFormModal(false)}>Cancel</Button>
-              <Button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white font-bold">
+              <Button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6">
                 {editingUser ? 'Save Updates' : 'Add User'}
               </Button>
             </div>

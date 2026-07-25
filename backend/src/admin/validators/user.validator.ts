@@ -46,8 +46,8 @@ export const createUserSchema = z
     avatarUrl:  z.string().trim().optional(),
   })
   .refine(
-    (data) => data.role !== 'student' || (!!data.rollNumber && !!data.semester),
-    { message: 'rollNumber and semester are required for student users', path: ['rollNumber'] },
+    (data) => data.role !== 'student' || !!data.rollNumber,
+    { message: 'rollNumber is required for student users', path: ['rollNumber'] },
   );
 
 // ── Update user schema ────────────────────────────────────────────────────────

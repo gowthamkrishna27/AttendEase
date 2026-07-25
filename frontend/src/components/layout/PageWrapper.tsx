@@ -52,10 +52,9 @@ const hodNav = [
 ];
 
 const adminNav = [
-  { to: '/admin',          label: 'Dashboard',     icon: Home     },
+  { to: '/admin',          label: 'Dashboard',       icon: Home     },
   { to: '/admin/users',    label: 'User & Students', icon: Users    },
-  { to: '/permissions',    label: 'Permissions',   icon: Shield   },
-  { to: '/admin/settings', label: 'Settings',      icon: Settings },
+  { to: '/admin/settings', label: 'Settings',        icon: Settings },
 ];
 
 /* Bottom tab bar items (mobile) */

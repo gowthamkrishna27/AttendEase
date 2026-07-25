@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, RotateCcw, Check, X } from 'lucide-react';
+import { Search, SlidersHorizontal, RotateCcw, Check, X, Paperclip } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -181,6 +181,7 @@ export default function HODAllRequests() {
                     <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Student</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">ID / Roll No.</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Proof Document</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Assigned Faculty</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Requested On</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
@@ -188,57 +189,70 @@ export default function HODAllRequests() {
                   </tr>
                 </thead>
                 <motion.tbody variants={listVariants} initial="hidden" animate="visible">
-                  {filtered.map(req => (
-                    <motion.tr
-                      key={req.id}
-                      variants={itemVariants}
-                      className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70 transition-colors"
-                    >
-                      <td className="px-5 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
-                        <div className="flex items-center gap-2.5">
-                          <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
-                          <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
-                        <span className="text-[13px] font-mono text-slate-500">{req.student?.rollNumber}</span>
-                      </td>
-                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
-                        <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>
-                      </td>
-                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
-                        <span className="text-[12px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200 inline-block">
-                          {req.faculty?.name || 'Department Faculty'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
-                        <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
-                      </td>
-                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
-                        <StatusBadge status={req.status} />
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => reviewMutation.mutate({ id: req.id, action: 'approve' })}
-                            className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                            title="Approve / Force Approve Request"
-                          >
-                            <Check size={12} />
-                            <span>Approve</span>
-                          </button>
-                          <button
-                            onClick={() => reviewMutation.mutate({ id: req.id, action: 'reject' })}
-                            className="h-7 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
-                            title="Reject / Force Reject Request"
-                          >
-                            <X size={12} />
-                            <span>Reject</span>
-                          </button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
+                  {filtered.map(req => {
+                    const proofDocName = req.documentName || (req.reason !== 'other' ? `${req.reason}_Proof.pdf` : null);
+                    return (
+                      <motion.tr
+                        key={req.id}
+                        variants={itemVariants}
+                        className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70 transition-colors"
+                      >
+                        <td className="px-5 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
+                          <div className="flex items-center gap-2.5">
+                            <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
+                            <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
+                          <span className="text-[13px] font-mono text-slate-500">{req.student?.rollNumber}</span>
+                        </td>
+                        <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
+                          <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>
+                        </td>
+                        <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
+                          {proofDocName ? (
+                            <div className="flex items-center gap-1.5 text-[11px] font-bold text-orange-600 bg-orange-50/90 hover:bg-orange-100 border border-orange-200/80 px-2.5 py-1 rounded-lg transition-colors w-fit">
+                              <Paperclip size={12} className="text-orange-500 flex-shrink-0" />
+                              <span className="truncate max-w-[120px]">{proofDocName}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[12px] text-slate-400 italic">No document</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
+                          <span className="text-[12px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200 inline-block">
+                            {req.faculty?.name || 'Department Faculty'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
+                          <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
+                        </td>
+                        <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
+                          <StatusBadge status={req.status} />
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => reviewMutation.mutate({ id: req.id, action: 'approve' })}
+                              className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                              title="Approve / Force Approve Request"
+                            >
+                              <Check size={12} />
+                              <span>Approve</span>
+                            </button>
+                            <button
+                              onClick={() => reviewMutation.mutate({ id: req.id, action: 'reject' })}
+                              className="h-7 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
+                              title="Reject / Force Reject Request"
+                            >
+                              <X size={12} />
+                              <span>Reject</span>
+                            </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
                 </motion.tbody>
               </table>
             </div>

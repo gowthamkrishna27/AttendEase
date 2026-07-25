@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { UploadArea } from '../../components/forms/UploadArea';
@@ -68,15 +68,25 @@ export default function NewRequest() {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
+<<<<<<< HEAD
   const [showAllFaculty, setShowAllFaculty] = useState(false);
+=======
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+>>>>>>> 48d01b9 (feat: Faculty/HOD Passkey authentication, 4-digit passcode, mobile login responsiveness, student photo avatars, ABC ordered faculty dropdowns, and proof document display)
 
-  const { data: facultyList = [] } = useQuery({
+  const { data: rawFacultyList = [] } = useQuery({
     queryKey: ['faculty'],
     queryFn: () => api.getFaculty(),
   });
 
+<<<<<<< HEAD
   const sortedFacultyList = [...facultyList].sort((a, b) => a.name.localeCompare(b.name));
   const visibleFacultyList = showAllFaculty ? sortedFacultyList : sortedFacultyList.slice(0, 3);
+=======
+  const facultyList = [...rawFacultyList].sort((a: api.Faculty, b: api.Faculty) =>
+    a.name.localeCompare(b.name)
+  );
+>>>>>>> 48d01b9 (feat: Faculty/HOD Passkey authentication, 4-digit passcode, mobile login responsiveness, student photo avatars, ABC ordered faculty dropdowns, and proof document display)
 
   const toggleFaculty = (id: string) => {
     setSelectedFacultyIds(prev =>
@@ -208,64 +218,130 @@ export default function NewRequest() {
             </div>
             {errors.reason && <p style={{ fontSize: 12, color: '#DC2626', margin: '-10px 0 12px' }}>{errors.reason.message}</p>}
 
-            {/* Target Faculty — Multi-Selection */}
+            {/* Target Faculty — Dropdown Box with Avatars */}
             <label style={labelStyle}>
-              Point to Faculty Member(s) <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>(Select one or more: Class Mentor, Counselor, Subject Faculty)</span>
+              Point to Faculty Member(s) <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>(Select from dropdown: Class Mentor, Counselor, Subject Teacher)</span>
             </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-              {visibleFacultyList.map((f: api.Faculty, idx: number) => {
-                const isSelected = selectedFacultyIds.includes(f.id);
-                // Assign realistic designations for student selection context
-                const designationTag = f.designation || (idx % 3 === 0 ? 'Class Mentor' : idx % 3 === 1 ? 'Counselor' : 'Subject Faculty');
-                return (
-                  <div
-                    key={f.id}
-                    onClick={() => toggleFaculty(f.id)}
+
+            {/* Custom Dropdown Trigger Box */}
+            <div style={{ position: 'relative', marginBottom: 16 }}>
+              <div
+                onClick={() => setIsDropdownOpen(prev => !prev)}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  minHeight: 50, padding: '8px 14px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: '#F8FAFC', border: isDropdownOpen ? '1.5px solid #F97316' : '1.5px solid #E8EDF2',
+                  borderRadius: 14, cursor: 'pointer',
+                  boxShadow: isDropdownOpen ? '0 0 0 3px rgba(249,115,22,0.08)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {selectedFacultyIds.length > 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {selectedFacultyIds.map(fId => {
+                      const fac = facultyList.find((f: api.Faculty) => f.id === fId);
+                      if (!fac) return null;
+                      return (
+                        <div
+                          key={fac.id}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '4px 10px 4px 6px', background: '#FFF7ED',
+                            border: '1px solid #FED7AA', borderRadius: 10,
+                          }}
+                        >
+                          <div style={{ width: 26, height: 26, borderRadius: 8, overflow: 'hidden', background: '#EA580C', flexShrink: 0 }}>
+                            <img
+                              src={fac.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(fac.name)}&background=F97316&color=fff`}
+                              alt={fac.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          </div>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{fac.name}</span>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: '#EA580C', background: 'rgba(234,88,12,0.1)', padding: '1px 5px', borderRadius: 4 }}>
+                            {fac.department}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#94A3B8' }}>
+                    <UserCheck size={18} style={{ color: '#94A3B8' }} />
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>Select Faculty Member from dropdown...</span>
+                  </div>
+                )}
+                <ChevronDown size={18} style={{ color: '#64748B', transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0, marginLeft: 8 }} />
+              </div>
+
+              {/* Dropdown Options List */}
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: isSelected ? '1.5px solid #F97316' : '1px solid #E8EDF2',
-                      background: isSelected ? '#FFF7ED' : '#F8FAFC',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
+                      position: 'absolute', top: '100%', left: 0, right: 0,
+                      marginTop: 6, zIndex: 40,
+                      background: '#ffffff', border: '1.5px solid #E8EDF2',
+                      borderRadius: 14, boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+                      maxHeight: 280, overflowY: 'auto', padding: 6,
+                      display: 'flex', flexDirection: 'column', gap: 4,
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div
-                        style={{
-                          width: 34, height: 34, borderRadius: 10, overflow: 'hidden',
-                          background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 700, fontSize: 14, color: '#475569'
-                        }}
-                      >
-                        {f.avatarUrl ? (
-                          <img src={f.avatarUrl} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          f.name.charAt(0)
-                        )}
-                      </div>
-                      <div>
-                        <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>{f.name}</p>
-                        <p style={{ fontSize: 11, color: '#64748B', margin: '2px 0 0' }}>{f.department} · {designationTag}</p>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        width: 20, height: 20, borderRadius: 6,
-                        border: isSelected ? 'none' : '1.5px solid #CBD5E1',
-                        background: isSelected ? '#F97316' : '#fff',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#fff', fontSize: 12, fontWeight: 800,
-                      }}
-                    >
-                      {isSelected && '✓'}
-                    </div>
-                  </div>
-                );
-              })}
+                    {facultyList.map((f: api.Faculty, idx: number) => {
+                      const isSelected = selectedFacultyIds.includes(f.id);
+                      const designationTag = f.designation || (idx % 3 === 0 ? 'Class Mentor' : idx % 3 === 1 ? 'Counselor' : 'Subject Faculty');
+                      return (
+                        <div
+                          key={f.id}
+                          onClick={() => {
+                            toggleFaculty(f.id);
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
+                            background: isSelected ? '#FFF7ED' : 'transparent',
+                            border: isSelected ? '1px solid #FED7AA' : '1px solid transparent',
+                            transition: 'all 0.12s ease',
+                          }}
+                          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = '#F8FAFC'; }}
+                          onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 34, height: 34, borderRadius: 10, overflow: 'hidden', background: '#EA580C', flexShrink: 0, border: '1px solid #FED7AA' }}>
+                              <img
+                                src={f.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(f.name)}&background=F97316&color=fff`}
+                                alt={f.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(f.name)}&background=F97316&color=fff`;
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>{f.name}</p>
+                              <p style={{ fontSize: 11, color: '#64748B', margin: '2px 0 0' }}>{f.department} · {designationTag}</p>
+                            </div>
+                          </div>
+                          <div style={{
+                            width: 18, height: 18, borderRadius: 6,
+                            border: isSelected ? 'none' : '1.5px solid #CBD5E1',
+                            background: isSelected ? '#F97316' : '#fff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontSize: 11, fontWeight: 800,
+                          }}>
+                            {isSelected && '✓'}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {sortedFacultyList.length > 3 && (

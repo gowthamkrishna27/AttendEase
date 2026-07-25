@@ -128,15 +128,13 @@ router.get('/', async (req: Request, res: Response) => {
         },
       };
     } else if (user.role === 'faculty') {
-      // Faculty can view requests assigned to them OR within their department
-      const deptStr = (user.department || '').trim();
+      // Faculty can ONLY view requests specifically assigned to them
       where = {
         OR: [
           { primaryFacultyId: user.id },
           { faculties: { some: { facultyId: user.id } } },
-          { primaryFaculty: { email: user.email } },
-          { faculties: { some: { faculty: { email: user.email } } } },
-          ...(deptStr ? [{ student: { department: { contains: deptStr, mode: 'insensitive' as const } } }] : []),
+          { primaryFaculty: { email: { equals: user.email, mode: 'insensitive' as const } } },
+          { faculties: { some: { faculty: { email: { equals: user.email, mode: 'insensitive' as const } } } } },
         ],
       };
     } else {
@@ -180,12 +178,12 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const idParam = req.params['id'];
+    const idParam = (req.params['id'] || '').trim();
     const doc = await prisma.request.findFirst({
       where: {
         OR: [
-          { id:        idParam },
-          { requestId: idParam },
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
         ],
       },
       include: REQUEST_INCLUDE,
@@ -197,32 +195,50 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     const user = req.user!;
+    const userEmail = (user.email || '').toLowerCase().trim();
+    const userId = (user.id || '').toLowerCase().trim();
+    const userName = (user.name || '').toLowerCase().trim();
 
     // Students can only view their own requests
-    if (
-      user.role === 'student' &&
-      doc.studentId !== user.id &&
-      doc.student?.userId !== user.id &&
-      doc.student?.rollNumber !== user.rollNumber &&
-      doc.student?.email.toLowerCase() !== user.email.toLowerCase()
-    ) {
-      res.status(403).json({ error: 'Forbidden' });
-      return;
+    if (user.role === 'student') {
+      const stuUserId = (doc.studentId || doc.student?.userId || '').toLowerCase().trim();
+      const stuRoll = (doc.student?.rollNumber || '').toLowerCase().trim();
+      const stuEmail = (doc.student?.email || '').toLowerCase().trim();
+      const userRoll = (user.rollNumber || '').toLowerCase().trim();
+
+      const isStudentMatch =
+        stuUserId === userId ||
+        (userRoll && stuRoll === userRoll) ||
+        (userEmail && stuEmail === userEmail);
+
+      if (!isStudentMatch) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
     }
 
-    // Faculty can only view requests assigned to them
-    const assignedFacultyIds = doc.faculties.map(rf => rf.facultyId);
-    const assignedEmails     = doc.faculties.map(rf => rf.faculty.email);
+    // Faculty can view requests assigned to them
+    if (user.role === 'faculty') {
+      const assignedFacultyIds = doc.faculties.map(rf => (rf.facultyId || '').toLowerCase());
+      const assignedEmails     = doc.faculties.map(rf => (rf.faculty.email || '').toLowerCase());
+      const assignedNames      = doc.faculties.map(rf => (rf.faculty.name || '').toLowerCase());
 
-    const isAssignedFaculty =
-      doc.primaryFacultyId === user.id ||
-      assignedFacultyIds.includes(user.id) ||
-      doc.primaryFaculty?.email === user.email ||
-      assignedEmails.includes(user.email);
+      const primaryFacId = (doc.primaryFacultyId || '').toLowerCase();
+      const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase();
+      const primaryName  = (doc.primaryFaculty?.name || '').toLowerCase();
 
-    if (user.role === 'faculty' && !isAssignedFaculty) {
-      res.status(403).json({ error: 'This request is not assigned to you' });
-      return;
+      const isAssignedFaculty =
+        (primaryFacId && primaryFacId === userId) ||
+        assignedFacultyIds.includes(userId) ||
+        (primaryEmail && primaryEmail === userEmail) ||
+        assignedEmails.includes(userEmail) ||
+        (primaryName && primaryName.includes(userName)) ||
+        assignedNames.some(n => n.includes(userName) || userName.includes(n));
+
+      if (!isAssignedFaculty) {
+        res.status(403).json({ error: 'This request is not assigned to you' });
+        return;
+      }
     }
 
     // HOD can view requests from their own department (flexible matching)

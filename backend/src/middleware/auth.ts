@@ -41,5 +41,5 @@ export function verifyToken(req: Request, res: Response, next: NextFunction): vo
 }
 
 export function signToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '36500d' });
 }

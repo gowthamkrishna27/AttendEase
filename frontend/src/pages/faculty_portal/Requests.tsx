@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal, FileText, Paperclip } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -152,42 +152,56 @@ export default function FacultyRequests() {
                       <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Student</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Roll No.</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Proof Attached</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Requested On</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Days</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                     </tr>
                   </thead>
                   <motion.tbody variants={listVariants} initial="hidden" animate="visible">
-                    {filtered.map(req => (
-                      <motion.tr
-                        key={req.id}
-                        variants={itemVariants}
-                        onClick={() => navigate(`/faculty/request/${req.id}`)}
-                        className="border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50/70 transition-colors"
-                      >
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2.5">
-                            <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
-                            <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="text-[13px] font-mono text-slate-500">{req.student?.rollNumber}</span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="text-[13px] font-medium text-slate-700">{getDays(req)}</span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} />
-                        </td>
-                      </motion.tr>
-                    ))}
+                    {filtered.map(req => {
+                      const proofDocName = req.documentName || (req.reason !== 'other' ? `${req.reason}_Proof.pdf` : null);
+                      return (
+                        <motion.tr
+                          key={req.id}
+                          variants={itemVariants}
+                          onClick={() => navigate(`/faculty/request/${req.id}`)}
+                          className="border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50/70 transition-colors"
+                        >
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2.5">
+                              <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
+                              <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-[13px] font-mono text-slate-500">{req.student?.rollNumber}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {proofDocName ? (
+                              <div className="flex items-center gap-1.5 text-[11px] font-bold text-orange-600 bg-orange-50/90 hover:bg-orange-100 border border-orange-200/80 px-2.5 py-1 rounded-lg transition-colors w-fit">
+                                <Paperclip size={12} className="text-orange-500 flex-shrink-0" />
+                                <span className="truncate max-w-[130px]">{proofDocName}</span>
+                              </div>
+                            ) : (
+                              <span className="text-[12px] text-slate-400 italic">No document</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="text-[13px] font-medium text-slate-700">{getDays(req)}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} />
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
                   </motion.tbody>
                 </table>
               </div>
@@ -195,36 +209,47 @@ export default function FacultyRequests() {
               {/* Mobile Card List */}
               <div className="block sm:hidden divide-y divide-slate-100">
                 <motion.div variants={listVariants} initial="hidden" animate="visible">
-                  {filtered.map(req => (
-                    <motion.div
-                      key={req.id}
-                      variants={itemVariants}
-                      onClick={() => navigate(`/faculty/request/${req.id}`)}
-                      className="p-4 cursor-pointer hover:bg-slate-50/80 transition-colors flex flex-col gap-2.5"
-                    >
-                      {/* Name & Roll No */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
-                          <div>
-                            <p className="text-[14px] font-semibold text-slate-800 leading-tight">{req.student?.name}</p>
-                            <p className="text-[11px] font-mono text-slate-400 mt-0.5">{req.student?.rollNumber}</p>
+                  {filtered.map(req => {
+                    const proofDocName = req.documentName || (req.reason !== 'other' ? `${req.reason}_Proof.pdf` : null);
+                    return (
+                      <motion.div
+                        key={req.id}
+                        variants={itemVariants}
+                        onClick={() => navigate(`/faculty/request/${req.id}`)}
+                        className="p-4 cursor-pointer hover:bg-slate-50/80 transition-colors flex flex-col gap-2.5"
+                      >
+                        {/* Name & Roll No */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
+                            <div>
+                              <p className="text-[14px] font-semibold text-slate-800 leading-tight">{req.student?.name}</p>
+                              <p className="text-[11px] font-mono text-slate-400 mt-0.5">{req.student?.rollNumber}</p>
+                            </div>
+                          </div>
+                          <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} />
+                        </div>
+
+                        {/* Reason & Proof */}
+                        <div className="flex items-center justify-between text-[12px] text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-slate-700">{req.reasonLabel}</span>
+                            {proofDocName && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-100/70 px-2 py-0.5 rounded-md">
+                                <Paperclip size={10} />
+                                Proof
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-slate-400">
+                            <span>{formatDate(req.date)}</span>
+                            <span>•</span>
+                            <span>{getDays(req)} day</span>
                           </div>
                         </div>
-                        <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} />
-                      </div>
-
-                      {/* Reason & Date */}
-                      <div className="flex items-center justify-between text-[12px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                        <span className="font-medium text-slate-700">{req.reasonLabel}</span>
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <span>{formatDate(req.date)}</span>
-                          <span>•</span>
-                          <span>{getDays(req)} day</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    );
+                  })}
                 </motion.div>
               </div>
 

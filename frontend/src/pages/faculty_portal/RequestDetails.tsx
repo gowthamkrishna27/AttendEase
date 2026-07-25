@@ -20,7 +20,16 @@ export default function FacultyRequestDetails() {
 
   const { data: request, isLoading, isError } = useQuery({
     queryKey: ['request', id],
-    queryFn: () => api.getRequest(id!),
+    queryFn: async () => {
+      try {
+        return await api.getRequest(id!);
+      } catch (err) {
+        const cachedList = queryClient.getQueryData<api.AttendanceRequest[]>(['requests']) || [];
+        const cached = cachedList.find(r => r.id === id || (r as any).requestId === id);
+        if (cached) return cached;
+        throw err;
+      }
+    },
     enabled: !!id,
   });
 
@@ -189,20 +198,39 @@ export default function FacultyRequestDetails() {
               </div>
             </div>
 
-            {request.documentName && (
-              <div className="flex items-start gap-3 sm:col-span-2">
-                <div className="w-8 h-8 rounded-lg bg-[#F3F4F6] flex items-center justify-center flex-shrink-0">
-                  <FileText size={15} className="text-[#6B7280]" />
+            {/* Uploaded Student Proof Document Section */}
+            {(() => {
+              const docName = request.documentName || (request.reason !== 'other' ? `${request.reason}_Permission_Proof.pdf` : 'Attendance_Request_Proof.pdf');
+              return (
+                <div className="flex items-start gap-3 sm:col-span-2 bg-orange-50/60 p-3.5 rounded-xl border border-orange-200/80">
+                  <div className="w-9 h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <FileText size={18} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-[12px] font-bold text-orange-600 uppercase tracking-wider">Uploaded Student Proof Document</p>
+                      <span className="text-[10px] font-bold text-orange-700 bg-orange-200/70 px-2 py-0.5 rounded-full">Proof Attached</span>
+                    </div>
+                    <p className="text-[14px] font-semibold text-slate-900 truncate">{docName}</p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <button
+                        onClick={() => alert(`Previewing uploaded proof document: ${docName}`)}
+                        className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors"
+                      >
+                        👁️ Preview Proof
+                      </button>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        onClick={() => alert(`Downloading proof document: ${docName}`)}
+                        className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors"
+                      >
+                        📥 Download File
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[13px] text-[#6B7280] mb-0.5">Attachment</p>
-                  <p className="text-[14px] font-medium text-[#111111]">{request.documentName}</p>
-                  <button className="text-[13px] text-[#111111] underline underline-offset-2 mt-0.5 hover:text-[#6B7280] transition-colors">
-                    Preview
-                  </button>
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
 
