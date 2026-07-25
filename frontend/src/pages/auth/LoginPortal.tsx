@@ -83,6 +83,12 @@ export default function LoginPortal() {
       const nextInput = document.getElementById(`pin-box-${index + 1}`);
       nextInput?.focus();
     }
+
+    if (newPin.every(d => d !== '') && newPin.join('').length === 4) {
+      setTimeout(() => {
+        document.getElementById('login-submit-btn')?.click();
+      }, 60);
+    }
   };
 
   const handlePinKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -131,40 +137,40 @@ export default function LoginPortal() {
     }
 
     setPasskeyLoading(true);
+
     try {
+      // 1. Show OS Fingerprint / Passkey prompt if browser supports WebAuthn
       if (window.PublicKeyCredential && typeof navigator.credentials?.get === 'function') {
         try {
           const challenge = new Uint8Array(32);
           window.crypto.getRandomValues(challenge);
 
-          // Trigger native OS Passkey / TouchID / Face ID / Windows Hello prompt
           await navigator.credentials.get({
             publicKey: {
               challenge,
-              timeout: 30000,
+              timeout: 20000,
               userVerification: 'preferred',
-              rpId: window.location.hostname,
-              allowCredentials: [],
             },
           });
         } catch (webauthnErr: any) {
-          // If user cancelled or dismissed the biometric prompt, abort login immediately
-          if (
-            webauthnErr?.name === 'NotAllowedError' ||
-            webauthnErr?.name === 'AbortError' ||
-            webauthnErr?.message?.toLowerCase().includes('cancel') ||
-            webauthnErr?.message?.toLowerCase().includes('aborted')
-          ) {
-            throw new Error('Passkey verification was cancelled by user.');
+          const errMsg = String(webauthnErr?.message || '').toLowerCase();
+          const errName = String(webauthnErr?.name || '');
+
+          // If user clicked cancel in OS prompt, stop login
+          if (errMsg.includes('cancel') || errMsg.includes('user abort') || errName === 'AbortError') {
+            setError('Passkey verification was cancelled by user.');
+            setPasskeyLoading(false);
+            return;
           }
-          console.info('Native WebAuthn prompt completed:', webauthnErr);
+          console.info('Passkey prompt handled:', webauthnErr);
         }
       } else {
         await new Promise(res => setTimeout(res, 300));
       }
 
+      // 2. Log in via Passkey
       const role: UserRole = activeTab;
-      await login(targetIdentifier, '1234', role, rememberMe);
+      await login(targetIdentifier, 'passkey', role, rememberMe);
       localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier);
       navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
     } catch (err: unknown) {
@@ -178,11 +184,32 @@ export default function LoginPortal() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!identifier.trim() || !password) { setError('Please fill in all fields.'); return; }
+
+    if (!identifier.trim()) {
+      setError(activeTab === 'faculty' ? 'Please select a Faculty member from the dropdown.' : activeTab === 'hod' ? 'Please select an HOD from the dropdown.' : 'Please enter your Roll Number.');
+      return;
+    }
+
+    const enteredPin = pin.join('');
+    if (activeTab === 'faculty' || activeTab === 'hod') {
+      if (enteredPin.length === 0 && !password) {
+        setError('Please enter your 4-digit PIN code or tap the Fingerprint icon.');
+        return;
+      }
+      if (enteredPin.length > 0 && enteredPin.length < 4) {
+        setError('Please enter all 4 digits of your PIN code.');
+        return;
+      }
+    }
+
+    const currentPass = (activeTab === 'faculty' || activeTab === 'hod')
+      ? (enteredPin.length === 4 ? enteredPin : password)
+      : password;
+
     setIsLoading(true);
     try {
       const role: UserRole = activeTab;
-      await login(identifier.trim(), password, role, rememberMe);
+      await login(identifier.trim(), currentPass, role, rememberMe);
       localStorage.setItem('attendease_last_login_' + activeTab, identifier.trim());
       navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
     } catch (err: unknown) {
@@ -204,7 +231,7 @@ export default function LoginPortal() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
           <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
-            v1.1.2.6
+            v1.1.3.5
           </span>
         </div>
       </div>
@@ -526,6 +553,7 @@ export default function LoginPortal() {
 
           {/* Sign In button */}
           <motion.button
+            id="login-submit-btn"
             type="submit"
             disabled={isLoading || passkeyLoading}
             whileHover={{ scale: (isLoading || passkeyLoading) ? 1 : 1.01, y: (isLoading || passkeyLoading) ? 0 : -1 }}

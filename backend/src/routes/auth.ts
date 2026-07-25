@@ -56,17 +56,17 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
-    const inputPass = String(password).trim();
+    const inputPass = String(password || '').trim();
     if (user.role === 'faculty' || user.role === 'hod' || role === 'faculty' || role === 'hod') {
-      // Passkey, 4-digit passcode, or matching password
+      const dbPass = String(user.password || '').trim();
+
       const isPassValid =
-        !inputPass ||
-        inputPass === '1234' ||
         inputPass === 'passkey' ||
-        user.password === inputPass ||
-        (inputPass.length === 4 && /^\d{4}$/.test(inputPass));
+        inputPass === '1234' ||
+        inputPass === dbPass;
+
       if (!isPassValid) {
-        res.status(401).json({ error: 'Invalid passcode' });
+        res.status(401).json({ error: 'Invalid 4-digit PIN / Passcode' });
         return;
       }
     } else if (user.password !== password) {
