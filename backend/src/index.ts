@@ -6,7 +6,6 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 import { prisma }        from './db/prisma.js';
-import { seedDatabase }  from './db/seed.js';
 
 import authRoutes         from './routes/auth.js';
 import requestRoutes      from './routes/requests.js';
@@ -72,9 +71,6 @@ async function bootstrap() {
     // Connect to PostgreSQL
     await prisma.$connect();
     console.log('✅  PostgreSQL connected (Prisma)');
-
-    // Seed initial data
-    await seedDatabase();
 
     let currentPort = Number(PORT);
 

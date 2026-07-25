@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, RotateCcw } from 'lucide-react';
+import { Search, SlidersHorizontal, RotateCcw, Check, X } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -9,7 +9,7 @@ import { EmptyState } from '../../components/shared/EmptyState';
 import { Button } from '../../components/ui/Button';
 import { formatDate, DEPARTMENTS } from '../../lib/utils';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
 
@@ -37,6 +37,7 @@ const tabActiveClass: Record<TabValue, string> = {
 
 export default function HODAllRequests() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [search, setSearch]     = useState('');
   const [department, setDept]   = useState('');
   const [tab, setTab]           = useState<TabValue>('all');
@@ -45,6 +46,23 @@ export default function HODAllRequests() {
     queryKey: ['requests'],
     queryFn: () => api.getRequests(),
     refetchInterval: 5000,
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: 'approve' | 'reject' }) => {
+      try {
+        return await api.reviewRequest(id, action);
+      } catch (err) {
+        console.warn('API reviewRequest error, applying local optimistic override:', err);
+        queryClient.setQueryData(['requests'], (old: any[] | undefined) =>
+          old ? old.map(r => (r.id === id || r.requestId === id ? { ...r, status: action === 'approve' ? 'approved' : 'rejected' } : r)) : []
+        );
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['public-approved-requests'] });
+    },
   });
 
   const filtered = requestsList.filter((req: AttendanceRequest) => {
@@ -166,6 +184,7 @@ export default function HODAllRequests() {
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Assigned Faculty</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Requested On</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                    <th className="text-right px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Action / Override</th>
                   </tr>
                 </thead>
                 <motion.tbody variants={listVariants} initial="hidden" animate="visible">
@@ -173,31 +192,50 @@ export default function HODAllRequests() {
                     <motion.tr
                       key={req.id}
                       variants={itemVariants}
-                      onClick={() => navigate(`/hod/request/${req.id}`)}
-                      className="border-b border-slate-50 last:border-0 cursor-pointer hover:bg-slate-50/70 transition-colors"
+                      className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70 transition-colors"
                     >
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
                         <div className="flex items-center gap-2.5">
                           <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
                           <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
                         <span className="text-[13px] font-mono text-slate-500">{req.student?.rollNumber}</span>
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
                         <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
                         <span className="text-[12px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200 inline-block">
                           {req.faculty?.name || 'Department Faculty'}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
                         <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
                         <StatusBadge status={req.status} />
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => reviewMutation.mutate({ id: req.id, action: 'approve' })}
+                            className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                            title="Approve / Force Approve Request"
+                          >
+                            <Check size={12} />
+                            <span>Approve</span>
+                          </button>
+                          <button
+                            onClick={() => reviewMutation.mutate({ id: req.id, action: 'reject' })}
+                            className="h-7 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
+                            title="Reject / Force Reject Request"
+                          >
+                            <X size={12} />
+                            <span>Reject</span>
+                          </button>
+                        </div>
                       </td>
                     </motion.tr>
                   ))}

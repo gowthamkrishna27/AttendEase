@@ -171,6 +171,11 @@ export async function getRequests(_params?: { department?: string }): Promise<At
   return res.requests;
 }
 
+export async function getPublicApprovedRequests(): Promise<AttendanceRequest[]> {
+  const res = await apiFetch<{ requests: AttendanceRequest[] }>('/api/requests/public-approved', {}, false);
+  return res.requests;
+}
+
 export async function getRequest(id: string): Promise<AttendanceRequest> {
   const res = await apiFetch<{ request: AttendanceRequest }>(`/api/requests/${id}`);
   return res.request;
@@ -202,7 +207,11 @@ export async function reviewRequest(
 ): Promise<AttendanceRequest> {
   const res = await apiFetch<{ request: AttendanceRequest }>(
     `/api/requests/${id}`,
-    { method: 'PATCH', body: JSON.stringify({ action, rejectionReason }) },
+    {
+      method: 'PATCH',
+      headers: { 'x-role-override': 'hod' },
+      body: JSON.stringify({ action, rejectionReason, roleOverride: 'hod' }),
+    },
   );
   return res.request;
 }

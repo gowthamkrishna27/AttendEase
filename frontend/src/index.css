@@ -200,3 +200,40 @@
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ── Print Media Rules: Hide browser headers/footers & enforce single-page A4 print ── */
+@media print {
+  @page {
+    margin: 0.6cm 1cm; /* Compact margin for single A4 page fit */
+    size: A4 portrait;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  header, aside, nav, footer,
+  .desktop-topbar, .mobile-topbar, .desktop-sidebar, .mobile-bottom-nav,
+  .footer-line, .non-printable {
+    display: none !important;
+  }
+
+  .main-content {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .hidden.print\:block {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

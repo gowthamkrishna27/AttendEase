@@ -92,7 +92,7 @@ export default function FacultyRequestDetails() {
         </button>
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-[24px] font-semibold text-[#111111]">
               {request.reasonLabel}
@@ -101,8 +101,25 @@ export default function FacultyRequestDetails() {
               Submitted {formatDate(request.submittedAt)}
             </p>
           </div>
-          <StatusBadge status={currentStatus} />
+          <StatusBadge status={currentStatus} finalDecisionBy={request.finalDecisionBy} />
         </div>
+
+        {/* HOD Decision Banner for Faculty View */}
+        {request.finalDecisionBy === 'HOD' && (
+          <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-2xl flex items-center justify-between text-[13px] text-purple-900 font-medium shadow-2xs">
+            <div>
+              <p className="font-bold text-[14px] text-purple-950 flex items-center gap-1.5">
+                👑 Official Decision by Head of Department (HOD)
+              </p>
+              <p className="text-[12px] text-purple-700 mt-0.5">
+                This request was reviewed and {request.status === 'approved' ? 'APPROVED' : 'REJECTED'} directly by HOD.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 bg-purple-600 text-white font-bold text-[11px] rounded-lg shrink-0">
+              HOD Overridden
+            </span>
+          </div>
+        )}
 
         {/* Student info card */}
         <div

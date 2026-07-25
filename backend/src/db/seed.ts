@@ -223,5 +223,19 @@ export async function seedDatabase(): Promise<void> {
     }
   }
 
-  console.log(`✅  Successfully seeded ${ALL_USERS.length} users and sample requests.`);
+  console.log(`✅  Successfully seeded ${ALL_USERS.length} users.`);
 }
+
+// Auto-run if executed directly via CLI (e.g. npm run db:seed)
+if (process.argv[1]?.includes('seed')) {
+  seedDatabase()
+    .then(() => {
+      console.log('Done seeding.');
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('Seed error:', err);
+      process.exit(1);
+    });
+}
+

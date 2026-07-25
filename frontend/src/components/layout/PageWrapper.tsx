@@ -5,16 +5,28 @@ import { motion } from 'framer-motion';
 import {
   Home, Clock, User, LogOut,
   Bell, GraduationCap, Plus,
-  ClipboardList, Users, BarChart2, Settings
+  ClipboardList, Users, BarChart2, Settings, Shield,
+  FileCheck, Building2, Layers, Award, FileText
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
 
 interface PageWrapperProps {
   children: ReactNode;
-  role?: 'student' | 'faculty' | 'hod';
+  role?: 'student' | 'faculty' | 'hod' | 'admin' | 'viewer';
   showGreeting?: boolean;
 }
+
+const viewerNav = [
+  { to: '/permissions',                      label: 'All Approved Passes', icon: FileCheck   },
+  { to: '/permissions?sec=CSD-A',           label: 'CSD — Section A',    icon: Building2   },
+  { to: '/permissions?sec=CSD-B',           label: 'CSD — Section B',    icon: Building2   },
+  { to: '/permissions?sec=CSIT-A',          label: 'CSIT — Section A',   icon: Layers      },
+  { to: '/permissions?sec=CSIT-B',          label: 'CSIT — Section B',   icon: Layers      },
+  { to: '/permissions?reason=medical',      label: 'Medical Passes',     icon: FileText    },
+  { to: '/permissions?reason=internship',   label: 'Internship Passes',  icon: Award       },
+  { to: '/permissions?reason=competition',  label: 'Hackathon Passes',   icon: Award       },
+];
 
 const studentNav = [
   { to: '/student', label: 'Home', icon: Home },
@@ -35,13 +47,24 @@ const hodNav = [
   { to: '/hod/requests', label: 'All Requests',  icon: ClipboardList },
   { to: '/hod/faculty',  label: 'Faculty',       icon: Users         },
   { to: '/hod/reports',  label: 'Reports',       icon: BarChart2     },
+  { to: '/permissions',  label: 'Permissions',   icon: Shield        },
   { to: '/hod/settings', label: 'Settings',      icon: Settings      },
 ];
 
 const adminNav = [
   { to: '/admin',          label: 'Dashboard',     icon: Home     },
   { to: '/admin/users',    label: 'User & Students', icon: Users    },
+  { to: '/permissions',    label: 'Permissions',   icon: Shield   },
   { to: '/admin/settings', label: 'Settings',      icon: Settings },
+];
+
+/* Bottom tab bar items (mobile) */
+const viewerMobileBottomNav = [
+  { id: 'permissions', to: '/permissions',            label: 'Passes', icon: FileCheck, type: 'link' },
+  { id: 'csd-a',       to: '/permissions?sec=CSD-A',  label: 'CSD-A',  icon: Building2, type: 'link' },
+  { id: 'csd-b',       to: '/permissions?sec=CSD-B',  label: 'CSD-B',  icon: Building2, type: 'link' },
+  { id: 'csit-a',      to: '/permissions?sec=CSIT-A', label: 'CSIT-A', icon: Layers,    type: 'link' },
+  { id: 'csit-b',      to: '/permissions?sec=CSIT-B', label: 'CSIT-B', icon: Layers,    type: 'link' },
 ];
 
 /* Bottom tab bar items (mobile) */
@@ -166,8 +189,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
     );
   };
 
-  const navLinks = role === 'student' ? studentNav : role === 'faculty' ? facultyNav : role === 'hod' ? hodNav : adminNav;
-  const homeLink = role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : role === 'hod' ? '/hod' : '/admin';
+  const navLinks = role === 'viewer' ? viewerNav : role === 'student' ? studentNav : role === 'faculty' ? facultyNav : role === 'hod' ? hodNav : adminNav;
+  const homeLink = role === 'viewer' ? '/permissions' : role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : role === 'hod' ? '/hod' : '/admin';
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -210,7 +233,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
       {/* ═══════════════════════════════════════
           DESKTOP TOP BAR
       ═══════════════════════════════════════ */}
-      <header className="desktop-topbar" style={{
+      <header className="desktop-topbar print:hidden" style={{
         position: 'sticky', top: 0, zIndex: 40,
         height: 60, background: '#ffffff',
         borderBottom: '1px solid #EEF2F7',
@@ -254,7 +277,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
       {/* ═══════════════════════════════════════
           MOBILE TOP BAR
       ═══════════════════════════════════════ */}
-      <header className="mobile-topbar" style={{
+      <header className="mobile-topbar print:hidden" style={{
         position: 'sticky', top: 0, zIndex: 40,
         height: 60, background: '#ffffff',
         borderBottom: '1px solid #EEF2F7',
@@ -291,7 +314,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
       <div style={{ display: 'flex', flex: 1 }}>
 
         {/* ── DESKTOP SIDEBAR ── */}
-        <aside className="desktop-sidebar" style={{
+        <aside className="desktop-sidebar print:hidden" style={{
           width: 210, flexShrink: 0,
           background: '#ffffff',
           borderRight: '1px solid #EEF2F7',
@@ -335,31 +358,33 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             })}
 
             {/* Logout */}
-            <button
-              onClick={handleLogout}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 14px', borderRadius: 0,
-                marginTop: 28,
-                fontSize: 14, fontWeight: 600,
-                color: '#DC2626', background: 'transparent',
-                border: 'none', borderLeft: '3px solid #DC2626',
-                cursor: 'pointer', width: '100%',
-                paddingLeft: '13px',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = '#EF4444';
-                e.currentTarget.style.borderLeftColor = '#EF4444';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = '#DC2626';
-                e.currentTarget.style.borderLeftColor = '#DC2626';
-              }}
-            >
-              <LogOut size={16} />
-              Logout
-            </button>
+            {role !== 'viewer' && (
+              <button
+                onClick={handleLogout}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 14px', borderRadius: 0,
+                  marginTop: 28,
+                  fontSize: 14, fontWeight: 600,
+                  color: '#DC2626', background: 'transparent',
+                  border: 'none', borderLeft: '3px solid #DC2626',
+                  cursor: 'pointer', width: '100%',
+                  paddingLeft: '13px',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = '#EF4444';
+                  e.currentTarget.style.borderLeftColor = '#EF4444';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = '#DC2626';
+                  e.currentTarget.style.borderLeftColor = '#DC2626';
+                }}
+              >
+                <LogOut size={16} />
+                Logout
+              </button>
+            )}
           </nav>
 
           <div style={{ margin: '16px 12px 0', background: '#F8FAFC', border: '1px solid #EEF2F7', borderRadius: 14, padding: '14px 12px', textAlign: 'center' }}>
@@ -404,94 +429,98 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
 
           {children}
 
-          <div className="footer-line" style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #EEF2F7', textAlign: 'center', fontSize: 12, color: '#94A3B8' }}>
+          <div className="footer-line print:hidden" style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #EEF2F7', textAlign: 'center', fontSize: 12, color: '#94A3B8' }}>
             © 2026 AttendEase • SRKR Engineering College, Bhimavaram. All rights reserved.
           </div>
         </motion.main>
       </div>
 
       {/* ═══════════════════════════════════════
-          MOBILE BOTTOM TAB BAR
+          MOBILE BOTTOM TAB BAR (Hidden in Viewer Mode)
       ═══════════════════════════════════════ */}
-      <nav className="mobile-bottom-nav" style={{
-        display: 'none',
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-        height: 68, background: '#ffffff',
-        borderTop: '1px solid #EEF2F7',
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
-        alignItems: 'center', justifyContent: 'space-around',
-        padding: '0 8px 4px',
-      }}>
-        {(role === 'admin' ? adminMobileBottomNav : role === 'hod' ? hodMobileBottomNav : role === 'faculty' ? facultyMobileBottomNav : studentMobileBottomNav).map(item => {
-          if (item.type === 'fab') {
-            // Centre + FAB button -> Navigates to /student/new-request
+      {role !== 'viewer' && (
+        <nav className="mobile-bottom-nav print:hidden" style={{
+          display: 'none',
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+          height: 68, background: '#ffffff',
+          borderTop: '1px solid #EEF2F7',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
+          alignItems: 'center', justifyContent: 'space-around',
+          padding: '0 8px 4px',
+        }}>
+          {(role === 'admin' ? adminMobileBottomNav : role === 'hod' ? hodMobileBottomNav : role === 'faculty' ? facultyMobileBottomNav : studentMobileBottomNav).map(item => {
+            if (item.type === 'fab') {
+              // Centre + FAB button -> Navigates to /student/new-request
+              return (
+                <button
+                  key="fab"
+                  onClick={() => navigate(item.to || '/student/new-request')}
+                  style={{
+                    width: 52, height: 52, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+                    border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 18px rgba(249,115,22,0.40)',
+                    marginBottom: 10,
+                  }}
+                >
+                  <Plus size={24} style={{ color: '#fff' }} />
+                </button>
+              );
+            }
+
+            const Icon = item.icon!;
+            const active = location.pathname === item.to;
             return (
-              <button
-                key="fab"
-                onClick={() => navigate(item.to || '/student/new-request')}
+              <Link
+                key={item.id}
+                to={item.to!}
                 style={{
-                  width: 52, height: 52, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                  border: 'none', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 18px rgba(249,115,22,0.40)',
-                  marginBottom: 10,
-                  flexShrink: 0,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  textDecoration: 'none', position: 'relative',
+                  padding: '6px 12px', borderRadius: 12,
+                  color: active ? '#F97316' : '#94A3B8',
+                  transition: 'color 0.15s ease',
                 }}
               >
-                <Plus size={24} style={{ color: '#fff' }} />
-              </button>
+                <Icon size={20} />
+                <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{item.label}</span>
+                {item.hasBadge && unreadCount > 0 && (
+                  <span style={{ position: 'absolute', top: 4, right: 12, width: 7, height: 7, borderRadius: '50%', background: '#F97316', border: '1px solid #fff' }} />
+                )}
+              </Link>
             );
-          }
-
-          const Icon = item.icon!;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to!}
-              end={item.to === '/student' || item.to === '/faculty' || item.to === '/hod' || item.to === '/admin'}
-              style={({ isActive: active }) => ({
-                textDecoration: 'none',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                flex: 1, padding: '6px 0 4px',
-                transition: 'all 0.15s',
-              })}
-            >
-              {({ isActive: active }) => (
-                <>
-                  <div style={{ position: 'relative' }}>
-                    <Icon size={22} style={{ color: active ? '#000000' : '#94A3B8', transition: 'color 0.15s' }} />
-                    {item.hasBadge && unreadCount > 0 && (
-                      <span style={{ position: 'absolute', top: -1, right: -2, width: 8, height: 8, borderRadius: '50%', background: '#F97316', border: '1.5px solid #fff' }} />
-                    )}
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? '#000000' : '#94A3B8', transition: 'color 0.15s' }}>
-                    {item.label}
-                  </span>
-                </>
-              )}
-            </NavLink>
-          );
-        })}
-      </nav>
+          })}
+        </nav>
+      )}
 
       {/* ── Responsive CSS ── */}
       <style>{`
-        /* ── Mobile ── */
-        @media (max-width: 768px) {
+        /* ── Screen Mobile ── */
+        @media screen and (max-width: 768px) {
           .desktop-topbar   { display: none !important; }
           .desktop-sidebar  { display: none !important; }
           .mobile-topbar    { display: flex !important; }
-          .mobile-bottom-nav{ display: flex !important; }
-          .main-content     { padding: 16px 16px 88px !important; }
+          .mobile-bottom-nav{ display: ${role === 'viewer' ? 'none' : 'flex'} !important; }
+          .main-content     { padding: ${role === 'viewer' ? '16px 16px 24px' : '16px 16px 88px'} !important; }
           .student-portal-badge { display: none !important; }
         }
-        /* ── Desktop ── */
-        @media (min-width: 769px) {
+        /* ── Screen Desktop ── */
+        @media screen and (min-width: 769px) {
           .desktop-topbar   { display: flex !important; }
           .desktop-sidebar  { display: flex !important; }
           .mobile-topbar    { display: none !important; }
           .mobile-bottom-nav{ display: none !important; }
+        }
+        /* ── Print ── */
+        @media print {
+          .desktop-topbar, .mobile-topbar, .desktop-sidebar, .mobile-bottom-nav, .footer-line {
+            display: none !important;
+          }
+          .main-content {
+            padding: 0 !important;
+            margin: 0 !important;
+          }
         }
       `}</style>
     </div>
