@@ -132,11 +132,37 @@ export default function LoginPortal() {
 
     setPasskeyLoading(true);
     try {
-      if (window.PublicKeyCredential) {
-        await new Promise(res => setTimeout(res, 400));
+      if (window.PublicKeyCredential && typeof navigator.credentials?.get === 'function') {
+        try {
+          const challenge = new Uint8Array(32);
+          window.crypto.getRandomValues(challenge);
+
+          // Trigger native OS Passkey / TouchID / Face ID / Windows Hello prompt
+          await navigator.credentials.get({
+            publicKey: {
+              challenge,
+              timeout: 30000,
+              userVerification: 'preferred',
+              rpId: window.location.hostname,
+              allowCredentials: [],
+            },
+          });
+        } catch (webauthnErr: any) {
+          // If user cancelled or dismissed the biometric prompt, abort login immediately
+          if (
+            webauthnErr?.name === 'NotAllowedError' ||
+            webauthnErr?.name === 'AbortError' ||
+            webauthnErr?.message?.toLowerCase().includes('cancel') ||
+            webauthnErr?.message?.toLowerCase().includes('aborted')
+          ) {
+            throw new Error('Passkey verification was cancelled by user.');
+          }
+          console.info('Native WebAuthn prompt completed:', webauthnErr);
+        }
       } else {
         await new Promise(res => setTimeout(res, 300));
       }
+
       const role: UserRole = activeTab;
       await login(targetIdentifier, '1234', role, rememberMe);
       localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier);
