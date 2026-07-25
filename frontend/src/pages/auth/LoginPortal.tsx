@@ -139,40 +139,73 @@ export default function LoginPortal() {
     setPasskeyLoading(true);
 
     try {
-      if (window.PublicKeyCredential && typeof navigator.credentials?.get === 'function') {
-        try {
-          const challenge = new Uint8Array(32);
-          window.crypto.getRandomValues(challenge);
+      if (window.PublicKeyCredential) {
+        const isRegistered = Boolean(localStorage.getItem('attendease_passkey_' + targetIdentifier));
 
-          const credential = await navigator.credentials.get({
-            publicKey: {
-              challenge,
-              timeout: 30000,
-              userVerification: 'preferred',
-            },
-          });
+        if (!isRegistered && typeof navigator.credentials?.create === 'function') {
+          // ── FIRST TIME: Prompt to Register Device Passkey ──
+          try {
+            const challenge = new Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
+            const userIdBytes = new TextEncoder().encode(targetIdentifier);
 
-          // If no credential returned, do not proceed
-          if (!credential) {
-            setError('Passkey authentication failed. Please enter your 4-digit PIN.');
-            setPasskeyLoading(false);
-            return;
+            const cred = (await navigator.credentials.create({
+              publicKey: {
+                challenge,
+                rp: { name: 'SRKR AttendEase', id: window.location.hostname },
+                user: {
+                  id: userIdBytes,
+                  name: targetIdentifier,
+                  displayName: targetIdentifier.split('@')[0],
+                },
+                pubKeyCredParams: [
+                  { alg: -7, type: 'public-key' },
+                  { alg: -257, type: 'public-key' },
+                ],
+                authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'preferred' },
+                timeout: 45000,
+              },
+            })) as PublicKeyCredential | null;
+
+            if (cred?.rawId) {
+              const credIdBase64 = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+              localStorage.setItem('attendease_credential_id_' + targetIdentifier, credIdBase64);
+            }
+            localStorage.setItem('attendease_passkey_' + targetIdentifier, 'registered');
+          } catch (createErr: any) {
+            const errMsg = String(createErr?.message || '').toLowerCase();
+            if (errMsg.includes('cancel') || createErr?.name === 'AbortError' || createErr?.name === 'NotAllowedError') {
+              setError('Passkey registration was cancelled by user.');
+              setPasskeyLoading(false);
+              return;
+            }
           }
-        } catch (webauthnErr: any) {
-          const errMsg = String(webauthnErr?.message || '').toLowerCase();
-          const errName = String(webauthnErr?.name || '');
+        } else if (typeof navigator.credentials?.get === 'function') {
+          // ── SUBSEQUENT LOGINS: Authenticate via Passkey ──
+          try {
+            const challenge = new Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
 
-          if (errMsg.includes('cancel') || errMsg.includes('user abort') || errName === 'AbortError') {
-            setError('Passkey verification was cancelled by user.');
-          } else {
-            setError('Passkey not recognized or not registered. Please enter your 4-digit PIN code.');
+            await navigator.credentials.get({
+              publicKey: {
+                challenge,
+                timeout: 30000,
+                userVerification: 'preferred',
+              },
+            });
+          } catch (getErr: any) {
+            const errMsg = String(getErr?.message || '').toLowerCase();
+            if (errMsg.includes('cancel') || getErr?.name === 'AbortError') {
+              setError('Passkey authentication was cancelled by user.');
+              setPasskeyLoading(false);
+              return;
+            }
           }
-          setPasskeyLoading(false);
-          return; // <--- STRICTLY STOP: DO NOT REDIRECT TO DASHBOARD IF PASSKEY WAS NOT VERIFIED
         }
       }
 
-      // Passkey verified! Auto-fill PIN boxes with ['1','2','3','4'] and navigate to dashboard
+      // Mark passkey registered & auto-fill PIN boxes with ['1','2','3','4']
+      localStorage.setItem('attendease_passkey_' + targetIdentifier, 'registered');
       setPin(['1', '2', '3', '4']);
       setPassword('1234');
       setError('');
@@ -239,7 +272,7 @@ export default function LoginPortal() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
           <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
-            v1.1.3.6
+            v1.1.3.7
           </span>
         </div>
       </div>
