@@ -8,50 +8,82 @@ interface ModalProps {
   title: string;
   description?: string;
   children?: ReactNode;
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export function Modal({ open, onClose, title, description, children, size = 'md' }: ModalProps) {
   return (
     <AnimatePresence>
       {open && (
-        <>
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+        }}>
+          {/* Backdrop overlay */}
           <motion.div
             key="overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-40"
+            style={{
+              position: 'fixed',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(15, 23, 42, 0.45)',
+              backdropFilter: 'blur(3px)',
+            }}
             onClick={onClose}
           />
+
+          {/* Centered Modal Card Widget */}
           <motion.div
             key="modal"
-            initial={{ opacity: 0, scale: 0.97, y: 8 }}
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 8 }}
+            exit={{ opacity: 0, scale: 0.95, y: 12 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full
-              ${size === 'sm' ? 'max-w-sm' : 'max-w-md'}
-              bg-white border border-[#E5E7EB] rounded-2xl shadow-card p-6`}
+            style={{
+              position: 'relative',
+              zIndex: 101,
+              width: '100%',
+              maxWidth: size === 'sm' ? 400 : size === 'lg' ? 620 : 520,
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: '#ffffff',
+              border: '1px solid #E2E8F0',
+              borderRadius: 20,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08)',
+              padding: 24,
+            }}
           >
-            <div className="flex items-start justify-between mb-4">
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
-                <h2 className="text-[18px] font-semibold text-[#111111]">{title}</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0F172A', margin: 0 }}>{title}</h2>
                 {description && (
-                  <p className="text-[14px] text-[#6B7280] mt-1">{description}</p>
+                  <p style={{ fontSize: 13, color: '#64748B', marginTop: 4, margin: 0 }}>{description}</p>
                 )}
               </div>
               <button
+                type="button"
                 onClick={onClose}
-                className="p-1 rounded-lg hover:bg-[#F3F4F6] transition-colors text-[#6B7280]"
+                style={{
+                  width: 32, height: 32, borderRadius: 8, border: 'none',
+                  background: '#F1F5F9', color: '#64748B', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  transition: 'background 0.15s',
+                }}
               >
                 <X size={18} />
               </button>
             </div>
             {children}
           </motion.div>
-        </>
+        </div>
       )}
     </AnimatePresence>
   );
