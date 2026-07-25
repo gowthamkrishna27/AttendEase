@@ -251,7 +251,7 @@ export default function FacultySettings() {
                   const cred = (await navigator.credentials.create({
                     publicKey: {
                       challenge: challengeBytes,
-                      rp: challengeRes.rp || { name: 'SRKR AttendEase', id: window.location.hostname },
+                      rp: { name: 'SRKR AttendEase', id: window.location.hostname },
                       user: {
                         id: userIdBytes,
                         name: userEmail,

@@ -132,7 +132,7 @@ router.post('/passkey/register-challenge', async (req: Request, res: Response) =
     const challenge = crypto.randomBytes(32).toString('base64url');
     res.json({
       challenge,
-      rp: { name: 'SRKR AttendEase', id: req.hostname || 'localhost' },
+      rp: { name: 'SRKR AttendEase' },
       user: {
         id: Buffer.from(user.userId).toString('base64url'),
         name: user.email,
