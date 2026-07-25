@@ -62,7 +62,14 @@ export default function LoginPortal() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleTabChange = (tab: Tab) => {
-    setActiveTab(tab); setIdentifier(''); setPassword(''); setPin(['', '', '', '']); setError('');
+    setActiveTab(tab);
+    setPassword('');
+    setPin(['', '', '', '']);
+    setError('');
+
+    // Restore last used account for this role if stored
+    const saved = localStorage.getItem('attendease_last_login_' + tab);
+    setIdentifier(saved || '');
   };
 
   const handlePinChange = (index: number, value: string) => {
@@ -103,11 +110,26 @@ export default function LoginPortal() {
   const handlePasskeyLogin = async () => {
     setError('');
     let targetIdentifier = identifier.trim();
+
     if (!targetIdentifier) {
-      // Auto-fallback to default faculty/HOD so 1-tap passkey login always succeeds on localhost
-      targetIdentifier = activeTab === 'faculty' ? 'suresh.mudunuri@srkrec.ac.in' : 'hod.csd@srkrec.ac.in';
-      setIdentifier(targetIdentifier);
+      const saved = localStorage.getItem('attendease_last_login_' + activeTab);
+      if (saved) {
+        targetIdentifier = saved;
+        setIdentifier(saved);
+      }
     }
+
+    if (!targetIdentifier) {
+      if (activeTab === 'faculty') {
+        setError('Please select your Faculty name from the dropdown before using Passkey / Fingerprint.');
+      } else if (activeTab === 'hod') {
+        setError('Please select your HOD name from the dropdown before using Passkey / Fingerprint.');
+      } else {
+        setError('Please enter your Roll Number before using Passkey / Fingerprint.');
+      }
+      return;
+    }
+
     setPasskeyLoading(true);
     try {
       if (window.PublicKeyCredential) {
@@ -117,6 +139,7 @@ export default function LoginPortal() {
       }
       const role: UserRole = activeTab;
       await login(targetIdentifier, '1234', role, rememberMe);
+      localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier);
       navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Passkey verification failed.';
@@ -134,6 +157,7 @@ export default function LoginPortal() {
     try {
       const role: UserRole = activeTab;
       await login(identifier.trim(), password, role, rememberMe);
+      localStorage.setItem('attendease_last_login_' + activeTab, identifier.trim());
       navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed. Please try again.';
