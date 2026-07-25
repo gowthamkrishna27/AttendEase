@@ -136,7 +136,7 @@ router.get('/', async (req: Request, res: Response) => {
           { faculties: { some: { facultyId: user.id } } },
           { primaryFaculty: { email: user.email } },
           { faculties: { some: { faculty: { email: user.email } } } },
-          ...(deptStr ? [{ student: { department: { contains: deptStr, mode: 'insensitive' } } }] : []),
+          ...(deptStr ? [{ student: { department: { contains: deptStr, mode: 'insensitive' as const } } }] : []),
         ],
       };
     } else {
@@ -408,7 +408,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
   // Allow role override from HOD executive control panel
   const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  if (roleOverride === 'hod' || roleOverride === 'admin' || user.role === 'viewer') {
+  if (roleOverride === 'hod' || roleOverride === 'admin' || (user.role as string) === 'viewer') {
     user = { ...user, role: (roleOverride as any) || 'hod' };
   }
 
