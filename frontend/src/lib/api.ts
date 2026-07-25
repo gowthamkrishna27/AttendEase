@@ -157,12 +157,72 @@ export async function login(
   identifier: string,
   password: string,
   role: UserRole,
-): Promise<{ token: string; user: AuthUser }> {
-  return apiFetch<{ token: string; user: AuthUser }>(
+): Promise<{ token: string; user: AuthUser; hasPasskey?: boolean; passkeyCount?: number }> {
+  return apiFetch<{ token: string; user: AuthUser; hasPasskey?: boolean; passkeyCount?: number }>(
     '/api/auth/login',
     { method: 'POST', body: JSON.stringify({ identifier, password, role }) },
     false,
   );
+}
+
+export async function registerPasskeyChallenge(identifier?: string): Promise<any> {
+  return apiFetch<any>('/api/auth/passkey/register-challenge', {
+    method: 'POST',
+    body: JSON.stringify({ identifier }),
+  });
+}
+
+export async function registerPasskey(
+  credentialId: string,
+  publicKey?: string,
+  deviceName?: string,
+  identifier?: string,
+): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>('/api/auth/passkey/register', {
+    method: 'POST',
+    body: JSON.stringify({ credentialId, publicKey, deviceName, identifier }),
+  });
+}
+
+export async function loginPasskeyChallenge(identifier: string): Promise<{
+  challenge: string;
+  hasPasskey: boolean;
+  user: { userId: string; email: string; name: string };
+  allowCredentials: { id: string; type: string }[];
+}> {
+  return apiFetch('/api/auth/passkey/login-challenge', {
+    method: 'POST',
+    body: JSON.stringify({ identifier }),
+  }, false);
+}
+
+export async function verifyPasskeyLogin(
+  identifier: string,
+  credentialId?: string,
+): Promise<{ token: string; user: AuthUser }> {
+  return apiFetch<{ token: string; user: AuthUser }>('/api/auth/passkey/verify', {
+    method: 'POST',
+    body: JSON.stringify({ identifier, credentialId }),
+  }, false);
+}
+
+export async function listPasskeys(): Promise<{ devices: { id: string; credentialId: string; deviceName?: string; createdAt: string; lastUsedAt: string }[] }> {
+  return apiFetch('/api/auth/passkey/list');
+}
+
+export async function removePasskey(id: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/auth/passkey/remove/${id}`, { method: 'DELETE' });
+}
+
+export async function removeAllPasskeys(): Promise<{ success: boolean }> {
+  return apiFetch('/api/auth/passkey/remove-all', { method: 'DELETE' });
+}
+
+export async function changePin(currentPin: string, newPin: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch('/api/auth/change-pin', {
+    method: 'POST',
+    body: JSON.stringify({ currentPin, newPin }),
+  });
 }
 
 export async function logout(): Promise<void> {

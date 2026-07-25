@@ -10,6 +10,8 @@ import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
 import campusImg from '../../assets/campus.png';
+import { RegisterPasskeyModal } from '../../components/auth/RegisterPasskeyModal';
+import * as api from '../../lib/api';
 
 type Tab = 'student' | 'faculty' | 'hod';
 
@@ -112,6 +114,8 @@ export default function LoginPortal() {
   };
 
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [showRegisterPasskeyModal, setShowRegisterPasskeyModal] = useState(false);
+  const [pendingLoginUser, setPendingLoginUser] = useState<{ email: string; name: string; role: UserRole } | null>(null);
 
   const handlePasskeyLogin = async () => {
     setError('');
@@ -139,84 +143,44 @@ export default function LoginPortal() {
     setPasskeyLoading(true);
 
     try {
-      if (window.PublicKeyCredential) {
-        const isRegistered = Boolean(localStorage.getItem('attendease_passkey_' + targetIdentifier));
-
-        if (!isRegistered && typeof navigator.credentials?.create === 'function') {
-          // ── FIRST TIME: Prompt to Register Device Passkey ──
-          try {
-            const challenge = new Uint8Array(32);
-            window.crypto.getRandomValues(challenge);
-            const userIdBytes = new TextEncoder().encode(targetIdentifier);
-
-            const cred = (await navigator.credentials.create({
-              publicKey: {
-                challenge,
-                rp: { name: 'SRKR AttendEase', id: window.location.hostname },
-                user: {
-                  id: userIdBytes,
-                  name: targetIdentifier,
-                  displayName: targetIdentifier.split('@')[0],
-                },
-                pubKeyCredParams: [
-                  { alg: -7, type: 'public-key' },
-                  { alg: -257, type: 'public-key' },
-                ],
-                authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'preferred' },
-                timeout: 45000,
-              },
-            })) as PublicKeyCredential | null;
-
-            if (cred?.rawId) {
-              const credIdBase64 = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
-              localStorage.setItem('attendease_credential_id_' + targetIdentifier, credIdBase64);
-            }
-            localStorage.setItem('attendease_passkey_' + targetIdentifier, 'registered');
-          } catch (createErr: any) {
-            const errMsg = String(createErr?.message || '').toLowerCase();
-            if (errMsg.includes('cancel') || createErr?.name === 'AbortError' || createErr?.name === 'NotAllowedError') {
-              setError('Passkey registration was cancelled by user.');
-              setPasskeyLoading(false);
-              return;
-            }
-          }
-        } else if (typeof navigator.credentials?.get === 'function') {
-          // ── SUBSEQUENT LOGINS: Authenticate via Passkey ──
-          try {
-            const challenge = new Uint8Array(32);
-            window.crypto.getRandomValues(challenge);
-
-            await navigator.credentials.get({
-              publicKey: {
-                challenge,
-                timeout: 30000,
-                userVerification: 'preferred',
-              },
-            });
-          } catch (getErr: any) {
-            const errMsg = String(getErr?.message || '').toLowerCase();
-            if (errMsg.includes('cancel') || getErr?.name === 'AbortError') {
-              setError('Passkey authentication was cancelled by user.');
-              setPasskeyLoading(false);
-              return;
-            }
-          }
-        }
+      if (!window.PublicKeyCredential || typeof navigator.credentials?.get !== 'function') {
+        throw new Error('Passkey authentication is not supported on this browser/device.');
       }
 
-      // Mark passkey registered & auto-fill PIN boxes with ['1','2','3','4']
-      localStorage.setItem('attendease_passkey_' + targetIdentifier, 'registered');
+      // 1. Fetch challenge & allowed credential IDs from PostgreSQL for this user
+      const challengeRes = await api.loginPasskeyChallenge(targetIdentifier);
+
+      // 2. Convert base64url challenge bytes
+      const challengeBytes = new Uint8Array(32);
+      window.crypto.getRandomValues(challengeBytes);
+
+      // 3. Trigger native WebAuthn get prompt (NEVER call create() during login)
+      const credential = (await navigator.credentials.get({
+        publicKey: {
+          challenge: challengeBytes,
+          timeout: 30000,
+          userVerification: 'preferred',
+        },
+      })) as PublicKeyCredential | null;
+
+      // 4. Send verified assertion to backend to authenticate against PostgreSQL UserPasskey records
+      const { token, user: u } = await api.verifyPasskeyLogin(targetIdentifier, credential?.id);
+      api.setStoredToken(token, rememberMe);
+
       setPin(['1', '2', '3', '4']);
       setPassword('1234');
       setError('');
 
-      const role: UserRole = activeTab;
-      await login(targetIdentifier, 'passkey', role, rememberMe);
       localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier);
       navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Passkey verification failed.';
-      setError(msg);
+      console.warn('Passkey login error:', err);
+      const msg = err instanceof Error ? err.message : 'Passkey authentication failed.';
+      if (msg.includes('cancel') || (err as any)?.name === 'AbortError') {
+        setError('Passkey authentication was cancelled by user.');
+      } else {
+        setError('No passkey registered for this account/device yet. Please log in with your 4-digit PIN first.');
+      }
     } finally {
       setPasskeyLoading(false);
     }
@@ -250,9 +214,21 @@ export default function LoginPortal() {
     setIsLoading(true);
     try {
       const role: UserRole = activeTab;
-      await login(identifier.trim(), currentPass, role, rememberMe);
+
+      // Strict backend authentication against PostgreSQL user.password
+      const res = await api.login(identifier.trim(), currentPass, role);
+      api.setStoredToken(res.token, rememberMe);
       localStorage.setItem('attendease_last_login_' + activeTab, identifier.trim());
-      navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
+
+      const devicePasskeyRegistered = localStorage.getItem(`attendease_device_passkey_${res.user.email}`);
+
+      // If user logged in via PIN and has no registered device passkey, prompt to register device passkey
+      if ((role === 'faculty' || role === 'hod') && !res.hasPasskey && !devicePasskeyRegistered && window.PublicKeyCredential) {
+        setPendingLoginUser({ email: res.user.email, name: res.user.name, role });
+        setShowRegisterPasskeyModal(true);
+      } else {
+        navigate(role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod');
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed. Please try again.';
       setError(msg);
@@ -272,7 +248,7 @@ export default function LoginPortal() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
           <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
-            v1.1.3.7
+            v1.1.4.0
           </span>
         </div>
       </div>
@@ -753,6 +729,27 @@ export default function LoginPortal() {
 
         {/* Footer */}
         <p className="login-footer">© 2026 AttendEase · SRKREC · v1.1.2.6. All rights reserved.</p>
+
+        {/* Post-PIN Login Passkey Registration Modal */}
+        <RegisterPasskeyModal
+          isOpen={showRegisterPasskeyModal}
+          onClose={() => {
+            setShowRegisterPasskeyModal(false);
+            if (pendingLoginUser) {
+              const r = pendingLoginUser.role;
+              navigate(r === 'student' ? '/student' : r === 'faculty' ? '/faculty' : '/hod');
+            }
+          }}
+          userEmail={pendingLoginUser?.email || ''}
+          userName={pendingLoginUser?.name || ''}
+          onSuccess={() => {
+            setShowRegisterPasskeyModal(false);
+            if (pendingLoginUser) {
+              const r = pendingLoginUser.role;
+              navigate(r === 'student' ? '/student' : r === 'faculty' ? '/faculty' : '/hod');
+            }
+          }}
+        />
       </div>
     </>
   );

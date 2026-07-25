@@ -192,6 +192,12 @@ export async function seedDatabase(): Promise<void> {
     skipDuplicates: true,
   });
 
+  // Explicitly update all existing Faculty & HOD passwords in PostgreSQL to '1234'
+  await prisma.user.updateMany({
+    where: { role: { in: ['faculty', 'hod'] } },
+    data: { password: '1234' },
+  });
+
   // Seed initial users without overriding custom admin updates to department
 
   for (const req of SAMPLE_REQUESTS) {

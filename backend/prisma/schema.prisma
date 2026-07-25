@@ -62,6 +62,7 @@ model User {
   assignedRequests  RequestFaculty[]
   performedActions  RequestAction[]
   notifications     Notification[]
+  passkeys          UserPasskey[]
 
   @@index([role])
   @@index([department])
@@ -149,3 +150,19 @@ model Notification {
 
   @@index([userId])
 }
+
+/// Registered WebAuthn Passkeys for multi-device biometrics
+model UserPasskey {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  credentialId String   @unique
+  publicKey    String   @db.Text
+  counter      Int      @default(0)
+  deviceName   String?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
