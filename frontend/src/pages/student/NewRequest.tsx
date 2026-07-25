@@ -68,25 +68,16 @@ export default function NewRequest() {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
-<<<<<<< HEAD
-  const [showAllFaculty, setShowAllFaculty] = useState(false);
-=======
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
->>>>>>> 48d01b9 (feat: Faculty/HOD Passkey authentication, 4-digit passcode, mobile login responsiveness, student photo avatars, ABC ordered faculty dropdowns, and proof document display)
 
   const { data: rawFacultyList = [] } = useQuery({
     queryKey: ['faculty'],
     queryFn: () => api.getFaculty(),
   });
 
-<<<<<<< HEAD
-  const sortedFacultyList = [...facultyList].sort((a, b) => a.name.localeCompare(b.name));
-  const visibleFacultyList = showAllFaculty ? sortedFacultyList : sortedFacultyList.slice(0, 3);
-=======
   const facultyList = [...rawFacultyList].sort((a: api.Faculty, b: api.Faculty) =>
     a.name.localeCompare(b.name)
   );
->>>>>>> 48d01b9 (feat: Faculty/HOD Passkey authentication, 4-digit passcode, mobile login responsiveness, student photo avatars, ABC ordered faculty dropdowns, and proof document display)
 
   const toggleFaculty = (id: string) => {
     setSelectedFacultyIds(prev =>
