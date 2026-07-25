@@ -539,14 +539,11 @@ export default function LoginPortal() {
 
         {/* ── Mobile-only top header ── */}
         <div className="login-mobile-top">
-          <img src={srkrEmblem} alt="SRKR" style={{ width: 72, height: 72, objectFit: 'contain', marginBottom: 6 }} />
-          <p style={{ fontSize: 11, color: '#94A3B8', margin: '0 0 6px', letterSpacing: '0.06em' }}>Estd.1980</p>
-          <h1 style={{ fontSize: 30, fontWeight: 800, margin: '0 0 6px', lineHeight: 1.1 }}>
-            <span style={{ color: '#0F172A' }}>Attend</span>
-            <span style={{ color: '#F97316' }}>Ease</span>
+          <img src={srkrEmblem} alt="SRKR" style={{ width: 64, height: 64, objectFit: 'contain', marginBottom: 8 }} />
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 2px', lineHeight: 1.15 }}>
+            SRKR Engineering College
           </h1>
-          <p style={{ fontSize: 14, color: '#475569', margin: 0, fontWeight: 700 }}>SRKR Engineering College</p>
-          <p style={{ fontSize: 14, color: '#475569', margin: '2px 0 0', fontWeight: 700 }}>CSD & CSIT</p>
+          <p style={{ fontSize: 16, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
         </div>
 
         {/* ── Main Card ── */}
@@ -561,11 +558,11 @@ export default function LoginPortal() {
           <div className="login-left">
             {/* White text area */}
             <div style={{ padding: '32px 32px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-                <img src={srkrEmblem} alt="SRKR" style={{ width: 38, height: 38, objectFit: 'contain' }} />
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.2 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0 }}>SRKR Engineering College</p>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#475569', margin: 0 }}>CSD & CSIT</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+                <img src={srkrEmblem} alt="SRKR" style={{ width: 44, height: 44, objectFit: 'contain' }} />
+                <div style={{ lineHeight: 1.15 }}>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0 }}>SRKR Engineering College</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
                 </div>
               </div>
               <h1 style={{ fontSize: 34, fontWeight: 800, color: '#0F172A', lineHeight: 1.15, margin: '0 0 6px' }}>

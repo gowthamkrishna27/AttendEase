@@ -240,11 +240,11 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         display: 'flex', alignItems: 'center',
         padding: '0 24px',
       }}>
-        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
-          <img src={srkrEmblem} alt="SRKR" style={{ width: 34, height: 34, objectFit: 'contain' }} />
-          <div style={{ lineHeight: 1.2 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0 }}>SRKR Engineering College</p>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#475569', margin: 0 }}>CSD & CSIT</p>
+        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', flexShrink: 0 }}>
+          <img src={srkrEmblem} alt="SRKR" style={{ width: 38, height: 38, objectFit: 'contain' }} />
+          <div style={{ lineHeight: 1.15 }}>
+            <p style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>SRKR Engineering College</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
           </div>
         </Link>
 
@@ -285,11 +285,11 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         padding: '0 16px',
       }}>
         {/* Left: logo + brand */}
-        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}>
-          <img src={srkrEmblem} alt="SRKR" style={{ width: 36, height: 36, objectFit: 'contain' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>SRKR Engineering College</p>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#475569', margin: 0, lineHeight: 1.2 }}>CSD & CSIT</p>
+        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+          <img src={srkrEmblem} alt="SRKR" style={{ width: 34, height: 34, objectFit: 'contain' }} />
+          <div style={{ lineHeight: 1.15 }}>
+            <p style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>SRKR Engineering College</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
           </div>
         </Link>
 
