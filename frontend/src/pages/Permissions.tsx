@@ -29,106 +29,6 @@ const getTodayFormattedDate = () => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-// Sample fallback approved permissions
-const SAMPLE_APPROVED_PERMISSIONS: ExtendedAttendanceRequest[] = [
-  {
-    id: 'req-csd-002',
-    studentId: 'stu-24B91A0702',
-    sectionName: 'CSD — Section A',
-    student: {
-      id: 'stu-24B91A0702',
-      name: 'CSD Student 02',
-      rollNumber: '24B91A0702',
-      department: 'CSD',
-      year: 3,
-      section: 'A',
-      email: '24b91a0702@college.edu',
-      phone: '9876543210',
-      attendancePercentage: 88,
-    },
-    reason: 'medical',
-    reasonLabel: 'Medical Leave',
-    date: getTodayDateString(),
-    startTime: '10:00',
-    endTime: '13:00',
-    description: 'Hospital visit for medical checkup and treatment.',
-    status: 'approved',
-    submittedAt: new Date().toISOString(),
-    reviewedAt: new Date().toISOString(),
-    faculty: {
-      id: 'fac-csd-003',
-      name: 'S. Mohan Krishna',
-      email: 'mohanakrishna.seerla@srkrec.ac.in',
-      department: 'CSD',
-      designation: 'Assistant Professor',
-    },
-  },
-  {
-    id: 'req-csd-045',
-    studentId: 'stu-24B91A0745',
-    sectionName: 'CSD — Section B',
-    student: {
-      id: 'stu-24B91A0745',
-      name: 'CSD Student 45',
-      rollNumber: '24B91A0745',
-      department: 'CSD',
-      year: 3,
-      section: 'B',
-      email: '24b91a0745@college.edu',
-      phone: '9876543215',
-      attendancePercentage: 90,
-    },
-    reason: 'internship',
-    reasonLabel: 'Internship',
-    date: getTodayDateString(),
-    startTime: '09:00',
-    endTime: '16:00',
-    description: 'Attending web development internship orientation session at Tech Park.',
-    status: 'approved',
-    submittedAt: new Date().toISOString(),
-    reviewedAt: new Date().toISOString(),
-    faculty: {
-      id: 'fac-csd-002',
-      name: 'A. Aswini Priyanka',
-      email: 'aapriyanka@srkrec.ac.in',
-      department: 'CSD',
-      designation: 'Assistant Professor',
-    },
-  },
-  {
-    id: 'req-csit-002',
-    studentId: 'stu-24B91A0767',
-    sectionName: 'CSIT — Section A',
-    student: {
-      id: 'stu-24B91A0767',
-      name: 'CSIT Student 67',
-      rollNumber: '24B91A0767',
-      department: 'CSIT',
-      year: 3,
-      section: 'A',
-      email: '24b91a0767@college.edu',
-      phone: '9876543212',
-      attendancePercentage: 85,
-    },
-    reason: 'medical',
-    reasonLabel: 'Medical Leave',
-    date: getTodayDateString(),
-    startTime: '09:00',
-    endTime: '12:00',
-    description: 'Fever and medical consultation.',
-    status: 'approved',
-    submittedAt: new Date().toISOString(),
-    reviewedAt: new Date().toISOString(),
-    faculty: {
-      id: 'fac-csit-003',
-      name: 'Neti Praveen',
-      email: 'npraveen@srkrec.ac.in',
-      department: 'CSIT',
-      designation: 'Assistant Professor',
-    },
-  },
-];
-
 export default function PermissionsPage() {
   const [searchParams] = useSearchParams();
 
@@ -173,7 +73,7 @@ export default function PermissionsPage() {
 
   // Approved Requests from Real Database
   const dbApproved = apiRequests.filter(r => r.status === 'approved');
-  const allApproved: ExtendedAttendanceRequest[] = dbApproved.length > 0 ? dbApproved : apiRequests.length > 0 ? apiRequests : SAMPLE_APPROVED_PERMISSIONS;
+  const allApproved: ExtendedAttendanceRequest[] = dbApproved;
 
   const todayStr = getTodayDateString();
 
