@@ -10,7 +10,7 @@ import { UploadArea } from '../../components/forms/UploadArea';
 import * as api from '../../lib/api';
 import {
   ArrowLeft, CalendarDays, Clock, FileText, Upload,
-  BookOpen, PenLine, Send, UserCheck
+  BookOpen, PenLine, Send, UserCheck, ChevronDown
 } from 'lucide-react';
 
 const schema = z
@@ -68,11 +68,15 @@ export default function NewRequest() {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
+  const [showAllFaculty, setShowAllFaculty] = useState(false);
 
   const { data: facultyList = [] } = useQuery({
     queryKey: ['faculty'],
     queryFn: () => api.getFaculty(),
   });
+
+  const sortedFacultyList = [...facultyList].sort((a, b) => a.name.localeCompare(b.name));
+  const visibleFacultyList = showAllFaculty ? sortedFacultyList : sortedFacultyList.slice(0, 3);
 
   const toggleFaculty = (id: string) => {
     setSelectedFacultyIds(prev =>
@@ -209,7 +213,7 @@ export default function NewRequest() {
               Point to Faculty Member(s) <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>(Select one or more: Class Mentor, Counselor, Subject Faculty)</span>
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-              {facultyList.map((f: api.Faculty, idx: number) => {
+              {visibleFacultyList.map((f: api.Faculty, idx: number) => {
                 const isSelected = selectedFacultyIds.includes(f.id);
                 // Assign realistic designations for student selection context
                 const designationTag = f.designation || (idx % 3 === 0 ? 'Class Mentor' : idx % 3 === 1 ? 'Counselor' : 'Subject Faculty');
@@ -263,6 +267,33 @@ export default function NewRequest() {
                 );
               })}
             </div>
+
+            {sortedFacultyList.length > 3 && (
+              <button
+                type="button"
+                onClick={() => setShowAllFaculty(!showAllFaculty)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  width: '100%',
+                  padding: '9px 14px',
+                  marginBottom: 10,
+                  borderRadius: 10,
+                  border: '1px dashed #CBD5E1',
+                  background: '#F8FAFC',
+                  color: '#F97316',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>{showAllFaculty ? 'Show Less' : `View More (${sortedFacultyList.length - 3} more faculty)`}</span>
+                <ChevronDown size={14} style={{ transform: showAllFaculty ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+              </button>
+            )}
             <p style={{ fontSize: 11, color: '#94A3B8', margin: '5px 0 0' }}>
               Only selected faculty members (e.g. Class Mentor, Counselor, Subject Teacher) will be authorized to view &amp; approve your request.
             </p>

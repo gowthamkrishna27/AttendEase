@@ -80,6 +80,9 @@ async function bootstrap() {
         console.log(`   Health check     →  http://localhost:${p}/health`);
         console.log(`   Database         →  PostgreSQL (Neon)`);
         console.log(`   Login            →  POST /api/auth/login\n`);
+
+        // Seed initial data in background after server is up
+        seedDatabase().catch((err) => console.error('Seed warning:', err));
       });
 
       const shutdown = async () => {

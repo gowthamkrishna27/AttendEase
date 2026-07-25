@@ -15,11 +15,10 @@ const dSeries = ['D0', 'D1'];
 
 const allRollSuffixes = [...numericSuffixes, ...aSeries, ...bSeries, ...cSeries, ...dSeries];
 
-const allStudents = allRollSuffixes.map((suffix, index) => {
+const allStudents = allRollSuffixes.map((suffix) => {
   const rollNumber = `24B91A07${suffix}`;
-  // Students 01-65 are assigned to CSD department, 66-D1 to CSIT department
-  const department = index < 65 ? 'CSD' : 'CSIT';
-  const name = `${department} Student ${suffix}`;
+  const department = 'CSIT';
+  const name = `CSIT Student ${suffix}`;
   return {
     userId:     `stu-${rollNumber}`,
     name,
@@ -193,15 +192,7 @@ export async function seedDatabase(): Promise<void> {
     skipDuplicates: true,
   });
 
-  // Ensure department is updated for existing student rows
-  for (const user of ALL_USERS) {
-    if (user.role === 'student') {
-      await prisma.user.updateMany({
-        where: { userId: user.userId },
-        data:  { department: user.department },
-      });
-    }
-  }
+  // Seed initial users without overriding custom admin updates to department
 
   for (const req of SAMPLE_REQUESTS) {
     const existing = await prisma.request.findUnique({ where: { requestId: req.requestId } });

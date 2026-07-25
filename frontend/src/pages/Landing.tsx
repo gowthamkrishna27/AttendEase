@@ -94,12 +94,9 @@ export default function Landing() {
         {/* Brand Logo */}
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
           <img src={srkrEmblem} alt="SRKR Logo" style={{ width: 40, height: 40, objectFit: 'contain' }} />
-          <div>
-            <p style={{ fontSize: 16, fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
-              <span style={{ color: '#000000' }}>Attend</span>
-              <span style={{ color: '#F97316' }}>Ease</span>
-            </p>
-            <p style={{ fontSize: 10, color: '#94A3B8', margin: 0 }}>SRKR Engineering College</p>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>SRKR Engineering College</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#475569', margin: 0, lineHeight: 1.2 }}>CSD & CSIT</p>
           </div>
         </Link>
 

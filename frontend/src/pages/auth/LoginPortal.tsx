@@ -254,8 +254,8 @@ export default function LoginPortal() {
             <span style={{ color: '#0F172A' }}>Attend</span>
             <span style={{ color: '#F97316' }}>Ease</span>
           </h1>
-          <p style={{ fontSize: 14, color: '#475569', margin: 0, fontWeight: 500 }}>SRKR Engineering College</p>
-          <p style={{ fontSize: 13, color: '#94A3B8', margin: '2px 0 0' }}>Bhimavaram</p>
+          <p style={{ fontSize: 14, color: '#475569', margin: 0, fontWeight: 700 }}>SRKR Engineering College</p>
+          <p style={{ fontSize: 14, color: '#475569', margin: '2px 0 0', fontWeight: 700 }}>CSD & CSIT</p>
         </div>
 
         {/* ── Main Card ── */}
@@ -272,9 +272,9 @@ export default function LoginPortal() {
             <div style={{ padding: '32px 32px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
                 <img src={srkrEmblem} alt="SRKR" style={{ width: 38, height: 38, objectFit: 'contain' }} />
-                <div style={{ lineHeight: 1.2 }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>SRKREC</p>
-                  <p style={{ fontSize: 11, color: '#94A3B8', margin: 0 }}>Bhimavaram</p>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.2 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0 }}>SRKR Engineering College</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#475569', margin: 0 }}>CSD & CSIT</p>
                 </div>
               </div>
               <h1 style={{ fontSize: 34, fontWeight: 800, color: '#0F172A', lineHeight: 1.15, margin: '0 0 6px' }}>
