@@ -228,7 +228,7 @@ export default function HODAllRequests() {
                           <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
                         </td>
                         <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
-                          <StatusBadge status={req.status} />
+                          <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
@@ -276,7 +276,7 @@ export default function HODAllRequests() {
                           <p className="text-[11px] font-mono text-slate-400 mt-0.5">{req.student?.rollNumber}</p>
                         </div>
                       </div>
-                      <StatusBadge status={req.status} />
+                      <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
                     </div>
 
                     {/* Middle Row: Reason, Date & Duration */}

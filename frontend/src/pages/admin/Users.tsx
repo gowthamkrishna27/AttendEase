@@ -171,7 +171,7 @@ export default function AdminUsers() {
     return matchesSearch && matchesTab;
   });
 
-  const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+  const sorted = [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   return (
     <PageWrapper role="admin">

@@ -138,7 +138,7 @@ export default function HODRequestDetails() {
               Assigned to {request.faculty?.name || '—'}
             </p>
           </div>
-          <StatusBadge status={request.status} />
+          <StatusBadge status={request.status} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
         </div>
 
         {/* Student info card */}

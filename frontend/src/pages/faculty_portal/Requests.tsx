@@ -197,7 +197,7 @@ export default function FacultyRequests() {
                             <span className="text-[13px] font-medium text-slate-700">{getDays(req)}</span>
                           </td>
                           <td className="px-4 py-3.5">
-                            <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} />
+                            <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
                           </td>
                         </motion.tr>
                       );
@@ -227,7 +227,7 @@ export default function FacultyRequests() {
                               <p className="text-[11px] font-mono text-slate-400 mt-0.5">{req.student?.rollNumber}</p>
                             </div>
                           </div>
-                          <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} />
+                          <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
                         </div>
 
                         {/* Reason & Proof */}

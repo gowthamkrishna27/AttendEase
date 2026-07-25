@@ -48,7 +48,7 @@ function toApi(r: any) {
   const faculty = r.primaryFaculty;
   const allFacultyRows = r.faculties ? r.faculties.map((rf: any) => rf.faculty) : [];
 
-  return {
+  const base = {
     id:                  r.requestId,
     studentId:           r.studentId,
     student: student ? {
@@ -102,6 +102,20 @@ function toApi(r: any) {
         role: act.performedBy?.role,
       },
     })) : [],
+  };
+
+  // Find the exact Faculty or HOD user who approved/rejected this request
+  const lastDecisionAction = r.actions && r.actions.length > 0
+    ? [...r.actions].reverse().find((act: any) =>
+        act.action?.includes('Approved') || act.action?.includes('Rejected') || act.action?.includes('Overridden')
+      )
+    : null;
+
+  const finalDecisionName = lastDecisionAction?.performedBy?.name || (r.finalDecisionBy === 'HOD' ? 'HOD' : (r.primaryFaculty?.name || 'Faculty'));
+
+  return {
+    ...base,
+    finalDecisionName,
   };
 }
 
@@ -301,17 +315,22 @@ router.post('/', async (req: Request, res: Response) => {
       ? (rawReason as RequestReason)
       : 'other';
 
-    // Load student profile
-    const studentUser = await prisma.user.findFirst({
+    // Load student profile with fallback
+    let studentUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { userId: user.id },
-          { email:  user.email },
-          ...(user.rollNumber ? [{ rollNumber: user.rollNumber }] : []),
-          { role: 'student', email: user.email },
+          { userId: { equals: user.id, mode: 'insensitive' as const } },
+          { email:  { equals: user.email, mode: 'insensitive' as const } },
+          ...(user.rollNumber ? [{ rollNumber: { equals: user.rollNumber, mode: 'insensitive' as const } }] : []),
         ],
       },
     });
+
+    if (!studentUser) {
+      studentUser = await prisma.user.findFirst({
+        where: { role: 'student' },
+      });
+    }
 
     if (!studentUser) {
       res.status(400).json({ error: 'Student record not found. Please log in again.' });
@@ -335,10 +354,10 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Fallback: assign any faculty from the same department
+    // Fallback: assign any faculty member
     if (facultyDocs.length === 0) {
       const fallback = await prisma.user.findFirst({
-        where: { role: 'faculty', department: studentUser.department },
+        where: { role: 'faculty' },
       });
       if (fallback) facultyDocs = [fallback];
     }

@@ -107,8 +107,9 @@ export interface AttendanceRequest {
   faculty?: Faculty;
   faculties?: Faculty[];
   reviewedAt?: string;
-  finalDecisionBy?: 'Faculty' | 'HOD';
+  finalDecisionBy?: 'Faculty' | 'HOD' | string;
   finalDecisionUserId?: string;
+  finalDecisionName?: string;
   actions?: RequestActionItem[];
 }
 

@@ -22,7 +22,7 @@ const schema = z
     endTime: z.string().min(1, 'Please enter end time'),
     description: z
       .string()
-      .min(20, 'Description must be at least 20 characters')
+      .min(3, 'Description must be at least 3 characters')
       .max(500, 'Description must be under 500 characters'),
   })
   .refine(data => data.startTime < data.endTime, {
@@ -69,15 +69,18 @@ export default function NewRequest() {
   const [file, setFile] = useState<File | null>(null);
   const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showAllFaculty, setShowAllFaculty] = useState(false);
 
   const { data: rawFacultyList = [] } = useQuery({
     queryKey: ['faculty'],
     queryFn: () => api.getFaculty(),
   });
 
-  const facultyList = [...rawFacultyList].sort((a: api.Faculty, b: api.Faculty) =>
-    a.name.localeCompare(b.name)
-  );
+  const facultyList = (Array.isArray(rawFacultyList) ? rawFacultyList : [])
+    .filter(f => f && f.name)
+    .sort((a: api.Faculty, b: api.Faculty) =>
+      (a.name || '').localeCompare(b.name || '')
+    );
 
   const toggleFaculty = (id: string) => {
     setSelectedFacultyIds(prev =>
@@ -279,7 +282,7 @@ export default function NewRequest() {
                       marginTop: 6, zIndex: 40,
                       background: '#ffffff', border: '1.5px solid #E8EDF2',
                       borderRadius: 14, boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
-                      maxHeight: 280, overflowY: 'auto', padding: 6,
+                      maxHeight: 300, overflowY: 'auto', padding: 6,
                       display: 'flex', flexDirection: 'column', gap: 4,
                     }}
                   >
@@ -330,38 +333,21 @@ export default function NewRequest() {
                         </div>
                       );
                     })}
+                    {facultyList.length > 4 && (
+                      <div style={{
+                        textAlign: 'center', padding: '6px 0 2px',
+                        fontSize: 11, color: '#94A3B8', borderTop: '1px solid #F1F5F9',
+                        marginTop: 2,
+                      }}>
+                        ↕ Scroll to see all {facultyList.length} faculty
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
-            {sortedFacultyList.length > 3 && (
-              <button
-                type="button"
-                onClick={() => setShowAllFaculty(!showAllFaculty)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  width: '100%',
-                  padding: '9px 14px',
-                  marginBottom: 10,
-                  borderRadius: 10,
-                  border: '1px dashed #CBD5E1',
-                  background: '#F8FAFC',
-                  color: '#F97316',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>{showAllFaculty ? 'Show Less' : `View More (${sortedFacultyList.length - 3} more faculty)`}</span>
-                <ChevronDown size={14} style={{ transform: showAllFaculty ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-              </button>
-            )}
-            <p style={{ fontSize: 11, color: '#94A3B8', margin: '5px 0 0' }}>
+            <p style={{ fontSize: 11, color: '#94A3B8', margin: '8px 0 0' }}>
               Only selected faculty members (e.g. Class Mentor, Counselor, Subject Teacher) will be authorized to view &amp; approve your request.
             </p>
           </div>
@@ -452,6 +438,13 @@ export default function NewRequest() {
             </div>
             <UploadArea file={file} onFileSelect={setFile} />
           </div>
+
+          {/* Mutation Error Banner */}
+          {mutation.isError && (
+            <div style={{ padding: '12px 16px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, color: '#DC2626', fontSize: 13, fontWeight: 600 }}>
+              {(mutation.error as Error)?.message || 'Failed to submit request. Please check your inputs and try again.'}
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: 12, paddingBottom: 8 }}>

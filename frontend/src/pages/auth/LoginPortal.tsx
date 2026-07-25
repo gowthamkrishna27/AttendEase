@@ -270,7 +270,7 @@ export default function LoginPortal() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
           <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
-            v1.1.4.2
+            v1.1.4.3
           </span>
         </div>
       </div>

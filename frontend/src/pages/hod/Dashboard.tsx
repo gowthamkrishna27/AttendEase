@@ -192,7 +192,7 @@ export default function HODDashboard() {
                         {formatDate(req.date)}
                       </td>
                       <td className="px-4 py-3.5">
-                        <StatusBadge status={req.status} />
+                        <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
                       </td>
                     </tr>
                   ))}

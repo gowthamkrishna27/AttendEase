@@ -459,14 +459,14 @@ export default function PermissionsPage() {
                     <span className="font-bold text-slate-800">{selectedPass.date} ({selectedPass.startTime} - {selectedPass.endTime})</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Approved Faculty:</span>
-                    <span className="font-bold text-slate-900">{selectedPass.faculty?.name ?? 'Faculty Advisor'}</span>
+                    <span className="text-slate-500">Approved By:</span>
+                    <span className="font-bold text-slate-900">{selectedPass.finalDecisionName || selectedPass.faculty?.name || 'Faculty Advisor'}</span>
                   </div>
                   {selectedPass.finalDecisionBy === 'HOD' && (
                     <div className="flex justify-between items-center bg-purple-50 p-1.5 rounded-md border border-purple-200 text-[11px]">
                       <span className="text-purple-800 font-medium">Approval Status:</span>
                       <span className="font-bold text-purple-700 bg-white px-2 py-0.5 rounded border border-purple-300">
-                        Approved by HOD &amp; Faculty
+                        Approved by {selectedPass.finalDecisionName || 'HOD'}
                       </span>
                     </div>
                   )}

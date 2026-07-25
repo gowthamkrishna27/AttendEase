@@ -110,7 +110,7 @@ export default function FacultyRequestDetails() {
               Submitted {formatDate(request.submittedAt)}
             </p>
           </div>
-          <StatusBadge status={currentStatus} finalDecisionBy={request.finalDecisionBy} />
+          <StatusBadge status={currentStatus} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
         </div>
 
         {/* HOD Decision Banner for Faculty View */}

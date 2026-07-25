@@ -56,7 +56,7 @@ export function RequestOverviewModal({
                 <span className="text-[11px] font-extrabold text-orange-600 uppercase tracking-wider bg-orange-100/80 px-2 py-0.5 rounded-full">
                   Request Overview
                 </span>
-                <StatusBadge status={request.status} finalDecisionBy={request.finalDecisionBy} />
+                <StatusBadge status={request.status} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
               </div>
               <h2 className="text-[17px] font-bold text-slate-900 leading-tight">
                 {request.reasonLabel} Request
