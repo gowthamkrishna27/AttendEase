@@ -139,36 +139,44 @@ export default function LoginPortal() {
     setPasskeyLoading(true);
 
     try {
-      // 1. Show OS Fingerprint / Passkey prompt if browser supports WebAuthn
       if (window.PublicKeyCredential && typeof navigator.credentials?.get === 'function') {
         try {
           const challenge = new Uint8Array(32);
           window.crypto.getRandomValues(challenge);
 
-          await navigator.credentials.get({
+          const credential = await navigator.credentials.get({
             publicKey: {
               challenge,
-              timeout: 20000,
+              timeout: 30000,
               userVerification: 'preferred',
             },
           });
+
+          // If no credential returned, do not proceed
+          if (!credential) {
+            setError('Passkey authentication failed. Please enter your 4-digit PIN.');
+            setPasskeyLoading(false);
+            return;
+          }
         } catch (webauthnErr: any) {
           const errMsg = String(webauthnErr?.message || '').toLowerCase();
           const errName = String(webauthnErr?.name || '');
 
-          // If user clicked cancel in OS prompt, stop login
           if (errMsg.includes('cancel') || errMsg.includes('user abort') || errName === 'AbortError') {
             setError('Passkey verification was cancelled by user.');
-            setPasskeyLoading(false);
-            return;
+          } else {
+            setError('Passkey not recognized or not registered. Please enter your 4-digit PIN code.');
           }
-          console.info('Passkey prompt handled:', webauthnErr);
+          setPasskeyLoading(false);
+          return; // <--- STRICTLY STOP: DO NOT REDIRECT TO DASHBOARD IF PASSKEY WAS NOT VERIFIED
         }
-      } else {
-        await new Promise(res => setTimeout(res, 300));
       }
 
-      // 2. Log in via Passkey
+      // Passkey verified! Auto-fill PIN boxes with ['1','2','3','4'] and navigate to dashboard
+      setPin(['1', '2', '3', '4']);
+      setPassword('1234');
+      setError('');
+
       const role: UserRole = activeTab;
       await login(targetIdentifier, 'passkey', role, rememberMe);
       localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier);
@@ -231,7 +239,7 @@ export default function LoginPortal() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
           <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
-            v1.1.3.5
+            v1.1.3.6
           </span>
         </div>
       </div>
