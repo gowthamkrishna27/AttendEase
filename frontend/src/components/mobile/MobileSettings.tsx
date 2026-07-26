@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   User, Shield, Bell, Palette, Info, HelpCircle,
@@ -25,7 +25,19 @@ export const MobileSettings: React.FC<MobileSettingsProps> = ({ roleName = 'User
   const [isUpdatingPin, setIsUpdatingPin] = useState(false);
 
   const [notificationsOn, setNotificationsOn] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    return document.documentElement.classList.contains('dark') || localStorage.getItem('attendease_dark_mode') === 'true';
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('attendease_dark_mode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('attendease_dark_mode', 'false');
+    }
+  }, [darkMode]);
 
   const [activeModal, setActiveModal] = useState<'about' | 'privacy' | 'help' | null>(null);
 

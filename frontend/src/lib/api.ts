@@ -31,7 +31,6 @@ export function clearStoredToken(): void {
   localStorage.removeItem('attendease_remember_me');
   localStorage.removeItem('attendease_saved_user');
   sessionStorage.removeItem(TOKEN_KEY);
-  clearNativeSecureToken().catch(() => {});
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
