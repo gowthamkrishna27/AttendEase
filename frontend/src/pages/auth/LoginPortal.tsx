@@ -12,6 +12,7 @@ import srkrEmblem from '../../assets/srkr-emblem.png';
 import campusImg from '../../assets/campus.png';
 import { RegisterPasskeyModal } from '../../components/auth/RegisterPasskeyModal';
 import * as api from '../../lib/api';
+import { getRememberedAccount, clearRememberedAccount, authenticateWithBiometrics } from '../../lib/nativeAuth';
 
 type Tab = 'student' | 'faculty' | 'hod';
 
@@ -54,6 +55,8 @@ export default function LoginPortal() {
   const navigate = useNavigate();
   const { login, setUser } = useAuth();
 
+  const [rememberedUser, setRememberedUser] = useState(() => getRememberedAccount());
+  const [showRememberedCard, setShowRememberedCard] = useState(() => !!getRememberedAccount());
   const [activeTab, setActiveTab] = useState<Tab>('student');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -129,79 +132,36 @@ export default function LoginPortal() {
       }
     }
 
-    if (!targetIdentifier) {
-      if (activeTab === 'faculty') {
-        setError('Please select your Faculty name from the dropdown before using Passkey / Fingerprint.');
-      } else if (activeTab === 'hod') {
-        setError('Please select your HOD name from the dropdown before using Passkey / Fingerprint.');
-      } else {
-        setError('Please enter your Roll Number before using Passkey / Fingerprint.');
-      }
-      return;
-    }
-
     setPasskeyLoading(true);
 
     try {
-      if (!window.PublicKeyCredential || typeof navigator.credentials?.get !== 'function') {
-        throw new Error('Passkey authentication is not supported on this browser/device.');
-      }
+      // Launch native Android BiometricPrompt system dialog
+      const result = await authenticateWithBiometrics('Scan fingerprint to sign in to AttendEase');
 
-      // 1. Fetch challenge & allowed credential IDs from PostgreSQL for this user
-      const challengeRes = await api.loginPasskeyChallenge(targetIdentifier);
-
-      if (!challengeRes.hasPasskey || !challengeRes.allowCredentials || challengeRes.allowCredentials.length === 0) {
-        setError('No passkey registered for this account on this device yet. Please enter your 4-digit PIN (1234) to log in first.');
+      if (!result.success) {
+        setError(result.error || 'Fingerprint authentication failed.');
         setPasskeyLoading(false);
         return;
       }
 
-      // 2. Convert base64url challenge bytes
-      const challengeBytes = new Uint8Array(32);
-      window.crypto.getRandomValues(challengeBytes);
-
-      // Convert stored credential IDs
-      const allowCredentials = challengeRes.allowCredentials.map((c: any) => {
+      // Check if session token exists in Android Keystore / storage
+      const token = api.getStoredToken();
+      if (token) {
         try {
-          const raw = atob(c.id.replace(/-/g, '+').replace(/_/g, '/'));
-          const arr = new Uint8Array(raw.length);
-          for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-          return { id: arr, type: 'public-key' as const };
-        } catch {
-          return { id: new TextEncoder().encode(c.id), type: 'public-key' as const };
+          const u = await api.getMe();
+          setUser(u);
+          setError('');
+          localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier || u.email);
+          navigate(u.role === 'student' ? '/student' : u.role === 'faculty' ? '/faculty' : '/hod');
+          return;
+        } catch (e) {
+          // Token expired or invalid
         }
-      });
-
-      // 3. Trigger native WebAuthn get prompt with explicit allowCredentials filter
-      const credential = (await navigator.credentials.get({
-        publicKey: {
-          challenge: challengeBytes,
-          rpId: window.location.hostname,
-          allowCredentials,
-          timeout: 30000,
-          userVerification: 'preferred',
-        },
-      })) as PublicKeyCredential | null;
-
-      // 4. Send verified assertion to backend to authenticate against PostgreSQL UserPasskey records
-      const { token, user: u } = await api.verifyPasskeyLogin(targetIdentifier, credential?.id);
-      api.setStoredToken(token, rememberMe);
-      setUser(u);
-
-      setPin(['1', '2', '3', '4']);
-      setPassword('1234');
-      setError('');
-
-      localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier);
-      navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
-    } catch (err: unknown) {
-      console.warn('Passkey login error:', err);
-      const msg = err instanceof Error ? err.message : 'Passkey authentication failed.';
-      if (msg.includes('cancel') || (err as any)?.name === 'AbortError') {
-        setError('Passkey authentication was cancelled by user.');
-      } else {
-        setError('No passkey registered for this account on this device yet. Please enter your 4-digit PIN (1234) to log in.');
       }
+
+      setError('Fingerprint verified! Enter your 4-digit PIN (1234) once to establish secure session.');
+    } catch (err: any) {
+      setError(err?.message || 'Biometric authentication error.');
     } finally {
       setPasskeyLoading(false);
     }
@@ -260,7 +220,97 @@ export default function LoginPortal() {
   };
 
   /* ── Shared form section (used in both desktop right panel & mobile card) ── */
-  const renderForm = () => (
+  const renderForm = () => {
+    if (showRememberedCard && rememberedUser) {
+      return (
+        <div style={{ background: '#fff', borderRadius: 24, padding: 24, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.06)', border: '1px solid #F1F5F9', textAlign: 'center' }}>
+          <div style={{ position: 'relative', width: 72, height: 72, margin: '0 auto 16px' }}>
+            {rememberedUser.avatarUrl ? (
+              <img src={rememberedUser.avatarUrl} alt={rememberedUser.name} style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)', color: '#fff', fontSize: 26, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {rememberedUser.name.charAt(0)}
+              </div>
+            )}
+            <div style={{ position: 'absolute', bottom: 2, right: 2, width: 20, height: 20, borderRadius: '50%', background: '#10B981', border: '2px solid #fff' }} />
+          </div>
+
+          <h3 style={{ fontSize: 19, fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>{rememberedUser.name}</h3>
+          <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 20px', textTransform: 'capitalize' }}>
+            {rememberedUser.role} · {rememberedUser.department}
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button
+              onClick={async () => {
+                const token = api.getStoredToken();
+                if (token) {
+                  try {
+                    const u = await api.getMe();
+                    setUser(u);
+                    navigate(u.role === 'student' ? '/student' : u.role === 'faculty' ? '/faculty' : '/hod');
+                    return;
+                  } catch (e) {}
+                }
+                setActiveTab(rememberedUser.role as Tab);
+                setIdentifier(rememberedUser.email || rememberedUser.rollNumber || '');
+                setShowRememberedCard(false);
+              }}
+              style={{ width: '100%', padding: '14px', background: '#F97316', color: '#fff', borderRadius: 14, fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 12px rgba(249,115,22,0.25)' }}
+            >
+              <span>Continue as {rememberedUser.name.split(' ')[0]}</span>
+              <ArrowRight size={16} />
+            </button>
+
+            <button
+              onClick={async () => {
+                setIsLoading(true);
+                try {
+                  const result = await authenticateWithBiometrics('Unlock AttendEase with Fingerprint');
+                  if (result.success) {
+                    const token = api.getStoredToken();
+                    if (token) {
+                      try {
+                        const u = await api.getMe();
+                        setUser(u);
+                        navigate(u.role === 'student' ? '/student' : u.role === 'faculty' ? '/faculty' : '/hod');
+                        return;
+                      } catch (e) {}
+                    }
+                  } else {
+                    alert(result.error || 'Biometric authentication failed.');
+                  }
+                  setActiveTab(rememberedUser.role as Tab);
+                  setIdentifier(rememberedUser.email || rememberedUser.rollNumber || '');
+                  setShowRememberedCard(false);
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              style={{ width: '100%', padding: '13px', background: '#FFF7ED', color: '#EA580C', border: '1px solid #FFEDD5', borderRadius: 14, fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
+              <Fingerprint size={18} />
+              <span>Unlock with Fingerprint</span>
+            </button>
+
+            <button
+              onClick={() => {
+                clearRememberedAccount();
+                setRememberedUser(null);
+                setShowRememberedCard(false);
+              }}
+              style={{ background: 'transparent', border: 'none', color: '#94A3B8', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}
+            >
+              Switch Account
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
     <>
       {/* Avatar + heading */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 20 }}>
@@ -619,6 +669,7 @@ export default function LoginPortal() {
       </AnimatePresence>
     </>
   );
+};
 
   return (
     <>

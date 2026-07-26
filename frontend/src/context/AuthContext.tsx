@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as api from '../lib/api';
 import type { AuthUser, UpdateProfilePayload } from '../lib/api';
 import { getStoredToken, setStoredToken, clearStoredToken } from '../lib/api';
+import { saveRememberedAccount } from '../lib/nativeAuth';
 
 export type UserRole = 'student' | 'faculty' | 'hod' | 'admin';
 export type { AuthUser };
@@ -30,7 +31,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = getStoredToken();
     if (token) {
       api.getMe()
-        .then(u => setUser(u))
+        .then(u => {
+          setUser(u);
+          saveRememberedAccount(u);
+        })
         .catch(() => clearStoredToken())
         .finally(() => setLoading(false));
     } else {
@@ -43,11 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { token, user: u } = await api.login(identifier, password, role);
     setStoredToken(token, rememberMe);
     setUser(u);
+    saveRememberedAccount(u);
   };
 
   const updateProfile = async (data: UpdateProfilePayload): Promise<AuthUser> => {
     const updated = await api.updateMe(data);
     setUser(updated);
+    saveRememberedAccount(updated);
     return updated;
   };
 
