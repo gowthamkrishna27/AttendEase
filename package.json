@@ -6,6 +6,8 @@
         "backend"
     ],
     "scripts": {
+        "build:backend": "cd backend && npm install && npx prisma generate && npx tsc",
+        "start:backend": "node backend/dist/index.js",
         "dev:frontend": "npm --prefix frontend run dev",
         "dev:backend": "npm --prefix backend run dev",
         "install:all": "npm install"
