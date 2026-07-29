@@ -1,7 +1,7 @@
 /**
  * user.repository.prisma.ts
  *
- * Prisma + Neon implementation of IUserRepository.
+ * Prisma + Supabase implementation of IUserRepository.
  * Drop-in replacement for user.repository.ts (Mongoose).
  *
  * To activate: in user.service.ts, change:

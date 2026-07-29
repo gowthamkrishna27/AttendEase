@@ -40,12 +40,6 @@ const semesterField = z
   .min(1, 'Semester must be between 1 and 10')
   .max(10, 'Semester must be between 1 and 10');
 
-const genderField = z
-  .enum(['Male', 'Female', 'Other', 'Prefer not to say'], {
-    error: 'Gender must be one of: Male, Female, Other, Prefer not to say',
-  })
-  .optional();
-
 const avatarUrlField = z.string().url('avatarUrl must be a valid URL').optional();
 
 // ── Create schema (all required fields present) ───────────────────────────────
@@ -56,11 +50,8 @@ export const createStudentSchema = z.object({
   email:      emailField,
   department: departmentField,
   semester:   semesterField,
-  gender:     genderField,
   avatarUrl:  avatarUrlField,
   phone:      z.string().trim().max(20).optional(),
-  dob:        z.string().trim().optional(),
-  address:    z.string().trim().max(300).optional(),
 });
 
 // ── Update schema (all fields optional — PATCH semantics) ─────────────────────
@@ -71,11 +62,8 @@ export const updateStudentSchema = z.object({
   email:      emailField.optional(),
   department: departmentField.optional(),
   semester:   semesterField.optional(),
-  gender:     genderField,
   avatarUrl:  avatarUrlField,
   phone:      z.string().trim().max(20).optional(),
-  dob:        z.string().trim().optional(),
-  address:    z.string().trim().max(300).optional(),
 }).refine(
   (body) => Object.values(body).some((v) => v !== undefined),
   { message: 'At least one field must be provided for update' },

@@ -49,9 +49,7 @@ model User {
   avatarUrl   String?
   designation String?
   phone       String?
-  dob         String?
-  gender      String?
-  address     String?
+  fcmToken    String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

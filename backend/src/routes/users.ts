@@ -9,7 +9,6 @@ function formatUserResponse(user: {
   userId: string; email: string; role: string; name: string;
   department: string; designation?: string | null; rollNumber?: string | null;
   semester?: number | null; avatarUrl?: string | null; phone?: string | null;
-  dob?: string | null; gender?: string | null; address?: string | null;
 }) {
   return {
     id:          user.userId,
@@ -22,9 +21,6 @@ function formatUserResponse(user: {
     ...(user.semester    && { semester:    user.semester    }),
     ...(user.avatarUrl   && { avatarUrl:   user.avatarUrl   }),
     ...(user.phone       && { phone:       user.phone       }),
-    ...(user.dob         && { dob:         user.dob         }),
-    ...(user.gender      && { gender:      user.gender      }),
-    ...(user.address     && { address:     user.address     }),
   };
 }
 
@@ -86,7 +82,7 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, email, phone, dob, gender, address, avatarUrl, semester, password, currentPassword } = req.body;
+    const { name, email, phone, avatarUrl, semester, password, currentPassword } = req.body;
 
     // Handle password change
     if (password && String(password).trim().length > 0) {
@@ -106,9 +102,6 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
         ...(name      !== undefined && { name      }),
         ...(email     !== undefined && { email     }),
         ...(phone     !== undefined && { phone     }),
-        ...(dob       !== undefined && { dob       }),
-        ...(gender    !== undefined && { gender    }),
-        ...(address   !== undefined && { address   }),
         ...(avatarUrl !== undefined && { avatarUrl }),
         ...(semester  !== undefined && { semester: Number(semester) }),
         ...(password  !== undefined && { password  }),

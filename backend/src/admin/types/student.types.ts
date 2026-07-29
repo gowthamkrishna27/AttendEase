@@ -14,10 +14,7 @@ export interface StudentRecord {
   rollNumber: string;
   semester:   number;
   avatarUrl?: string;
-  gender?:    string;
   phone?:     string;
-  dob?:       string;
-  address?:   string;
   isActive:   boolean;
 }
 
@@ -29,11 +26,8 @@ export interface CreateStudentBody {
   department: string;
   rollNumber: string;
   semester:   number;
-  gender?:    string;
   avatarUrl?: string;
   phone?:     string;
-  dob?:       string;
-  address?:   string;
 }
 
 export interface UpdateStudentBody {
@@ -42,11 +36,8 @@ export interface UpdateStudentBody {
   department?: string;
   rollNumber?: string;
   semester?:   number;
-  gender?:     string;
   avatarUrl?:  string;
   phone?:      string;
-  dob?:        string;
-  address?:    string;
 }
 
 // ── Query parameters for list endpoint ───────────────────────────────────────
@@ -70,10 +61,7 @@ export interface StudentResponse {
   rollNumber: string;
   semester:   number;
   avatarUrl?: string;
-  gender?:    string;
   phone?:     string;
-  dob?:       string;
-  address?:   string;
   isActive:   boolean;
 }
 

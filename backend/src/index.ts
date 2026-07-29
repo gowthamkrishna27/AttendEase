@@ -78,7 +78,7 @@ async function bootstrap() {
       const server = app.listen(p, () => {
         console.log(`\n🚀  AttendEase API   →  http://localhost:${p}`);
         console.log(`   Health check     →  http://localhost:${p}/health`);
-        console.log(`   Database         →  PostgreSQL (Neon)`);
+        console.log(`   Database         →  PostgreSQL (Supabase)`);
         console.log(`   Login            →  POST /api/auth/login\n`);
 
         // Server successfully listening

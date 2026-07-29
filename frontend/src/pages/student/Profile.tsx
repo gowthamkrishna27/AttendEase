@@ -3,9 +3,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   User, IdCard, Building2, GraduationCap,
-  Mail, Phone, CalendarDays, MapPin,
-  ChevronRight, Lock, CheckCircle2, Circle, Lightbulb,
-  Users, BookOpen, ClipboardList, Check, AlertCircle, Loader2, LogOut
+  Mail, Phone, ChevronRight, Lock, CheckCircle2,
+  Circle, Lightbulb, ClipboardList, Check, AlertCircle, Loader2, LogOut
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -76,9 +75,6 @@ export default function Profile() {
   const [fullName, setFullName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '+91 98765 43210');
-  const [dob, setDob] = useState(user?.dob || '21 Jan 2005');
-  const [gender, setGender] = useState(user?.gender || 'Male');
-  const [address, setAddress] = useState(user?.address || 'Bhimavaram, Andhra Pradesh, India');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [semester, setSemester] = useState<number | string>(user?.semester || 6);
 
@@ -98,9 +94,6 @@ export default function Profile() {
       setFullName(user.name || '');
       setEmail(user.email || '');
       if (user.phone) setPhone(user.phone);
-      if (user.dob) setDob(user.dob);
-      if (user.gender) setGender(user.gender);
-      if (user.address) setAddress(user.address);
       if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
       if (user.semester) setSemester(user.semester);
     }
@@ -126,9 +119,6 @@ export default function Profile() {
         name: fullName,
         email,
         phone,
-        dob,
-        gender,
-        address,
         avatarUrl,
         semester: Number(semester),
       });
@@ -187,7 +177,7 @@ export default function Profile() {
   };
 
   const completion = [
-    { label: 'Personal Information', done: !!(fullName && email && phone && address) },
+    { label: 'Personal Information', done: !!(fullName && email && phone) },
     { label: 'Profile Photo',        done: !!avatarUrl },
     { label: 'Account Security',     done: true },
   ];
@@ -346,7 +336,6 @@ export default function Profile() {
             const isActive = tab === t;
             const icons: Record<Tab, React.ElementType> = {
               'Personal Information': User,
-              'Academic Information': GraduationCap,
               'Account Settings': ClipboardList,
             };
             const Icon = icons[t];
@@ -424,30 +413,8 @@ export default function Profile() {
                 </div>
               </div>
 
-              {/* Row 3 */}
-              <div className="profile-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                <div>
-                  <label style={labelStyle}>Date of Birth</label>
-                  <div style={{ position: 'relative' }}>
-                    <CalendarDays size={14} style={icoWrap} />
-                    <input value={dob} onChange={e => setDob(e.target.value)} style={inputStyle} onFocus={focusIn} onBlur={focusOut} />
-                  </div>
-                </div>
-                <div>
-                  <label style={labelStyle}>Gender</label>
-                  <div style={{ position: 'relative' }}>
-                    <Users size={14} style={icoWrap} />
-                    <select value={gender} onChange={e => setGender(e.target.value)} style={{ ...inputStyle, appearance: 'none', paddingRight: 32, cursor: 'pointer' }} onFocus={focusIn} onBlur={focusOut}>
-                      <option>Male</option>
-                      <option>Female</option>
-                      <option>Other</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 4: Semester & Address */}
-              <div className="profile-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 24 }}>
+              {/* Row 3: Semester */}
+              <div className="profile-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 24 }}>
                 <div>
                   <label style={labelStyle}>Semester</label>
                   <div style={{ position: 'relative' }}>
@@ -463,13 +430,6 @@ export default function Profile() {
                         <option key={s} value={s}>Sem {s}</option>
                       ))}
                     </select>
-                  </div>
-                </div>
-                <div>
-                  <label style={labelStyle}>Address</label>
-                  <div style={{ position: 'relative' }}>
-                    <MapPin size={14} style={icoWrap} />
-                    <input value={address} onChange={e => setAddress(e.target.value)} style={inputStyle} onFocus={focusIn} onBlur={focusOut} />
                   </div>
                 </div>
               </div>

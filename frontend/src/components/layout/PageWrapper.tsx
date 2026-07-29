@@ -17,16 +17,7 @@ interface PageWrapperProps {
   showGreeting?: boolean;
 }
 
-const viewerNav = [
-  { to: '/permissions',                      label: 'All Approved Passes', icon: FileCheck   },
-  { to: '/permissions?sec=CSD-A',           label: 'CSD — Section A',    icon: Building2   },
-  { to: '/permissions?sec=CSD-B',           label: 'CSD — Section B',    icon: Building2   },
-  { to: '/permissions?sec=CSIT-A',          label: 'CSIT — Section A',   icon: Layers      },
-  { to: '/permissions?sec=CSIT-B',          label: 'CSIT — Section B',   icon: Layers      },
-  { to: '/permissions?reason=medical',      label: 'Medical Passes',     icon: FileText    },
-  { to: '/permissions?reason=internship',   label: 'Internship Passes',  icon: Award       },
-  { to: '/permissions?reason=competition',  label: 'Hackathon Passes',   icon: Award       },
-];
+const viewerNav: { to: string; label: string; icon: any }[] = [];
 
 const studentNav = [
   { to: '/student', label: 'Home', icon: Home },
@@ -310,7 +301,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
       <div style={{ display: 'flex', flex: 1 }}>
 
         {/* ── DESKTOP SIDEBAR ── */}
-        <aside className="desktop-sidebar print:hidden" style={{
+        {navLinks.length > 0 && (
+          <aside className="desktop-sidebar print:hidden" style={{
           width: 210, flexShrink: 0,
           background: '#ffffff',
           borderRight: '1px solid #EEF2F7',
@@ -389,6 +381,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             <p style={{ fontSize: 10, color: '#CBD5E1', margin: 0 }}>Learn • Build • Lead</p>
           </div>
         </aside>
+        )}
 
         {/* ── MAIN CONTENT ── */}
         <motion.main

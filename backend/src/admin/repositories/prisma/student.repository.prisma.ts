@@ -1,7 +1,7 @@
 /**
  * student.repository.prisma.ts
  *
- * Prisma + Neon implementation of IStudentRepository.
+ * Prisma + Supabase implementation of IStudentRepository.
  * Drop-in replacement for student.repository.ts (Mongoose).
  *
  * To activate: in student.service.ts, change:

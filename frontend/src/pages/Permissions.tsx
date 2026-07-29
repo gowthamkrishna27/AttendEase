@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Printer, Calendar, RefreshCw, Info,
-  AlertCircle, ChevronDown, ChevronUp
+  AlertCircle, ChevronDown, ChevronUp, LayoutGrid, List, CheckCircle2, XCircle,
+  GraduationCap, Building2
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
-import { useAuth } from '../context/AuthContext';
 import * as api from '../lib/api';
 import type { AttendanceRequest } from '../types';
 import srkrEmblem from '../assets/srkr-emblem.png';
@@ -15,6 +15,46 @@ import srkrEmblem from '../assets/srkr-emblem.png';
 export interface ExtendedAttendanceRequest extends AttendanceRequest {
   sectionName?: string;
 }
+
+export const getSectionRollNumbers = (sectionKey: string): string[] => {
+  if (sectionKey.includes('CSIT') && sectionKey.includes('B')) {
+    const list: string[] = [];
+    // 73 to 99
+    for (let i = 73; i <= 99; i++) list.push(String(i));
+    // A0 to A9
+    for (let i = 0; i <= 9; i++) list.push(`A${i}`);
+    // B0 to B9
+    for (let i = 0; i <= 9; i++) list.push(`B${i}`);
+    // C0 to C9
+    for (let i = 0; i <= 9; i++) list.push(`C${i}`);
+    // D0 to D1
+    list.push('D0', 'D1');
+    // LE1 to LE12
+    for (let i = 1; i <= 12; i++) list.push(`LE${i}`);
+    return list;
+  }
+
+  // Default (Section A): 1 to 72
+  return Array.from({ length: 72 }, (_, i) => String(i + 1));
+};
+
+export const extractRollSuffix = (rawRoll: string): string => {
+  if (!rawRoll) return '';
+  const str = rawRoll.trim().toUpperCase();
+  const leMatch = str.match(/LE0*([1-9]|1[0-2])$/);
+  if (leMatch) {
+    return `LE${leMatch[1]}`;
+  }
+  const suffixMatch = str.match(/([A-D][0-9]|[0-9]{1,2})$/);
+  if (suffixMatch) {
+    const val = suffixMatch[1];
+    if (/^\d+$/.test(val)) {
+      return String(parseInt(val, 10));
+    }
+    return val;
+  }
+  return str;
+};
 
 const getTodayDateString = () => {
   const d = new Date();
@@ -29,21 +69,268 @@ const getTodayFormattedDate = () => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+// ── Reusable Memoized Roll Button Component ───────────────────────────────────
+interface RollButtonProps {
+  rollNo: string;
+  request?: ExtendedAttendanceRequest;
+  markedStatus?: 'present' | 'absent';
+  onClick: () => void;
+}
+
+const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollButtonProps) => {
+  const isPermission = Boolean(request);
+  const isPresent = markedStatus === 'present';
+  const isAbsent = markedStatus === 'absent';
+
+  // Determine dynamic background color & text style
+  let bgColor = '#FFFFFF';
+  let textColor = 'text-slate-800';
+  let badgeStyle = 'bg-white border-amber-300/80 text-slate-800 hover:border-amber-400 hover:bg-amber-50/40';
+
+  if (isPermission) {
+    bgColor = '#FDE047'; // Yellow
+    textColor = 'text-slate-900';
+    badgeStyle = 'bg-[#FDE047] border-amber-400 text-slate-900 shadow-amber-200/50 hover:bg-[#FACC15] ring-2 ring-amber-300/40';
+  } else if (isPresent) {
+    bgColor = '#10B981'; // Emerald Green
+    textColor = 'text-white';
+    badgeStyle = 'bg-emerald-500 border-emerald-600 text-white shadow-emerald-200/50 hover:bg-emerald-600 ring-2 ring-emerald-300/40';
+  } else if (isAbsent) {
+    bgColor = '#EF4444'; // Rose Red
+    textColor = 'text-white';
+    badgeStyle = 'bg-rose-500 border-rose-600 text-white shadow-rose-200/50 hover:bg-rose-600 ring-2 ring-rose-300/40';
+  }
+
+  return (
+    <motion.button
+      layout
+      initial={false}
+      animate={{
+        scale: isPermission || isPresent || isAbsent ? [1, 1.08, 1] : 1,
+        backgroundColor: bgColor,
+      }}
+      transition={{ duration: 0.18, ease: 'easeInOut' }}
+      onClick={onClick}
+      className={`
+        w-[56px] h-[56px] sm:w-[60px] sm:h-[60px]
+        rounded-xl sm:rounded-[14px]
+        font-extrabold text-[13px] sm:text-[14px]
+        flex items-center justify-center
+        select-none cursor-pointer
+        transition-all duration-150
+        border shadow-2xs shrink-0
+        active:scale-95 focus:outline-none
+        ${badgeStyle}
+        ${textColor}
+      `}
+      title={
+        isPermission
+          ? `Roll #${rollNo}: Approved Permission (${request?.reasonLabel}) - Click to view slip`
+          : isPresent
+          ? `Roll #${rollNo}: Marked Present`
+          : isAbsent
+          ? `Roll #${rollNo}: Marked Absent`
+          : `Roll #${rollNo}: Unmarked`
+      }
+    >
+      {rollNo}
+    </motion.button>
+  );
+});
+
+RollButton.displayName = 'RollButton';
+
+// ── Permission & Attendance Grid Component per Section ────────────────────────
+interface PermissionGridProps {
+  sectionKey: string;
+  passes: ExtendedAttendanceRequest[];
+  markedAttendance: Record<string, 'present' | 'absent'>;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+  onSelectPass: (pass: ExtendedAttendanceRequest) => void;
+  onRollClick: (rollNo: string, pass?: ExtendedAttendanceRequest) => void;
+  viewMode: 'grid' | 'list';
+}
+
+const PermissionGrid = React.memo(({
+  sectionKey,
+  passes,
+  markedAttendance,
+  isCollapsed,
+  onToggleCollapse,
+  onSelectPass,
+  onRollClick,
+  viewMode,
+}: PermissionGridProps) => {
+  const rollNumbers = useMemo(() => getSectionRollNumbers(sectionKey), [sectionKey]);
+  const totalStudents = rollNumbers.length;
+
+  const permissionMap = useMemo(() => {
+    const map = new Map<string, ExtendedAttendanceRequest>();
+    passes.forEach(p => {
+      const rollStr = p.student?.rollNumber ?? p.studentId;
+      const suffix = extractRollSuffix(rollStr);
+      if (suffix && rollNumbers.includes(suffix)) {
+        map.set(suffix, p);
+      }
+    });
+    return map;
+  }, [passes, rollNumbers]);
+
+  const permissionCount = permissionMap.size;
+  const presentCount = useMemo(() => Object.values(markedAttendance).filter(v => v === 'present').length, [markedAttendance]);
+  const absentCount = useMemo(() => Object.values(markedAttendance).filter(v => v === 'absent').length, [markedAttendance]);
+
+  return (
+    <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-2xs">
+      {/* Section Header Bar */}
+      <div
+        onClick={onToggleCollapse}
+        className="px-4 py-3 bg-slate-50/80 hover:bg-slate-100/70 transition-colors flex items-center justify-between cursor-pointer border-b border-slate-200/60 select-none"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="font-bold text-[14px] text-slate-900">{sectionKey}</span>
+          <div className="flex items-center gap-1.5 text-[11px] font-bold">
+            <span className="px-2 py-0.5 rounded-full bg-amber-100/80 text-amber-800 border border-amber-200">
+              {permissionCount} Permission{permissionCount !== 1 ? 's' : ''}
+            </span>
+            {presentCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {presentCount} Present
+              </span>
+            )}
+            {absentCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                {absentCount} Absent
+              </span>
+            )}
+          </div>
+        </div>
+        {isCollapsed ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronUp size={16} className="text-slate-400" />}
+      </div>
+
+      {!isCollapsed && (
+        viewMode === 'grid' ? (
+          <div className="divide-y divide-slate-100">
+            {/* Fixed Legend Bar */}
+            <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-slate-50/60 border-b border-slate-200/50 text-[11px] font-bold text-slate-700 gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded bg-[#FDE047] border border-amber-400 inline-block shadow-2xs"></span>
+                <span>Permission ({permissionCount})</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded bg-emerald-500 border border-emerald-600 inline-block shadow-2xs"></span>
+                <span>Present ({presentCount})</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded bg-rose-500 border border-rose-600 inline-block shadow-2xs"></span>
+                <span>Absent ({absentCount})</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded bg-white border border-amber-300 inline-block shadow-2xs"></span>
+                <span>Unmarked ({Math.max(0, totalStudents - permissionCount - presentCount - absentCount)})</span>
+              </div>
+            </div>
+
+            {/* Non-stretching fixed grid container */}
+            <div className="p-4 sm:p-6 bg-slate-50/20">
+              <div className="flex flex-wrap justify-center gap-3 sm:gap-3.5 max-w-[680px] mx-auto">
+                {rollNumbers.map(numStr => {
+                  const req = permissionMap.get(numStr);
+                  const marked = markedAttendance[numStr];
+                  return (
+                    <RollButton
+                      key={numStr}
+                      rollNo={numStr}
+                      request={req}
+                      markedStatus={marked}
+                      onClick={() => onRollClick(numStr, req)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* List View Mode */
+          <div className="divide-y divide-slate-100">
+            {passes.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 text-[12px]">
+                No approved permission slips in this section.
+              </div>
+            ) : (
+              passes.map((pass, index) => {
+                const rollNo = pass.student?.rollNumber ?? pass.studentId;
+                const studentName = pass.student?.name ?? `Student (${rollNo})`;
+
+                return (
+                  <div
+                    key={pass.id}
+                    className="p-3.5 hover:bg-slate-50/60 transition-colors flex items-center justify-between gap-3 text-[12px]"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-6 h-6 rounded-md bg-slate-100 text-slate-500 font-mono font-bold text-[11px] flex items-center justify-center shrink-0">
+                        #{index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-slate-900">{rollNo}</span>
+                          <span className="text-slate-400">•</span>
+                          <span className="font-medium text-slate-700 truncate">{studentName}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                          <Calendar size={11} className="text-orange-500 shrink-0" />
+                          <span>{pass.date} | {pass.startTime} - {pass.endTime}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="px-2.5 py-1 bg-orange-50 text-orange-600 font-bold rounded-lg text-[11px] border border-orange-200/60">
+                        {pass.reasonLabel}
+                      </span>
+                      <button
+                        onClick={() => onSelectPass(pass)}
+                        className="h-7 px-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Printer size={11} />
+                        <span>Slip</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )
+      )}
+    </div>
+  );
+});
+
+PermissionGrid.displayName = 'PermissionGrid';
+
+// ── Main Permissions Page ──────────────────────────────────────────────────────
 export default function PermissionsPage() {
   const [searchParams] = useSearchParams();
 
-  // Simple State
+  // Component State
   const [search, setSearch] = useState('');
+  const [selectedYear, setSelectedYear] = useState('3rd Year');
+  const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
   const [sectionFilter, setSectionFilter] = useState('all');
   const [dateMode, setDateMode] = useState<'today' | 'all'>('today');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [markMode, setMarkMode] = useState<'present' | 'absent'>('present');
+  const [markedAttendance, setMarkedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [selectedPass, setSelectedPass] = useState<AttendanceRequest | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
-  };
+  }, []);
 
   // Sync URL params
   useEffect(() => {
@@ -51,7 +338,7 @@ export default function PermissionsPage() {
     if (secParam) setSectionFilter(secParam);
   }, [searchParams]);
 
-  // Query Real Backend Requests from Database
+  // Query Backend Requests from Database
   const { data: apiRequests = [], isLoading } = useQuery({
     queryKey: ['public-approved-requests'],
     queryFn: async () => {
@@ -71,58 +358,86 @@ export default function PermissionsPage() {
     retry: false,
   });
 
-  // Approved Requests from Real Database
-  const dbApproved = apiRequests.filter(r => r.status === 'approved');
-  const allApproved: ExtendedAttendanceRequest[] = dbApproved;
-
   const todayStr = getTodayDateString();
 
-  // Filtered List based on Current Date + Section + Search
-  const filteredApproved = allApproved.filter(req => {
-    const studentName = req.student?.name ?? req.studentId ?? '';
-    const rollNo = req.student?.rollNumber ?? '';
-    const dept = req.student?.department ?? 'CSD';
-    const studentSec = req.student?.section ?? (req.studentId.slice(-2) < '35' ? 'A' : 'B');
-    const secName = req.sectionName ?? `${dept} — Section ${studentSec}`;
+  // Filtered Approved List
+  const filteredApproved = useMemo(() => {
+    const dbApproved = apiRequests.filter(r => r.status === 'approved');
+    return dbApproved.filter(req => {
+      const studentName = req.student?.name ?? req.studentId ?? '';
+      const rollNo = req.student?.rollNumber ?? '';
+      const dept = req.student?.department ?? 'CSD';
+      const studentSec = req.student?.section ?? (req.studentId.slice(-2) < '35' ? 'A' : 'B');
+      const secName = req.sectionName ?? `${dept} — Section ${studentSec}`;
 
-    const matchesDate =
-      dateMode === 'all' ||
-      req.date === todayStr;
+      const matchesDate = dateMode === 'all' || req.date === todayStr;
+      const matchesSearch =
+        studentName.toLowerCase().includes(search.toLowerCase()) ||
+        rollNo.toLowerCase().includes(search.toLowerCase()) ||
+        req.reasonLabel.toLowerCase().includes(search.toLowerCase());
 
-    const matchesSearch =
-      studentName.toLowerCase().includes(search.toLowerCase()) ||
-      rollNo.toLowerCase().includes(search.toLowerCase()) ||
-      req.reasonLabel.toLowerCase().includes(search.toLowerCase());
+      const matchesSection =
+        sectionFilter === 'all' ||
+        (sectionFilter === 'CSD-A' && secName.includes('CSD') && secName.includes('Section A')) ||
+        (sectionFilter === 'CSIT-A' && secName.includes('CSIT') && secName.includes('Section A')) ||
+        (sectionFilter === 'CSIT-B' && secName.includes('CSIT') && secName.includes('Section B'));
 
-    const matchesSection =
-      sectionFilter === 'all' ||
-      (sectionFilter === 'CSD-A' && secName.includes('CSD') && secName.includes('Section A')) ||
-      (sectionFilter === 'CSD-B' && secName.includes('CSD') && secName.includes('Section B')) ||
-      (sectionFilter === 'CSIT-A' && secName.includes('CSIT') && secName.includes('Section A')) ||
-      (sectionFilter === 'CSIT-B' && secName.includes('CSIT') && secName.includes('Section B'));
+      return matchesDate && matchesSearch && matchesSection;
+    });
+  }, [apiRequests, dateMode, search, sectionFilter, todayStr]);
 
-    return matchesDate && matchesSearch && matchesSection;
-  });
+  // Group by Section (Ensure default section exists if empty so grid remains still)
+  const { sectionsMap, sectionKeys } = useMemo(() => {
+    const map: Record<string, ExtendedAttendanceRequest[]> = {};
+    filteredApproved.forEach(req => {
+      const dept = req.student?.department ?? 'CSD';
+      const sec = req.student?.section ?? (req.studentId.slice(-2) < '35' ? 'A' : 'B');
+      const key = req.sectionName ?? `${dept} — Section ${sec}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(req);
+    });
 
-  // Group by Section
-  const sectionsMap: Record<string, ExtendedAttendanceRequest[]> = {};
-  filteredApproved.forEach(req => {
-    const dept = req.student?.department ?? 'CSD';
-    const sec = req.student?.section ?? (req.studentId.slice(-2) < '35' ? 'A' : 'B');
-    const key = req.sectionName ?? `${dept} — Section ${sec}`;
-    if (!sectionsMap[key]) sectionsMap[key] = [];
-    sectionsMap[key].push(req);
-  });
+    let keys = Object.keys(map).sort();
+    if (keys.length === 0) {
+      const defaultSec = sectionFilter !== 'all' ? sectionFilter : 'CSD — Section A';
+      map[defaultSec] = [];
+      keys = [defaultSec];
+    }
+    return { sectionsMap: map, sectionKeys: keys };
+  }, [filteredApproved, sectionFilter]);
 
-  const sectionKeys = Object.keys(sectionsMap).sort();
-
-  const toggleSection = (key: string) => {
+  const toggleSection = useCallback((key: string) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
-  };
+  }, []);
+
+  const handleSelectPass = useCallback((pass: AttendanceRequest) => {
+    setSelectedPass(pass);
+  }, []);
+
+  // Handle Interactive Roll Button Click (Toggles Green/Red based on markMode)
+  const handleRollClick = useCallback((rollNo: string, pass?: ExtendedAttendanceRequest) => {
+    if (pass) {
+      // If student has an approved permission slip, open modal
+      setSelectedPass(pass);
+      return;
+    }
+
+    setMarkedAttendance(prev => {
+      const current = prev[rollNo];
+      if (current === markMode) {
+        // Toggle off back to unmarked
+        const updated = { ...prev };
+        delete updated[rollNo];
+        return updated;
+      }
+      // Set to selected markMode (present or absent)
+      return { ...prev, [rollNo]: markMode };
+    });
+  }, [markMode]);
 
   return (
     <PageWrapper role="viewer">
-      <div className="max-w-3xl mx-auto space-y-4">
+      <div className="max-w-[820px] mx-auto space-y-4">
 
         {/* Toast Alert */}
         <AnimatePresence>
@@ -142,183 +457,222 @@ export default function PermissionsPage() {
         {/* ── On-Screen Page UI (Hidden when printing) ── */}
         <div className="space-y-4 print:hidden">
           {/* Title Header */}
-          <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+          <div className="flex flex-wrap items-center justify-between border-b border-slate-200/80 pb-3 gap-3">
             <div>
               <h1 className="text-[20px] font-bold text-slate-900 leading-tight">
-                Approved Permissions
+                Approved Permissions &amp; Attendance
               </h1>
               <p className="text-[12px] text-slate-500 mt-0.5">
-                {dateMode === 'today' ? `Today's Verified Permissions (${getTodayFormattedDate()})` : 'All Verified Permission Slips'} ({filteredApproved.length} total)
+                {dateMode === 'today' ? `Today's Grid (${getTodayFormattedDate()})` : 'All Permission Slips Grid'}
               </p>
             </div>
 
-            {/* Date Filter Pills */}
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
-              <button
-                onClick={() => setDateMode('today')}
-                className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
-                  dateMode === 'today'
-                    ? 'bg-orange-500 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Today ({getTodayFormattedDate()})
-              </button>
-              <button
-                onClick={() => setDateMode('all')}
-                className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
-                  dateMode === 'all'
-                    ? 'bg-orange-500 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                All Dates
-              </button>
+            {/* Controls: View Mode & Date Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${
+                    viewMode === 'grid'
+                      ? 'bg-orange-500 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Grid View (Roll 1-72)"
+                >
+                  <LayoutGrid size={13} />
+                  <span>Grid</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${
+                    viewMode === 'list'
+                      ? 'bg-orange-500 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="List View"
+                >
+                  <List size={13} />
+                  <span>List</span>
+                </button>
+              </div>
+
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
+                <button
+                  onClick={() => setDateMode('today')}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
+                    dateMode === 'today'
+                      ? 'bg-orange-500 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Today ({getTodayFormattedDate()})
+                </button>
+                <button
+                  onClick={() => setDateMode('all')}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
+                    dateMode === 'all'
+                      ? 'bg-orange-500 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All Dates
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* ── Simple Filter & Search Bar ── */}
-          <div className="bg-white border border-slate-200/80 rounded-xl p-2.5 space-y-2">
+          {/* ── Section Selector Bar & Year Quick Selection ── */}
+          <div className="bg-white border border-slate-200/80 rounded-xl p-2.5 space-y-2.5">
+            {/* Section Selector Dropdown Bar (Full Width) */}
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
-              <input
-                type="text"
-                placeholder="Search by roll number or student name..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full h-[36px] pl-8.5 pr-3 text-[12px] bg-slate-50 border border-slate-200 rounded-lg outline-none focus:bg-white focus:border-orange-500 transition-all"
-              />
+              <button
+                type="button"
+                onClick={() => setIsSectionDropdownOpen(!isSectionDropdownOpen)}
+                className="w-full h-[40px] px-3.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-lg flex items-center justify-between text-[12px] font-bold text-slate-800 transition-all cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <Building2 size={15} className="text-orange-500" />
+                  <span className="text-slate-400 font-medium">Select Section:</span>
+                  <span className="text-slate-900 font-bold">
+                    {sectionFilter === 'all'
+                      ? 'All Sections'
+                      : sectionFilter === 'CSD-A'
+                      ? 'CSD - Sec A'
+                      : sectionFilter === 'CSIT-A'
+                      ? 'CSIT - Sec A'
+                      : 'CSIT - Sec B'}
+                  </span>
+                </div>
+                <ChevronDown size={15} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Section Dropdown Menu List */}
+              <AnimatePresence>
+                {isSectionDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    className="absolute left-0 right-0 top-[44px] z-30 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden py-1"
+                  >
+                    {[
+                      { label: 'All Sections', value: 'all' },
+                      { label: 'CSD - Sec A', value: 'CSD-A' },
+                      { label: 'CSIT - Sec A', value: 'CSIT-A' },
+                      { label: 'CSIT - Sec B', value: 'CSIT-B' },
+                    ].map(sec => (
+                      <button
+                        key={sec.value}
+                        type="button"
+                        onClick={() => {
+                          setSectionFilter(sec.value);
+                          setIsSectionDropdownOpen(false);
+                        }}
+                        className={`w-full px-3.5 py-2 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${
+                          sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
+                        }`}
+                      >
+                        <span>{sec.label}</span>
+                        {sectionFilter === sec.value && <CheckCircle2 size={14} className="text-orange-500" />}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Touch-Friendly Section Filter Buttons */}
+            {/* Year Selector Buttons (Replacing quick select buttons) */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-[11px]">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">Section:</span>
-              {[
-                { label: 'All Sections', value: 'all' },
-                { label: 'CSD - Sec A', value: 'CSD-A' },
-                { label: 'CSD - Sec B', value: 'CSD-B' },
-                { label: 'CSIT - Sec A', value: 'CSIT-A' },
-                { label: 'CSIT - Sec B', value: 'CSIT-B' },
-              ].map(item => (
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+                <GraduationCap size={12} className="text-orange-500" />
+                Year:
+              </span>
+              {['1st Year', '2nd Year', '3rd Year', '4th Year'].map(yr => (
                 <button
-                  key={item.value}
-                  onClick={() => setSectionFilter(item.value)}
-                  className={`px-2.5 py-1 font-bold rounded-md cursor-pointer shrink-0 transition-all ${sectionFilter === item.value
+                  key={yr}
+                  type="button"
+                  onClick={() => setSelectedYear(yr)}
+                  className={`px-3 py-1 font-bold rounded-md cursor-pointer shrink-0 transition-all ${
+                    selectedYear === yr
                       ? 'bg-orange-500 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
+                  }`}
                 >
-                  {item.label}
+                  {yr}
                 </button>
               ))}
             </div>
+
+            {/* ── Interactive Attendance Marking Mode Checkboxes (Placed Just Above Grid) ── */}
+            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[12px]">
+              <span className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
+                Click Mode to Mark Grid:
+              </span>
+              <div className="flex items-center gap-3">
+                <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${
+                  markMode === 'present'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold shadow-2xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}>
+                  <input
+                    type="radio"
+                    name="markMode"
+                    checked={markMode === 'present'}
+                    onChange={() => setMarkMode('present')}
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                  />
+                  <CheckCircle2 size={15} className={markMode === 'present' ? 'text-emerald-600' : 'text-slate-400'} />
+                  <span>1. Presentees (Green)</span>
+                </label>
+
+                <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${
+                  markMode === 'absent'
+                    ? 'bg-rose-50 border-rose-300 text-rose-800 font-bold shadow-2xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}>
+                  <input
+                    type="radio"
+                    name="markMode"
+                    checked={markMode === 'absent'}
+                    onChange={() => setMarkMode('absent')}
+                    className="w-4 h-4 accent-rose-600 cursor-pointer"
+                  />
+                  <XCircle size={15} className={markMode === 'absent' ? 'text-rose-600' : 'text-slate-400'} />
+                  <span>2. Absentees (Red)</span>
+                </label>
+              </div>
+            </div>
           </div>
 
-          {/* ── Super Simple Permission Items (Number + Reason) ── */}
+          {/* Section Grid Content (1-72 Grid Always Displayed) */}
           {isLoading ? (
             <div className="py-12 text-center text-slate-400">
               <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-orange-500" />
               <p className="text-[12px]">Loading permissions...</p>
             </div>
-          ) : filteredApproved.length === 0 ? (
-            <div className="p-8 text-center bg-white border border-slate-200 rounded-xl text-slate-400 space-y-2">
-              <AlertCircle size={28} className="mx-auto text-slate-300" />
-              <p className="font-bold text-[13px] text-slate-700">
-                {dateMode === 'today'
-                  ? `No approved permissions found for Today (${getTodayFormattedDate()}).`
-                  : 'No approved permissions found.'}
-              </p>
-              {dateMode === 'today' && (
-                <button
-                  onClick={() => setDateMode('all')}
-                  className="mt-2 px-3 py-1.5 bg-slate-900 text-white font-bold text-[11px] rounded-lg cursor-pointer hover:bg-slate-800 transition-colors"
-                >
-                  View All Dates
-                </button>
-              )}
-            </div>
           ) : (
-            <div className="space-y-3">
-              {sectionKeys.map(sectionKey => {
-                const sectionPasses = sectionsMap[sectionKey];
-                const isCollapsed = collapsedSections[sectionKey];
-
-                return (
-                  <div key={sectionKey} className="bg-white border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs">
-                    {/* Section Title Bar */}
-                    <div
-                      onClick={() => toggleSection(sectionKey)}
-                      className="px-3.5 py-2.5 bg-slate-50/80 hover:bg-slate-100/70 transition-colors flex items-center justify-between cursor-pointer border-b border-slate-200/60"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-[13px] text-slate-900">{sectionKey}</span>
-                        <span className="px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 text-[10px] font-bold border border-orange-200/60">
-                          {sectionPasses.length} Passes
-                        </span>
-                      </div>
-                      {isCollapsed ? <ChevronDown size={15} className="text-slate-400" /> : <ChevronUp size={15} className="text-slate-400" />}
-                    </div>
-
-                    {/* List of Simple Permission Rows (Number + Reason) */}
-                    {!isCollapsed && (
-                      <div className="divide-y divide-slate-100">
-                        {sectionPasses.map((pass, index) => {
-                          const rollNo = pass.student?.rollNumber ?? pass.studentId;
-                          const studentName = pass.student?.name ?? `Student (${rollNo})`;
-
-                          return (
-                            <div
-                              key={pass.id}
-                              className="p-3 hover:bg-slate-50/60 transition-colors flex items-center justify-between gap-3 text-[12px]"
-                            >
-                              {/* Number & Roll Number & Name */}
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className="w-6 h-6 rounded-md bg-slate-100 text-slate-500 font-mono font-bold text-[11px] flex items-center justify-center shrink-0">
-                                  #{index + 1}
-                                </span>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-mono font-bold text-slate-900">{rollNo}</span>
-                                    <span className="text-slate-400">•</span>
-                                    <span className="font-medium text-slate-700 truncate">{studentName}</span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                                    <Calendar size={11} className="text-orange-500 shrink-0" />
-                                    <span>{pass.date} | {pass.startTime} - {pass.endTime}</span>
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* Reason Label & Slip Action */}
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span className="px-2.5 py-1 bg-orange-50 text-orange-600 font-bold rounded-lg text-[11px] border border-orange-200/60">
-                                  {pass.reasonLabel}
-                                </span>
-                                <button
-                                  onClick={() => setSelectedPass(pass)}
-                                  className="h-7 px-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-                                >
-                                  <Printer size={11} />
-                                  <span>Slip</span>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="space-y-4">
+              {sectionKeys.map(sectionKey => (
+                <PermissionGrid
+                  key={sectionKey}
+                  sectionKey={sectionKey}
+                  passes={sectionsMap[sectionKey] || []}
+                  markedAttendance={markedAttendance}
+                  isCollapsed={Boolean(collapsedSections[sectionKey])}
+                  onToggleCollapse={() => toggleSection(sectionKey)}
+                  onSelectPass={handleSelectPass}
+                  onRollClick={handleRollClick}
+                  viewMode={viewMode}
+                />
+              ))}
             </div>
           )}
         </div>
 
-        {/* Printable Slip Modal & Formal Letter Format */}
+        {/* Printable Slip Modal */}
         <AnimatePresence>
           {selectedPass && (
             <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 print:static print:bg-white print:p-0 print:inset-auto print:z-auto">
-              {/* 1. On-Screen Compact Permission Slip Modal */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -334,7 +688,6 @@ export default function PermissionsPage() {
                 </div>
 
                 <div className="py-4 space-y-2 text-[12px]">
-                  {/* Student Photo & Roll Number Header */}
                   <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200/60">
                     <img
                       src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${selectedPass.student?.rollNumber || selectedPass.studentId}.jpg`}
@@ -362,14 +715,6 @@ export default function PermissionsPage() {
                     <span className="text-slate-500">Approved By:</span>
                     <span className="font-bold text-slate-900">{selectedPass.finalDecisionName || selectedPass.faculty?.name || 'Faculty Advisor'}</span>
                   </div>
-                  {selectedPass.finalDecisionBy === 'HOD' && (
-                    <div className="flex justify-between items-center bg-purple-50 p-1.5 rounded-md border border-purple-200 text-[11px]">
-                      <span className="text-purple-800 font-medium">Approval Status:</span>
-                      <span className="font-bold text-purple-700 bg-white px-2 py-0.5 rounded border border-purple-300">
-                        Approved by {selectedPass.finalDecisionName || 'HOD'}
-                      </span>
-                    </div>
-                  )}
                   <div className="p-2 bg-slate-50 rounded-lg text-[11px] text-slate-600 italic">
                     "{selectedPass.description}"
                   </div>
@@ -392,10 +737,9 @@ export default function PermissionsPage() {
                 </div>
               </motion.div>
 
-              {/* 2. Full-Page Fit Attendease Permission Letter Format with Student Photo & Official Seal */}
+              {/* Printable Letter Format */}
               <div className="hidden print:block bg-white p-6 sm:p-8 text-slate-900 font-sans leading-relaxed w-full min-h-[255mm] flex flex-col justify-between mx-auto text-[12px]">
                 <div>
-                  {/* Header & Sender Information */}
                   <div className="border-b-2 border-slate-900 pb-3 mb-4 text-center">
                     <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
                       SAGI RAMAKRISHNAM RAJU ENGINEERING COLLEGE (AUTONOMOUS)
@@ -405,9 +749,7 @@ export default function PermissionsPage() {
                     </p>
                   </div>
 
-                  {/* From, Date & Passport Photo Section (3-Column Clean Alignment) */}
                   <div className="grid grid-cols-12 items-start text-[12px] font-medium mb-4 gap-2 border-b border-slate-200/80 pb-3">
-                    {/* Left (Col 5): From */}
                     <div className="col-span-5 space-y-0.5">
                       <p className="font-bold text-slate-900 uppercase text-[11px]">From:</p>
                       <p className="font-bold text-slate-900">{selectedPass.student?.name ?? selectedPass.studentId}</p>
@@ -416,7 +758,6 @@ export default function PermissionsPage() {
                       <p className="text-slate-600 text-[11.5px]">SRKR Engineering College (Autonomous)</p>
                     </div>
 
-                    {/* Middle (Col 4): Date & Ref */}
                     <div className="col-span-4 text-center space-y-1 self-center">
                       <div className="inline-block px-3 py-1 bg-slate-50 border border-slate-300 rounded-md">
                         <p className="font-bold text-slate-900 text-[11.5px]">Date: {selectedPass.date}</p>
@@ -424,7 +765,6 @@ export default function PermissionsPage() {
                       </div>
                     </div>
 
-                    {/* Right (Col 3): Passport Photo Aligned Right (Edge-to-Edge Frame Fit) */}
                     <div className="col-span-3 flex justify-end">
                       <div className="w-[72px] h-[90px] border-2 border-slate-900 rounded-sm bg-white overflow-hidden flex flex-col items-center justify-center relative shadow-2xs">
                         <img
@@ -435,14 +775,10 @@ export default function PermissionsPage() {
                             (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=0F172A&color=fff`;
                           }}
                         />
-                        <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-white text-[7px] font-mono font-bold text-center py-0.5 uppercase tracking-wider backdrop-blur-xs">
-                          PHOTO
-                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* To */}
                   <div className="text-[12px] font-medium mb-4 space-y-0.5">
                     <p className="font-bold text-slate-900 uppercase text-[11px]">To:</p>
                     <p className="font-bold text-slate-900">The Head of the Department (HOD)</p>
@@ -450,75 +786,48 @@ export default function PermissionsPage() {
                     <p className="text-slate-700">SRKR Engineering College (Autonomous), Bhimavaram</p>
                   </div>
 
-                  {/* Subject */}
                   <div className="my-4 p-3 bg-slate-50 border-y border-slate-300 font-bold text-[12px] sm:text-[13px] text-slate-900 leading-snug">
                     Subject: Application requesting official permission for {selectedPass.reasonLabel} — "{selectedPass.description}"
                   </div>
 
-                  {/* Salutation & Dynamic Letter Body */}
                   <div className="space-y-3 text-[12px] leading-relaxed text-slate-800">
                     <p className="font-bold text-slate-900">Respected Sir/Madam,</p>
-
                     <p>
                       I am writing to formally request your approval for an official permission slip. I am <strong>{selectedPass.student?.name ?? selectedPass.studentId}</strong>, bearing Roll Number <strong className="font-mono">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</strong>, studying in 3rd Year, Department of <strong>{selectedPass.student?.department ?? 'CSD'}</strong> (Section <strong>{selectedPass.student?.section ?? 'A'}</strong>).
                     </p>
-
                     <p>
                       I am requesting permission for <strong>{selectedPass.reasonLabel}</strong> on <strong>{selectedPass.date}</strong> for the time duration of <strong>{selectedPass.startTime} to {selectedPass.endTime}</strong>.
                     </p>
 
                     <div className="pl-4 space-y-2 border-l-2 border-orange-500 bg-orange-50/40 p-3 rounded-r-lg text-[11.5px]">
-                      <p>
-                        <strong>Permission Reason:</strong> {selectedPass.reasonLabel}
-                      </p>
-                      <p>
-                        <strong>Purpose &amp; Description:</strong> "{selectedPass.description || 'Permission request for academic/personal reasons.'}"
-                      </p>
-                      <p>
-                        <strong>Date &amp; Time Slot:</strong> {selectedPass.date} ({selectedPass.startTime} – {selectedPass.endTime})
-                      </p>
-                      <p>
-                        <strong>Approved Faculty Advisor:</strong> {selectedPass.faculty?.name ?? 'Faculty Advisor'}
-                      </p>
-                      {selectedPass.finalDecisionBy === 'HOD' && (
-                        <p>
-                          <strong>Executive Approval Authority:</strong> Head of Department (HOD Approval Endorsed)
-                        </p>
-                      )}
+                      <p><strong>Permission Reason:</strong> {selectedPass.reasonLabel}</p>
+                      <p><strong>Purpose &amp; Description:</strong> "{selectedPass.description || 'Permission request for academic/personal reasons.'}"</p>
+                      <p><strong>Date &amp; Time Slot:</strong> {selectedPass.date} ({selectedPass.startTime} – {selectedPass.endTime})</p>
+                      <p><strong>Approved Faculty Advisor:</strong> {selectedPass.faculty?.name ?? 'Faculty Advisor'}</p>
                     </div>
 
                     <p>
                       I assure you that I will make up for any missed coursework or lab sessions promptly. I kindly request you to grant me permission for the specified duration.
                     </p>
-
-                    <p>
-                      Thank you for your time, consideration, and continuous support.
-                    </p>
+                    <p>Thank you for your time, consideration, and continuous support.</p>
                   </div>
                 </div>
 
-                {/* Signatures & Endorsement (Student & Faculty Signature & Official Seal Stamp) */}
                 <div className="mt-8 pt-4 border-t-2 border-slate-900 flex items-end justify-between gap-4 text-[11px] font-sans">
-                  {/* Left: Yours Sincerely (Student Signature) */}
                   <div>
                     <p className="font-bold text-slate-900 mb-4">Yours sincerely,</p>
                     <div className="h-7 border-b border-slate-400 w-40 mb-1"></div>
                     <p className="font-bold text-slate-900">{selectedPass.student?.name ?? selectedPass.studentId}</p>
-                    <p className="text-slate-600 text-[10.5px]">Student Representative ({selectedPass.student?.rollNumber ?? selectedPass.studentId})</p>
-                    <p className="text-slate-500 font-mono text-[10px]">{selectedPass.student?.phone ?? selectedPass.student?.email ?? 'student@srkrec.ac.in'}</p>
                   </div>
 
-                  {/* Middle: Approved Faculty Signature / Endorsement */}
                   <div className="text-center">
                     <p className="font-bold text-slate-900 mb-4">Forwarded &amp; Approved by:</p>
                     <div className="h-7 border-b border-slate-400 w-44 mb-1 mx-auto flex items-end justify-center pb-0.5">
                       <span className="text-[10px] font-bold text-emerald-700 font-serif italic">Verified &amp; Approved</span>
                     </div>
                     <p className="font-bold text-slate-900">{selectedPass.faculty?.name ?? 'Faculty Advisor'}</p>
-                    <p className="text-slate-600 text-[10.5px]">Approved Faculty {selectedPass.finalDecisionBy === 'HOD' ? '(HOD Approved)' : ''}</p>
                   </div>
 
-                  {/* Right: Official AttendEase Seal Stamp */}
                   <div className="flex flex-col items-center justify-center text-center">
                     <div className="w-20 h-20 border-2 border-orange-500 rounded-full flex flex-col items-center justify-center bg-orange-50/70 shadow-2xs transform -rotate-12 p-1 border-dashed">
                       <img src={srkrEmblem} alt="SRKR Emblem" className="w-7 h-7 object-contain mb-0.5 opacity-90" />

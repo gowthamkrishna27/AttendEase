@@ -22,12 +22,14 @@ export default function HODFaculty() {
     queryFn: () => api.getRequests(),
   });
 
-  const filteredFaculty = facultyList.filter((fac: Faculty) => {
-    if (fac.role === 'hod') return false;
-    const nameLower = (fac.name || '').toLowerCase();
-    if (nameLower.includes('suresh') || nameLower.includes('gopi') || nameLower.includes('ngk') || nameLower.includes('priya nair')) return false;
-    return true;
-  });
+  const filteredFaculty = facultyList
+    .filter((fac: Faculty) => {
+      if (fac.role === 'hod') return false;
+      const nameLower = (fac.name || '').toLowerCase();
+      if (nameLower.includes('suresh') || nameLower.includes('gopi') || nameLower.includes('ngk') || nameLower.includes('priya nair')) return false;
+      return true;
+    })
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   return (
     <PageWrapper role="hod">

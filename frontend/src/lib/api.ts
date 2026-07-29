@@ -44,9 +44,6 @@ export interface AuthUser {
   semester?: number;
   avatarUrl?: string;
   phone?: string;
-  dob?: string;
-  gender?: string;
-  address?: string;
 }
 
 export interface Student {
@@ -330,9 +327,6 @@ export interface UpdateProfilePayload {
   email?: string;
   avatarUrl?: string;
   phone?: string;
-  dob?: string;
-  gender?: string;
-  address?: string;
   semester?: number;
   currentPassword?: string;
   password?: string;
@@ -358,9 +352,6 @@ export interface CreateUserPayload {
   semester?: number;
   designation?: string;
   phone?: string;
-  dob?: string;
-  gender?: string;
-  address?: string;
 }
 
 export async function getUsers(): Promise<AuthUser[]> {
