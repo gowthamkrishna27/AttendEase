@@ -165,37 +165,44 @@ export default function HODDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {recentRequests.map(req => (
-                    <tr
-                      key={req.id}
-                      onClick={() => navigate(`/hod/request/${req.id}`)}
-                      className="cursor-pointer hover:bg-slate-50/80 transition-colors"
-                    >
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
-                          <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-[13px] font-mono text-slate-500">
-                        {req.student?.rollNumber}
-                      </td>
-                      <td className="px-4 py-3.5 text-[13px] text-slate-700 font-medium">
-                        {req.reasonLabel}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className="text-[11px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200 inline-block">
-                          {req.faculty?.name || 'Department Faculty'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-[12px] text-slate-500">
-                        {formatDate(req.date)}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
-                      </td>
-                    </tr>
-                  ))}
+                  {recentRequests.map(req => {
+                    const studentName = req.student?.name || (req as any).studentName || req.studentId || 'Student';
+                    const studentRoll = req.student?.rollNumber || (req as any).rollNumber || (req.studentId?.startsWith('stu-') ? req.studentId.replace('stu-', '').toUpperCase() : req.studentId);
+                    const facultyName = req.faculty?.name || req.primaryFaculty?.name || (req as any).facultyName || 'Department Faculty';
+                    const reasonLabel = req.reasonLabel || req.reason || 'Permission Request';
+
+                    return (
+                      <tr
+                        key={req.id}
+                        onClick={() => navigate(`/hod/request/${req.id}`)}
+                        className="cursor-pointer hover:bg-slate-50/80 transition-colors"
+                      >
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar name={studentName} src={req.student?.avatarUrl} size="sm" role="student" />
+                            <span className="text-[13px] font-semibold text-slate-800">{studentName}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 text-[13px] font-mono text-slate-500">
+                          {studentRoll}
+                        </td>
+                        <td className="px-4 py-3.5 text-[13px] text-slate-700 font-medium">
+                          {reasonLabel}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className="text-[11px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200 inline-block">
+                            {facultyName}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-[12px] text-slate-500">
+                          {formatDate(req.date)}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

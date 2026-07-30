@@ -47,19 +47,46 @@ function toApi(r: any) {
   const student = r.student;
   const faculty = r.primaryFaculty;
   const allFacultyRows = r.faculties ? r.faculties.map((rf: any) => rf.faculty) : [];
+  const fallbackRoll = r.studentId?.startsWith('stu-') ? r.studentId.replace('stu-', '').toUpperCase() : (r.studentId || 'STUDENT');
+
+  const studentObj = student ? {
+    id:          student.userId,
+    name:        student.name,
+    rollNumber:  student.rollNumber ?? fallbackRoll,
+    department:  student.department ?? 'CSIT',
+    semester:    student.semester   ?? 1,
+    email:       student.email,
+    avatarUrl:   student.avatarUrl  ?? undefined,
+  } : {
+    id:          r.studentId || 'stu-unknown',
+    name:        r.studentName || fallbackRoll,
+    rollNumber:  fallbackRoll,
+    department:  'CSIT',
+    semester:    1,
+    email:       `${fallbackRoll.toLowerCase()}@srkrec.ac.in`,
+    avatarUrl:   undefined,
+  };
+
+  const facultyObj = faculty ? {
+    id:          faculty.userId,
+    name:        faculty.name,
+    department:  faculty.department,
+    email:       faculty.email,
+    avatarUrl:   faculty.avatarUrl  ?? undefined,
+    designation: faculty.designation ?? undefined,
+  } : {
+    id:          r.primaryFacultyId || 'fac-001',
+    name:        'Department Faculty',
+    department:  'CSIT',
+    email:       'faculty@srkrec.ac.in',
+    avatarUrl:   undefined,
+    designation: 'Assistant Professor',
+  };
 
   const base = {
     id:                  r.requestId,
     studentId:           r.studentId,
-    student: student ? {
-      id:          student.userId,
-      name:        student.name,
-      rollNumber:  student.rollNumber ?? 'N/A',
-      department:  student.department,
-      semester:    student.semester   ?? 1,
-      email:       student.email,
-      avatarUrl:   student.avatarUrl  ?? undefined,
-    } : undefined,
+    student:             studentObj,
     reason:              r.reason,
     reasonLabel:         r.reasonLabel,
     date:                r.date,
@@ -74,14 +101,7 @@ function toApi(r: any) {
     finalDecisionBy:     r.finalDecisionBy ?? undefined,
     finalDecisionUserId: r.finalDecisionUserId ?? undefined,
     facultyId:           r.primaryFacultyId ?? undefined,
-    faculty: faculty ? {
-      id:          faculty.userId,
-      name:        faculty.name,
-      department:  faculty.department,
-      email:       faculty.email,
-      avatarUrl:   faculty.avatarUrl  ?? undefined,
-      designation: faculty.designation ?? undefined,
-    } : undefined,
+    faculty:             facultyObj,
     facultyIds: allFacultyRows.map((f: any) => f.userId),
     faculties:  allFacultyRows.map((f: any) => ({
       id:          f.userId,
