@@ -7,7 +7,7 @@ const router = Router();
 
 function formatUserResponse(user: {
   userId: string; email: string; role: string; name: string;
-  department: string; designation?: string | null; rollNumber?: string | null;
+  department: string; rollNumber?: string | null;
   semester?: number | null; avatarUrl?: string | null; phone?: string | null;
   counselorId?: string | null;
 }) {
@@ -17,7 +17,6 @@ function formatUserResponse(user: {
     role:        user.role,
     name:        user.name,
     department:  user.department,
-    ...(user.designation && { designation: user.designation }),
     ...(user.rollNumber  && { rollNumber:  user.rollNumber  }),
     ...(user.semester    && { semester:    user.semester    }),
     ...(user.avatarUrl   && { avatarUrl:   user.avatarUrl   }),
@@ -106,6 +105,151 @@ router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
   } catch (err) {
     console.error('GET /users/faculty error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * GET /api/users/counseling/all
+ * Returns all faculty members along with their assigned counseling students.
+ */
+router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) => {
+  try {
+    const facultyList = await prisma.user.findMany({
+      where: { role: 'faculty' },
+      include: {
+        counselees: {
+          select: {
+            id: true,
+            userId: true,
+            name: true,
+            email: true,
+            rollNumber: true,
+            department: true,
+            avatarUrl: true,
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const unassignedStudents = await prisma.user.findMany({
+      where: {
+        role: 'student',
+        counselorId: null,
+      },
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        email: true,
+        rollNumber: true,
+        department: true,
+        avatarUrl: true,
+      },
+      orderBy: { rollNumber: 'asc' },
+    });
+
+    res.json({
+      facultyCounselors: facultyList.map(f => ({
+        ...formatUserResponse(f),
+        counselees: f.counselees.map(s => ({
+          id: s.userId,
+          name: s.name,
+          email: s.email,
+          rollNumber: s.rollNumber ?? s.userId,
+          department: s.department,
+          avatarUrl: s.avatarUrl ?? undefined,
+        })),
+      })),
+      unassignedStudents: unassignedStudents.map(s => ({
+        id: s.userId,
+        name: s.name,
+        email: s.email,
+        rollNumber: s.rollNumber ?? s.userId,
+        department: s.department,
+        avatarUrl: s.avatarUrl ?? undefined,
+      })),
+    });
+  } catch (err) {
+    console.error('GET /users/counseling/all error:', err);
+    res.status(500).json({ error: 'Failed to fetch counseling data' });
+  }
+});
+
+/**
+ * POST /api/users/counseling/assign
+ * Bulk assigns students to a faculty counselor.
+ */
+router.post('/counseling/assign', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const { facultyId, studentIds } = req.body as { facultyId: string; studentIds: string[] };
+
+    if (!facultyId || !Array.isArray(studentIds) || studentIds.length === 0) {
+      res.status(400).json({ error: 'facultyId and non-empty studentIds array are required' });
+      return;
+    }
+
+    // Verify faculty exists
+    const faculty = await prisma.user.findFirst({
+      where: { OR: [{ userId: facultyId }, { id: facultyId }] },
+    });
+
+    if (!faculty) {
+      res.status(404).json({ error: 'Faculty member not found' });
+      return;
+    }
+
+    // Assign counselorId to students
+    const updated = await prisma.user.updateMany({
+      where: {
+        OR: [
+          { userId: { in: studentIds } },
+          { id: { in: studentIds } },
+          { rollNumber: { in: studentIds } },
+        ],
+      },
+      data: { counselorId: faculty.userId },
+    });
+
+    res.json({
+      success: true,
+      message: `Assigned ${updated.count} student(s) to ${faculty.name}`,
+      count: updated.count,
+    });
+  } catch (err) {
+    console.error('POST /users/counseling/assign error:', err);
+    res.status(500).json({ error: 'Failed to assign counseling students' });
+  }
+});
+
+/**
+ * POST /api/users/counseling/unassign
+ * Unassigns a student from their counselor.
+ */
+router.post('/counseling/unassign', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const { studentId } = req.body as { studentId: string };
+
+    if (!studentId) {
+      res.status(400).json({ error: 'studentId is required' });
+      return;
+    }
+
+    await prisma.user.updateMany({
+      where: {
+        OR: [
+          { userId: studentId },
+          { id: studentId },
+          { rollNumber: studentId },
+        ],
+      },
+      data: { counselorId: null },
+    });
+
+    res.json({ success: true, message: 'Student unassigned successfully' });
+  } catch (err) {
+    console.error('POST /users/counseling/unassign error:', err);
+    res.status(500).json({ error: 'Failed to unassign student' });
   }
 });
 

@@ -6,7 +6,7 @@ import {
   Home, Clock, User, LogOut,
   Bell, GraduationCap, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-  FileCheck, Building2, Layers, Award, FileText, CheckSquare
+  FileCheck, Building2, Layers, Award, FileText, CheckSquare, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -44,9 +44,10 @@ const hodNav = [
 ];
 
 const adminNav = [
-  { to: '/admin',          label: 'Dashboard',       icon: Home     },
-  { to: '/admin/users',    label: 'User & Students', icon: Users    },
-  { to: '/admin/settings', label: 'Settings',        icon: Settings },
+  { to: '/admin',            label: 'Dashboard',       icon: Home      },
+  { to: '/admin/users',      label: 'User & Students', icon: Users     },
+  { to: '/admin/counseling', label: 'Counseling Assign', icon: UserCheck },
+  { to: '/admin/settings',   label: 'Settings',        icon: Settings  },
 ];
 
 /* Bottom tab bar items (mobile) */

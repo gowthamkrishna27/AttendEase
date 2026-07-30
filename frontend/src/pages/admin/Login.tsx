@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Lock, User, ArrowRight, Home } from 'lucide-react';
@@ -7,19 +7,13 @@ import srkrEmblem from '../../assets/srkr-emblem.png';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  const { user, login } = useAuth();
+  const { login } = useAuth();
 
   const [identifier, setIdentifier]     = useState('');
   const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError]               = useState('');
   const [isLoading, setIsLoading]       = useState(false);
-
-  useEffect(() => {
-    if (user && user.role === 'admin') {
-      navigate('/admin', { replace: true });
-    }
-  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

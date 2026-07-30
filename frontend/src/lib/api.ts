@@ -460,4 +460,31 @@ export async function getCounselees(): Promise<CounseleeStudent[]> {
   return res.counselees ?? [];
 }
 
+export interface FacultyCounselorOverview extends AuthUser {
+  counselees: AuthUser[];
+}
+
+export interface AdminCounselingData {
+  facultyCounselors: FacultyCounselorOverview[];
+  unassignedStudents: AuthUser[];
+}
+
+export async function getAdminCounselingData(): Promise<AdminCounselingData> {
+  return apiFetch<AdminCounselingData>('/api/users/counseling/all');
+}
+
+export async function assignCounselingStudents(facultyId: string, studentIds: string[]): Promise<{ success: boolean; message: string; count: number }> {
+  return apiFetch('/api/users/counseling/assign', {
+    method: 'POST',
+    body: JSON.stringify({ facultyId, studentIds }),
+  });
+}
+
+export async function unassignCounselingStudent(studentId: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch('/api/users/counseling/unassign', {
+    method: 'POST',
+    body: JSON.stringify({ studentId }),
+  });
+}
+
 

@@ -186,75 +186,69 @@ export default function FacultyStudents() {
                     <motion.div
                       key={student.id}
                       variants={itemVariants}
-                      className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-4"
+                      className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row items-stretch gap-4"
                     >
-                      {/* Top Row: Avatar & Details */}
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <Avatar name={student.name} src={student.avatarUrl} size="md" role="student" />
-                          <div className="min-w-0">
-                            <h3 className="text-[16px] font-heading font-bold text-slate-900 truncate">
-                              {student.name}
-                            </h3>
-                            <p className="text-[12px] font-mono text-slate-500 font-bold">
-                              Roll No: {student.rollNumber || student.id}
-                            </p>
-                            <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
-                              <span>Dept: <strong>{student.department || 'CSIT'}</strong></span>
-                              {student.phone && (
+                      {/* ── LEFT SIDE ATTENDANCE METER (User explicit requirement) ── */}
+                      <div className={`sm:w-28 flex flex-col items-center justify-center p-3 rounded-xl border shrink-0 text-center ${
+                        pct >= 85
+                          ? 'bg-emerald-50/90 border-emerald-200 text-emerald-800'
+                          : pct >= 75
+                          ? 'bg-amber-50/90 border-amber-200 text-amber-800'
+                          : 'bg-rose-50/90 border-rose-200 text-rose-800'
+                      }`}>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-75">Attendance</span>
+                        <span className="text-[26px] font-black font-mono leading-none my-1">
+                          {pct}%
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/80 border border-current">
+                          {pct >= 85 ? 'Good' : pct >= 75 ? 'Warning' : 'Risk'}
+                        </span>
+                      </div>
+
+                      {/* Right Side: Details & Stats */}
+                      <div className="flex-1 min-w-0 space-y-3 flex flex-col justify-between">
+                        {/* Top Row: Avatar, Name & Status Badge */}
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Avatar name={student.name} src={student.avatarUrl} size="md" role="student" />
+                            <div className="min-w-0">
+                              <h3 className="text-[16px] font-heading font-bold text-slate-900 truncate">
+                                {student.name}
+                              </h3>
+                              <p className="text-[12px] font-mono text-slate-500 font-bold">
+                                Roll No: {student.rollNumber || student.id}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 mt-0.5">
+                                <span>Dept: <strong>{student.department || 'CSIT'}</strong></span>
+                                {student.phone && (
+                                  <span className="flex items-center gap-1">
+                                    <Phone size={11} className="text-orange-500" />
+                                    {student.phone}
+                                  </span>
+                                )}
                                 <span className="flex items-center gap-1">
-                                  <Phone size={11} className="text-orange-500" />
-                                  {student.phone}
+                                  <Mail size={11} className="text-orange-500" />
+                                  {student.email}
                                 </span>
-                              )}
-                              <span className="flex items-center gap-1">
-                                <Mail size={11} className="text-orange-500" />
-                                {student.email}
-                              </span>
+                              </div>
                             </div>
+                          </div>
+
+                          {/* Status Badge */}
+                          <div className={`px-3 py-1 rounded-full border text-[11px] font-bold flex items-center gap-1.5 shrink-0 ${badgeBg}`}>
+                            {pct < 75 ? <ShieldAlert size={13} /> : <Award size={13} />}
+                            <span>{statusText}</span>
                           </div>
                         </div>
 
-                        {/* Status Badge */}
-                        <div className={`px-3 py-1.5 rounded-full border text-[11px] font-bold flex items-center gap-1.5 ${badgeBg}`}>
-                          {pct < 75 ? <ShieldAlert size={14} /> : <Award size={14} />}
-                          <span>{statusText}</span>
-                        </div>
-                      </div>
-
-                      {/* Attendance Percentage Progress Bar */}
-                      <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3 space-y-1.5">
-                        <div className="flex items-center justify-between text-[12px] font-bold">
-                          <span className="text-slate-600 flex items-center gap-1.5">
-                            <Percent size={14} className="text-orange-500" />
-                            Overall Attendance Percentage:
-                          </span>
-                          <span className={`text-[16px] font-black font-mono ${
-                            pct >= 85 ? 'text-emerald-600' : pct >= 75 ? 'text-amber-600' : 'text-rose-600'
-                          }`}>
-                            {pct}%
-                          </span>
-                        </div>
-
-                        {/* Bar */}
-                        <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ duration: 0.6, ease: 'easeOut' }}
-                            className={`h-full rounded-full ${barBg}`}
-                          />
-                        </div>
-
                         {/* Breakdown Row */}
-                        <div className="flex flex-wrap items-center justify-between pt-1 text-[11px] font-medium text-slate-500">
-                          <span>Conducted Classes: <strong>{stats.conductedCount}</strong></span>
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex flex-wrap items-center justify-between text-[11px] font-medium text-slate-600 gap-2">
+                          <span>Conducted: <strong>{stats.conductedCount}</strong></span>
                           <span className="text-emerald-700">Present: <strong>{stats.presentCount}</strong></span>
-                          <span className="text-amber-700">Approved Permissions: <strong>{stats.approvedPermissionsCount}</strong></span>
+                          <span className="text-amber-700">Approved Permits: <strong>{stats.approvedPermissionsCount}</strong></span>
                           <span className="text-rose-700">Absent: <strong>{stats.absentCount}</strong></span>
                         </div>
                       </div>
-
                     </motion.div>
                   );
                 })}

@@ -73,14 +73,12 @@ function toApi(r: any) {
     department:  faculty.department,
     email:       faculty.email,
     avatarUrl:   faculty.avatarUrl  ?? undefined,
-    designation: faculty.designation ?? undefined,
   } : {
     id:          r.primaryFacultyId || 'fac-001',
     name:        'Department Faculty',
     department:  'CSIT',
     email:       'faculty@srkrec.ac.in',
     avatarUrl:   undefined,
-    designation: 'Assistant Professor',
   };
 
   const base = {
