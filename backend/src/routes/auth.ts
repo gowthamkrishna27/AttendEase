@@ -59,22 +59,16 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const inputPass = String(password || '').trim();
+    const dbPass = String(user.password || '').trim();
 
-    if (user.role === 'faculty' || user.role === 'hod' || role === 'faculty' || role === 'hod') {
-      const dbPass = String(user.password || '').trim();
+    // Validate PIN or password strictly against stored password in PostgreSQL
+    const isPassValid =
+      inputPass === dbPass ||
+      (dbPass === '' && inputPass === '1234') ||
+      (dbPass === '1234' && inputPass === '1234');
 
-      // PIN must match exact stored password in PostgreSQL (or default '1234' fallback)
-      const isPassValid =
-        inputPass === dbPass ||
-        (dbPass === '' && inputPass === '1234') ||
-        (inputPass === '1234' && dbPass === '1234');
-
-      if (!isPassValid) {
-        res.status(401).json({ error: 'Invalid 4-digit PIN / Passcode' });
-        return;
-      }
-    } else if (user.password !== password) {
-      res.status(401).json({ error: 'Invalid credentials' });
+    if (!isPassValid) {
+      res.status(401).json({ error: 'Invalid password or 4-digit PIN' });
       return;
     }
 

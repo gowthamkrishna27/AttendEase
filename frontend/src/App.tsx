@@ -75,9 +75,18 @@ function ProtectedRoute({
     return <Navigate to={role === 'admin' ? '/admin/login' : '/login'} state={{ from: location }} replace />;
   }
 
-  if (user.role !== role && user.role !== 'admin') {
-    // Allow seamless access to portals during pair programming and testing
-    return <>{children}</>;
+  // Strict Admin route protection: Only genuine admin users can access /admin routes
+  if (role === 'admin' && user.role !== 'admin') {
+    return <Navigate to="/admin/login" state={{ from: location }} replace />;
+  }
+
+  // Portal protection: Admin can access any portal, other roles must match their portal
+  if (role !== 'admin' && user.role !== role && user.role !== 'admin') {
+    const targetPath =
+      user.role === 'student' ? '/student' :
+      user.role === 'faculty' ? '/faculty' :
+      user.role === 'hod'     ? '/hod'     : '/login';
+    return <Navigate to={targetPath} replace />;
   }
 
   return <>{children}</>;
