@@ -83,6 +83,22 @@ export const parseSubmissionPeriods = (periods: any): number[] => {
   return [];
 };
 
+export const getCurrentPeriodId = (): number | null => {
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+
+  if (mins >= 540 && mins < 585) return 1;  // 09:00 - 09:45 AM (P1)
+  if (mins >= 585 && mins < 630) return 2;  // 09:45 - 10:30 AM (P2)
+  if (mins >= 630 && mins < 675) return 3;  // 10:30 - 11:15 AM (P3)
+  if (mins >= 675 && mins < 720) return 4;  // 11:15 - 12:00 PM (P4)
+  if (mins >= 810 && mins < 855) return 5;  // 01:30 - 02:15 PM (P5)
+  if (mins >= 855 && mins < 900) return 6;  // 02:15 - 03:00 PM (P6)
+  if (mins >= 900 && mins < 945) return 7;  // 03:00 - 03:45 PM (P7)
+  if (mins >= 945 && mins < 990) return 8;  // 03:45 - 04:30 PM (P8)
+
+  return null;
+};
+
 const getTodayDateString = () => {
   const d = new Date();
   const year = d.getFullYear();
@@ -374,8 +390,7 @@ export default function PermissionsPage() {
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>('combined');
   const [dateMode, setDateMode] = useState<'today' | 'all'>('today');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [markMode, setMarkMode] = useState<'present' | 'absent'>('present');
-  const [markedAttendance, setMarkedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
+  const [markedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [selectedPass, setSelectedPass] = useState<AttendanceRequest | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -473,26 +488,14 @@ export default function PermissionsPage() {
     setSelectedPass(pass);
   }, []);
 
-  // Handle Interactive Roll Button Click (Toggles Green/Red based on markMode)
+  // Handle Roll Button Click (Opens permission slip modal if student has approved pass, or shows info toast)
   const handleRollClick = useCallback((rollNo: string, pass?: ExtendedAttendanceRequest) => {
     if (pass) {
-      // If student has an approved permission slip, open modal
       setSelectedPass(pass);
       return;
     }
-
-    setMarkedAttendance(prev => {
-      const current = prev[rollNo];
-      if (current === markMode) {
-        // Toggle off back to unmarked
-        const updated = { ...prev };
-        delete updated[rollNo];
-        return updated;
-      }
-      // Set to selected markMode (present or absent)
-      return { ...prev, [rollNo]: markMode };
-    });
-  }, [markMode]);
+    showToast(`Roll #${rollNo}: View period submissions above or select a period for details.`);
+  }, [showToast]);
 
   return (
     <PageWrapper role="viewer">
@@ -665,8 +668,13 @@ export default function PermissionsPage() {
             {/* ── 8 Linear Period Selector Boxes Widget (User requirement) ── */}
             <div className="pt-2.5 border-t border-slate-100 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                   Select Period (1 to 8 Attendance View):
+                  {getCurrentPeriodId() && (
+                    <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200 text-[9.5px] font-bold animate-pulse">
+                      ⚡ Period {getCurrentPeriodId()} Live Now
+                    </span>
+                  )}
                 </span>
                 <span className="text-[10.5px] font-bold text-slate-400">
                   {attendanceSubmissions.length} Submission(s) Active
@@ -681,6 +689,7 @@ export default function PermissionsPage() {
                     const sub = attendanceSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
                     const isSelected = sub && selectedSubmissionId === sub.id;
                     const isSubmitted = !!sub;
+                    const isLiveNow = getCurrentPeriodId() === pNum;
 
                     return (
                       <button
@@ -699,7 +708,9 @@ export default function PermissionsPage() {
                           transition-all duration-150 cursor-pointer border select-none relative
                           ${
                             isSelected
-                              ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-300'
+                              ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
+                              : isLiveNow
+                              ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-400/60 shadow-xs'
                               : isSubmitted
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                               : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
@@ -708,9 +719,16 @@ export default function PermissionsPage() {
                         title={
                           sub
                             ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
+                            : isLiveNow
+                            ? `Period ${pNum}: Live Active Period Right Now`
                             : `Period ${pNum}: Not yet submitted`
                         }
                       >
+                        {isLiveNow && (
+                          <span className="absolute -top-1.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[7.5px] font-black tracking-widest shadow-2xs uppercase animate-pulse">
+                            Live
+                          </span>
+                        )}
                         <span className="text-[13px] leading-none">P{pNum}</span>
                         <span className="text-[8px] font-bold opacity-80 mt-0.5">
                           {isSubmitted ? (sub?.markedBy?.name ? sub.markedBy.name.split(' ')[0] : 'Done') : 'Pending'}
@@ -731,6 +749,7 @@ export default function PermissionsPage() {
                     const sub = attendanceSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
                     const isSelected = sub && selectedSubmissionId === sub.id;
                     const isSubmitted = !!sub;
+                    const isLiveNow = getCurrentPeriodId() === pNum;
 
                     return (
                       <button
@@ -749,7 +768,9 @@ export default function PermissionsPage() {
                           transition-all duration-150 cursor-pointer border select-none relative
                           ${
                             isSelected
-                              ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-300'
+                              ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
+                              : isLiveNow
+                              ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-400/60 shadow-xs'
                               : isSubmitted
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                               : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
@@ -758,9 +779,16 @@ export default function PermissionsPage() {
                         title={
                           sub
                             ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
+                            : isLiveNow
+                            ? `Period ${pNum}: Live Active Period Right Now`
                             : `Period ${pNum}: Not yet submitted`
                         }
                       >
+                        {isLiveNow && (
+                          <span className="absolute -top-1.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[7.5px] font-black tracking-widest shadow-2xs uppercase animate-pulse">
+                            Live
+                          </span>
+                        )}
                         <span className="text-[13px] leading-none">P{pNum}</span>
                         <span className="text-[8px] font-bold opacity-80 mt-0.5">
                           {isSubmitted ? (sub?.markedBy?.name ? sub.markedBy.name.split(' ')[0] : 'Done') : 'Pending'}
@@ -809,45 +837,6 @@ export default function PermissionsPage() {
               </div>
             )}
 
-            {/* ── Interactive Attendance Marking Mode Checkboxes (Placed Just Above Grid) ── */}
-            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[12px]">
-              <span className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
-                Click Mode to Mark Grid:
-              </span>
-              <div className="flex items-center gap-3">
-                <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${
-                  markMode === 'present'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold shadow-2xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}>
-                  <input
-                    type="radio"
-                    name="markMode"
-                    checked={markMode === 'present'}
-                    onChange={() => setMarkMode('present')}
-                    className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                  />
-                  <CheckCircle2 size={15} className={markMode === 'present' ? 'text-emerald-600' : 'text-slate-400'} />
-                  <span>1. Presentees (Green)</span>
-                </label>
-
-                <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${
-                  markMode === 'absent'
-                    ? 'bg-rose-50 border-rose-300 text-rose-800 font-bold shadow-2xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}>
-                  <input
-                    type="radio"
-                    name="markMode"
-                    checked={markMode === 'absent'}
-                    onChange={() => setMarkMode('absent')}
-                    className="w-4 h-4 accent-rose-600 cursor-pointer"
-                  />
-                  <XCircle size={15} className={markMode === 'absent' ? 'text-rose-600' : 'text-slate-400'} />
-                  <span>2. Absentees (Red)</span>
-                </label>
-              </div>
-            </div>
           </div>
 
           {/* Section Grid Content (1-72 Grid Always Displayed) */}
