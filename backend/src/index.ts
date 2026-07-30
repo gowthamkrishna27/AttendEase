@@ -11,6 +11,7 @@ import authRoutes         from './routes/auth.js';
 import requestRoutes      from './routes/requests.js';
 import userRoutes         from './routes/users.js';
 import notificationRoutes  from './routes/notifications.js';
+import attendanceRoutes    from './routes/attendance.js';
 import adminRouter from './admin/index.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
@@ -27,6 +28,7 @@ app.use('/api/auth',          rateLimiter(15 * 60 * 1000, 100), authRoutes);
 app.use('/api/requests',      requestRoutes);
 app.use('/api/users',         userRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/attendance',    attendanceRoutes);
 app.use('/api/admin',         adminRouter);
 
 // ── Root & Health check ───────────────────────────────────────────────────────

@@ -145,6 +145,8 @@ interface PermissionGridProps {
   sectionKey: string;
   passes: ExtendedAttendanceRequest[];
   markedAttendance: Record<string, 'present' | 'absent'>;
+  attendanceSubmissions: api.AttendanceSubmissionItem[];
+  selectedSubmissionId: string;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectPass: (pass: ExtendedAttendanceRequest) => void;
@@ -156,6 +158,8 @@ const PermissionGrid = React.memo(({
   sectionKey,
   passes,
   markedAttendance,
+  attendanceSubmissions,
+  selectedSubmissionId,
   isCollapsed,
   onToggleCollapse,
   onSelectPass,
@@ -164,6 +168,21 @@ const PermissionGrid = React.memo(({
 }: PermissionGridProps) => {
   const rollNumbers = useMemo(() => getSectionRollNumbers(sectionKey), [sectionKey]);
   const totalStudents = rollNumbers.length;
+
+  // Compute records map from faculty submissions for this section
+  const submissionRecordsMap = useMemo(() => {
+    const map: Record<string, 'present' | 'absent'> = {};
+    const relevantSubmissions = selectedSubmissionId === 'combined'
+      ? attendanceSubmissions
+      : attendanceSubmissions.filter(s => s.id === selectedSubmissionId);
+
+    relevantSubmissions.forEach(sub => {
+      sub.records.forEach(rec => {
+        map[rec.rollNumber] = rec.status as 'present' | 'absent';
+      });
+    });
+    return map;
+  }, [attendanceSubmissions, selectedSubmissionId]);
 
   const permissionMap = useMemo(() => {
     const map = new Map<string, ExtendedAttendanceRequest>();
@@ -178,8 +197,14 @@ const PermissionGrid = React.memo(({
   }, [passes, rollNumbers]);
 
   const permissionCount = permissionMap.size;
-  const presentCount = useMemo(() => Object.values(markedAttendance).filter(v => v === 'present').length, [markedAttendance]);
-  const absentCount = useMemo(() => Object.values(markedAttendance).filter(v => v === 'absent').length, [markedAttendance]);
+  
+  // Combine manual click mode overrides with database submission records
+  const combinedAttendance = useMemo(() => {
+    return { ...submissionRecordsMap, ...markedAttendance };
+  }, [submissionRecordsMap, markedAttendance]);
+
+  const presentCount = useMemo(() => Object.values(combinedAttendance).filter(v => v === 'present').length, [combinedAttendance]);
+  const absentCount = useMemo(() => Object.values(combinedAttendance).filter(v => v === 'absent').length, [combinedAttendance]);
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-2xs">
@@ -319,6 +344,7 @@ export default function PermissionsPage() {
   const [selectedYear, setSelectedYear] = useState('3rd Year');
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
   const [sectionFilter, setSectionFilter] = useState('all');
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>('combined');
   const [dateMode, setDateMode] = useState<'today' | 'all'>('today');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [markMode, setMarkMode] = useState<'present' | 'absent'>('present');
@@ -337,6 +363,8 @@ export default function PermissionsPage() {
     const secParam = searchParams.get('sec');
     if (secParam) setSectionFilter(secParam);
   }, [searchParams]);
+
+  const todayStr = getTodayDateString();
 
   // Query Backend Requests from Database
   const { data: apiRequests = [], isLoading } = useQuery({
@@ -358,7 +386,11 @@ export default function PermissionsPage() {
     retry: false,
   });
 
-  const todayStr = getTodayDateString();
+  // Query Faculty Attendance Submissions from Database
+  const { data: attendanceSubmissions = [] } = useQuery<api.AttendanceSubmissionItem[]>({
+    queryKey: ['public-attendance-submissions', todayStr, sectionFilter, selectedYear],
+    queryFn: () => api.getAttendanceSubmissions(todayStr, sectionFilter, selectedYear),
+  });
 
   // Filtered Approved List
   const filteredApproved = useMemo(() => {
@@ -603,6 +635,43 @@ export default function PermissionsPage() {
               ))}
             </div>
 
+            {/* ── Faculty Attendance Submissions Switcher Bar ── */}
+            {attendanceSubmissions.length > 0 && (
+              <div className="pt-2 border-t border-slate-100 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Faculty Attendance Submissions:
+                </span>
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSubmissionId('combined')}
+                    className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer ${
+                      selectedSubmissionId === 'combined'
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Combined Overview
+                  </button>
+                  {attendanceSubmissions.map(sub => (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => setSelectedSubmissionId(sub.id)}
+                      className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
+                        selectedSubmissionId === sub.id
+                          ? 'bg-orange-500 text-white shadow-2xs'
+                          : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
+                      }`}
+                    >
+                      <span>{sub.markedBy?.name}:</span>
+                      <span className="opacity-90">{sub.periodLabel}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* ── Interactive Attendance Marking Mode Checkboxes (Placed Just Above Grid) ── */}
             <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[12px]">
               <span className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
@@ -658,6 +727,8 @@ export default function PermissionsPage() {
                   sectionKey={sectionKey}
                   passes={sectionsMap[sectionKey] || []}
                   markedAttendance={markedAttendance}
+                  attendanceSubmissions={attendanceSubmissions}
+                  selectedSubmissionId={selectedSubmissionId}
                   isCollapsed={Boolean(collapsedSections[sectionKey])}
                   onToggleCollapse={() => toggleSection(sectionKey)}
                   onSelectPass={handleSelectPass}

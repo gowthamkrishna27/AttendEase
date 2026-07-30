@@ -9,6 +9,7 @@ function formatUserResponse(user: {
   userId: string; email: string; role: string; name: string;
   department: string; designation?: string | null; rollNumber?: string | null;
   semester?: number | null; avatarUrl?: string | null; phone?: string | null;
+  counselorId?: string | null;
 }) {
   return {
     id:          user.userId,
@@ -21,12 +22,82 @@ function formatUserResponse(user: {
     ...(user.semester    && { semester:    user.semester    }),
     ...(user.avatarUrl   && { avatarUrl:   user.avatarUrl   }),
     ...(user.phone       && { phone:       user.phone       }),
+    ...(user.counselorId  && { counselorId:  user.counselorId  }),
   };
 }
 
 /**
+ * GET /api/users/counselees
+ * Returns counseling students assigned to the currently logged in faculty member,
+ * along with their attendance percentage analytics calculated from database records.
+ */
+router.get('/counselees', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const facultyUserId = req.user!.id;
+    const counselees = await prisma.user.findMany({
+      where: {
+        role: 'student',
+        counselorId: facultyUserId,
+      },
+      orderBy: { rollNumber: 'asc' },
+    });
+
+    // Calculate attendance percentage for each counseling student
+    const counseleesWithStats = await Promise.all(
+      counselees.map(async (student) => {
+        const roll = student.rollNumber || student.userId;
+        const suffix = roll.length > 2 ? roll.slice(-2) : roll;
+
+        // Total conducted attendance records for this student's roll number
+        const records = await prisma.attendanceRecord.findMany({
+          where: {
+            OR: [
+              { rollNumber: roll },
+              { rollNumber: suffix },
+            ],
+          },
+        });
+
+        const conductedCount = records.length;
+        const presentCount = records.filter(r => r.status === 'present').length;
+
+        // Approved permissions count for this student
+        const approvedPermissionsCount = await prisma.request.count({
+          where: {
+            studentId: student.userId,
+            status: 'approved',
+          },
+        });
+
+        // Attendance percentage calculation
+        const effectivePresent = presentCount + approvedPermissionsCount;
+        const percentage = conductedCount > 0 
+          ? Math.min(100, Math.round((effectivePresent / conductedCount) * 100))
+          : 85; // Default 85% if no attendance conducted yet
+
+        return {
+          ...formatUserResponse(student),
+          stats: {
+            conductedCount,
+            presentCount,
+            approvedPermissionsCount,
+            absentCount: conductedCount - presentCount,
+            percentage,
+          },
+        };
+      })
+    );
+
+    res.json({ counselees: counseleesWithStats });
+  } catch (err) {
+    console.error('GET /users/counselees error:', err);
+    res.status(500).json({ error: 'Failed to fetch counseling students' });
+  }
+});
+
+/**
  * GET /api/users/faculty
- * Returns all faculty members — visible to both HODs.
+ * Returns all faculty members — visible to both HODs and Admin.
  */
 router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
   try {

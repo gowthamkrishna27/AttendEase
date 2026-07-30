@@ -353,6 +353,7 @@ export interface CreateUserPayload {
   semester?: number;
   designation?: string;
   phone?: string;
+  counselorId?: string;
 }
 
 export async function getUsers(): Promise<AuthUser[]> {
@@ -386,3 +387,77 @@ export async function resetUserPassword(id: string, newPassword: string): Promis
     body: JSON.stringify({ password: newPassword }),
   });
 }
+
+// ─── Attendance API ──────────────────────────────────────────────────────────
+
+export interface AttendanceRecordItem {
+  id: string;
+  submissionId: string;
+  rollNumber: string;
+  status: 'present' | 'absent';
+}
+
+export interface AttendanceSubmissionItem {
+  id: string;
+  date: string;
+  section: string;
+  year: string;
+  periods: string;
+  periodLabel: string;
+  markedById: string;
+  createdAt: string;
+  updatedAt: string;
+  markedBy: {
+    userId: string;
+    name: string;
+    email: string;
+    department: string;
+  };
+  records: AttendanceRecordItem[];
+}
+
+export interface SubmitAttendancePayload {
+  date: string;
+  section: string;
+  year?: string;
+  periods: string;
+  periodLabel?: string;
+  records: { rollNumber: string; status: 'present' | 'absent' }[];
+}
+
+export async function getAttendanceSubmissions(date?: string, section?: string, year?: string): Promise<AttendanceSubmissionItem[]> {
+  const params = new URLSearchParams();
+  if (date) params.append('date', date);
+  if (section) params.append('section', section);
+  if (year) params.append('year', year);
+
+  const queryString = params.toString();
+  const url = `/api/attendance${queryString ? `?${queryString}` : ''}`;
+  const res = await apiFetch<{ submissions: AttendanceSubmissionItem[] }>(url, {}, false);
+  return res.submissions ?? [];
+}
+
+export async function submitSectionAttendance(payload: SubmitAttendancePayload): Promise<AttendanceSubmissionItem> {
+  const res = await apiFetch<{ submission: AttendanceSubmissionItem }>('/api/attendance/submit', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return res.submission;
+}
+
+export interface CounseleeStudent extends AuthUser {
+  stats?: {
+    conductedCount: number;
+    presentCount: number;
+    approvedPermissionsCount: number;
+    absentCount: number;
+    percentage: number;
+  };
+}
+
+export async function getCounselees(): Promise<CounseleeStudent[]> {
+  const res = await apiFetch<{ counselees: CounseleeStudent[] }>('/api/users/counselees');
+  return res.counselees ?? [];
+}
+
+

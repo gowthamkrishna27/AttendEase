@@ -28,12 +28,15 @@ export default function AdminUsers() {
   const [formRoll, setFormRoll]     = useState('');
   const [formSem, setFormSem]       = useState(6);
   const [formAvatar, setFormAvatar] = useState('');
+  const [formCounselorId, setFormCounselorId] = useState('');
   const [formError, setFormError]   = useState('');
 
   const { data: usersList = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => api.getUsers(),
   });
+
+  const facultyList = usersList.filter(u => u.role === 'faculty' || u.role === 'hod');
 
   const createMutation = useMutation({
     mutationFn: (data: api.CreateUserPayload) => api.createUser(data),
@@ -77,6 +80,7 @@ export default function AdminUsers() {
     setFormRoll('');
     setFormSem(6);
     setFormAvatar('');
+    setFormCounselorId('');
     setFormError('');
   };
 
@@ -96,6 +100,7 @@ export default function AdminUsers() {
     setFormRoll(u.rollNumber || '');
     setFormSem(u.semester || 6);
     setFormAvatar(u.avatarUrl || '');
+    setFormCounselorId(u.counselorId || '');
     setFormError('');
     setShowFormModal(true);
   };
@@ -143,7 +148,7 @@ export default function AdminUsers() {
         role: formRole,
         department: effectiveDept,
         password: effectivePass,
-        ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem || 6 }),
+        ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem || 6, counselorId: formCounselorId || undefined }),
         ...(effectiveAvatar && { avatarUrl: effectiveAvatar }),
       });
     } else {
@@ -155,7 +160,7 @@ export default function AdminUsers() {
           role: formRole,
           department: effectiveDept,
           ...(formPass && { password: formPass }),
-          ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem }),
+          ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem, counselorId: formCounselorId || undefined }),
           avatarUrl: effectiveAvatar,
         }
       });
@@ -418,6 +423,24 @@ export default function AdminUsers() {
                       required
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                    Assign Faculty Counselor
+                  </label>
+                  <select
+                    value={formCounselorId}
+                    onChange={e => setFormCounselorId(e.target.value)}
+                    className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 font-medium text-slate-800 text-[12px]"
+                  >
+                    <option value="">-- Select Faculty Counselor --</option>
+                    {facultyList.map(f => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.department || 'Faculty'})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             ) : (

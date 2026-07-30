@@ -54,17 +54,23 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  counselorId           String?
+  counselor             User?                  @relation("FacultyCounselees", fields: [counselorId], references: [userId], onDelete: SetNull)
+  counselees            User[]                 @relation("FacultyCounselees")
+
   // Relations
-  submittedRequests Request[]        @relation("StudentRequests")
-  primaryRequests   Request[]        @relation("PrimaryFacultyRequests")
-  assignedRequests  RequestFaculty[]
-  performedActions  RequestAction[]
-  notifications     Notification[]
-  passkeys          UserPasskey[]
+  submittedRequests     Request[]              @relation("StudentRequests")
+  primaryRequests       Request[]              @relation("PrimaryFacultyRequests")
+  assignedRequests      RequestFaculty[]
+  performedActions      RequestAction[]
+  notifications         Notification[]
+  passkeys              UserPasskey[]
+  attendanceSubmissions AttendanceSubmission[]
 
   @@index([role])
   @@index([department])
   @@index([rollNumber])
+  @@index([counselorId])
 }
 
 model Request {
@@ -163,4 +169,37 @@ model UserPasskey {
 
   @@index([userId])
 }
+
+/// Section attendance submissions made by faculty for specific period blocks
+model AttendanceSubmission {
+  id           String             @id @default(cuid())
+  date         String             // YYYY-MM-DD
+  section      String             // e.g. "CSIT-B"
+  year         String             @default("3rd Year") // e.g. "3rd Year"
+  periods      String             // Comma-separated period numbers e.g. "1,2"
+  periodLabel  String             // e.g. "Periods 1 & 2 (9:00 AM - 10:30 AM)"
+  markedById   String             // User.userId (faculty)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  markedBy     User               @relation(fields: [markedById], references: [userId])
+  records      AttendanceRecord[]
+
+  @@unique([date, section, periods])
+  @@index([date, section])
+  @@index([markedById])
+}
+
+/// Student roll number status for an attendance submission
+model AttendanceRecord {
+  id           String               @id @default(cuid())
+  submissionId String
+  rollNumber   String               // e.g. "73", "D1", "LE12"
+  status       String               // "present" | "absent"
+
+  submission   AttendanceSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, rollNumber])
+}
+
 

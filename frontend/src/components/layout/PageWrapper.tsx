@@ -6,7 +6,7 @@ import {
   Home, Clock, User, LogOut,
   Bell, GraduationCap, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-  FileCheck, Building2, Layers, Award, FileText
+  FileCheck, Building2, Layers, Award, FileText, CheckSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -26,11 +26,12 @@ const studentNav = [
   { to: '/student/profile', label: 'Profile', icon: User },
 ];
 const facultyNav = [
-  { to: '/faculty',          label: 'Dashboard', icon: Home          },
-  { to: '/faculty/requests', label: 'Requests',  icon: ClipboardList },
-  { to: '/faculty/students', label: 'Students',  icon: Users         },
-  { to: '/faculty/reports',  label: 'Reports',   icon: BarChart2     },
-  { to: '/faculty/settings', label: 'Settings',  icon: Settings      },
+  { to: '/faculty',          label: 'Dashboard',     icon: Home          },
+  { to: '/faculty/attendance', label: 'Mark Attendance', icon: CheckSquare },
+  { to: '/faculty/requests', label: 'Requests',      icon: ClipboardList },
+  { to: '/faculty/students', label: 'Students',      icon: Users         },
+  { to: '/faculty/reports',  label: 'Reports',       icon: BarChart2     },
+  { to: '/faculty/settings', label: 'Settings',      icon: Settings      },
 ];
 
 const hodNav = [

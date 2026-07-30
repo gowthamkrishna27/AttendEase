@@ -58,8 +58,9 @@ function toResponse(record: Record<string, unknown>): StudentResponse {
     rollNumber: record['rollNumber'] as string,
     semester:   record['semester'] as number,
     isActive:   (record['isActive'] as boolean) ?? true,
-    ...(record['avatarUrl'] ? { avatarUrl: record['avatarUrl'] as string } : {}),
-    ...(record['phone']     ? { phone:     record['phone'] as string     } : {}),
+    ...(record['avatarUrl']   ? { avatarUrl:   record['avatarUrl']   as string } : {}),
+    ...(record['phone']       ? { phone:       record['phone']       as string } : {}),
+    ...(record['counselorId'] ? { counselorId: record['counselorId'] as string } : {}),
   };
 }
 

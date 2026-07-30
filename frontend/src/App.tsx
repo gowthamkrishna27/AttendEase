@@ -27,6 +27,7 @@ import FacultyRequestDetails from './pages/faculty_portal/RequestDetails';
 import FacultyStudents from './pages/faculty_portal/Students';
 import FacultyReports from './pages/faculty_portal/Reports';
 import FacultySettings from './pages/faculty_portal/Settings';
+import FacultyAttendance from './pages/faculty_portal/Attendance';
 
 // Pages — HOD
 import HODDashboard from './pages/hod/Dashboard';
@@ -117,6 +118,7 @@ function AppRoutes() {
 
         {/* Faculty (protected) */}
         <Route path="/faculty" element={<ProtectedRoute role="faculty"><FacultyDashboard /></ProtectedRoute>} />
+        <Route path="/faculty/attendance" element={<ProtectedRoute role="faculty"><FacultyAttendance /></ProtectedRoute>} />
         <Route path="/faculty/requests" element={<ProtectedRoute role="faculty"><FacultyRequests /></ProtectedRoute>} />
         <Route path="/faculty/request/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
         <Route path="/faculty/students" element={<ProtectedRoute role="faculty"><FacultyStudents /></ProtectedRoute>} />

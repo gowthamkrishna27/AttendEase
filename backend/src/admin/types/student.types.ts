@@ -15,6 +15,7 @@ export interface StudentRecord {
   semester:   number;
   avatarUrl?: string;
   phone?:     string;
+  counselorId?: string;
   isActive:   boolean;
 }
 
@@ -28,6 +29,7 @@ export interface CreateStudentBody {
   semester:   number;
   avatarUrl?: string;
   phone?:     string;
+  counselorId?: string;
 }
 
 export interface UpdateStudentBody {
@@ -38,6 +40,7 @@ export interface UpdateStudentBody {
   semester?:   number;
   avatarUrl?:  string;
   phone?:      string;
+  counselorId?: string;
 }
 
 // ── Query parameters for list endpoint ───────────────────────────────────────
@@ -60,9 +63,10 @@ export interface StudentResponse {
   department: string;
   rollNumber: string;
   semester:   number;
+  isActive:   boolean;
   avatarUrl?: string;
   phone?:     string;
-  isActive:   boolean;
+  counselorId?: string;
 }
 
 export interface StudentListResponse {
