@@ -107,7 +107,6 @@ function toApi(r: any) {
       department:  f.department,
       email:       f.email,
       avatarUrl:   f.avatarUrl   ?? undefined,
-      designation: f.designation ?? undefined,
     })),
     actions: r.actions ? r.actions.map((act: any) => ({
       id:          act.id,

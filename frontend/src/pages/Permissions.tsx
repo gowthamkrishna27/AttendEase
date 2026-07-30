@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Printer, Calendar, RefreshCw, Info,
   AlertCircle, ChevronDown, ChevronUp, LayoutGrid, List, CheckCircle2, XCircle,
-  GraduationCap, Building2
+  GraduationCap, Building2, Clock
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import * as api from '../lib/api';
@@ -54,6 +54,33 @@ export const extractRollSuffix = (rawRoll: string): string => {
     return val;
   }
   return str;
+};
+
+export const parseSubmissionPeriods = (periods: any): number[] => {
+  if (Array.isArray(periods)) {
+    return periods.map(p => Number(p)).filter(p => !isNaN(p));
+  }
+  if (typeof periods === 'number') {
+    return [periods];
+  }
+  if (typeof periods === 'string') {
+    if (periods.includes(',')) {
+      return periods.split(',').map(p => Number(p.trim())).filter(p => !isNaN(p));
+    }
+    if (periods.includes('-')) {
+      const parts = periods.split('-');
+      const start = Number(parts[0]);
+      const end = Number(parts[1]);
+      if (!isNaN(start) && !isNaN(end)) {
+        const res: number[] = [];
+        for (let i = start; i <= end; i++) res.push(i);
+        return res;
+      }
+    }
+    const single = Number(periods);
+    if (!isNaN(single)) return [single];
+  }
+  return [];
 };
 
 const getTodayDateString = () => {
@@ -633,6 +660,116 @@ export default function PermissionsPage() {
                   {yr}
                 </button>
               ))}
+            </div>
+
+            {/* ── 8 Linear Period Selector Boxes Widget (User requirement) ── */}
+            <div className="pt-2.5 border-t border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                  Select Period (1 to 8 Attendance View):
+                </span>
+                <span className="text-[10.5px] font-bold text-slate-400">
+                  {attendanceSubmissions.length} Submission(s) Active
+                </span>
+              </div>
+
+              {/* 8 Linear Square Boxes Row */}
+              <div className="flex flex-wrap items-center justify-between gap-1.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60">
+                {/* Morning Session: Periods 1-4 */}
+                <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                  {[1, 2, 3, 4].map(pNum => {
+                    const sub = attendanceSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
+                    const isSelected = sub && selectedSubmissionId === sub.id;
+                    const isSubmitted = !!sub;
+
+                    return (
+                      <button
+                        key={pNum}
+                        type="button"
+                        onClick={() => {
+                          if (sub) {
+                            setSelectedSubmissionId(sub.id);
+                            showToast(`Showing Period ${pNum} Attendance (Submitted by ${sub.markedBy?.name || 'Faculty'})`);
+                          } else {
+                            showToast(`Period ${pNum} attendance has not been submitted by faculty yet.`, true);
+                          }
+                        }}
+                        className={`
+                          flex-1 h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
+                          transition-all duration-150 cursor-pointer border select-none relative
+                          ${
+                            isSelected
+                              ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-300'
+                              : isSubmitted
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
+                          }
+                        `}
+                        title={
+                          sub
+                            ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
+                            : `Period ${pNum}: Not yet submitted`
+                        }
+                      >
+                        <span className="text-[13px] leading-none">P{pNum}</span>
+                        <span className="text-[8px] font-bold opacity-80 mt-0.5">
+                          {isSubmitted ? (sub?.markedBy?.name ? sub.markedBy.name.split(' ')[0] : 'Done') : 'Pending'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Lunch Break Divider */}
+                <div className="px-2 py-1 bg-amber-100/90 text-amber-900 border border-amber-300/80 rounded-lg text-[9.5px] font-black uppercase tracking-wider shrink-0 text-center">
+                  Lunch<br />12:00 - 1:30
+                </div>
+
+                {/* Afternoon Session: Periods 5-8 */}
+                <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                  {[5, 6, 7, 8].map(pNum => {
+                    const sub = attendanceSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
+                    const isSelected = sub && selectedSubmissionId === sub.id;
+                    const isSubmitted = !!sub;
+
+                    return (
+                      <button
+                        key={pNum}
+                        type="button"
+                        onClick={() => {
+                          if (sub) {
+                            setSelectedSubmissionId(sub.id);
+                            showToast(`Showing Period ${pNum} Attendance (Submitted by ${sub.markedBy?.name || 'Faculty'})`);
+                          } else {
+                            showToast(`Period ${pNum} attendance has not been submitted by faculty yet.`, true);
+                          }
+                        }}
+                        className={`
+                          flex-1 h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
+                          transition-all duration-150 cursor-pointer border select-none relative
+                          ${
+                            isSelected
+                              ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-300'
+                              : isSubmitted
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
+                          }
+                        `}
+                        title={
+                          sub
+                            ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
+                            : `Period ${pNum}: Not yet submitted`
+                        }
+                      >
+                        <span className="text-[13px] leading-none">P{pNum}</span>
+                        <span className="text-[8px] font-bold opacity-80 mt-0.5">
+                          {isSubmitted ? (sub?.markedBy?.name ? sub.markedBy.name.split(' ')[0] : 'Done') : 'Pending'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* ── Faculty Attendance Submissions Switcher Bar ── */}

@@ -71,9 +71,17 @@ router.patch('/read-all', async (req: Request, res: Response) => {
  */
 router.patch('/:id/read', async (req: Request, res: Response) => {
   try {
-    await prisma.notification.update({
-      where: { id: req.params['id'] },
-      data:  { isRead: true },
+    const user = req.user!;
+
+    await prisma.notification.updateMany({
+      where: {
+        id: req.params['id'],
+        OR: [
+          { userId: user.id },
+          { user: { email: { equals: user.email, mode: 'insensitive' } } },
+        ],
+      },
+      data: { isRead: true },
     });
 
     res.json({ message: 'Notification marked as read' });

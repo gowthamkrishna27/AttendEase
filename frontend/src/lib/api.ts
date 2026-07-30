@@ -143,6 +143,9 @@ async function apiFetch<T>(
   }
 
   if (!res.ok) {
+    if (res.status === 401 && auth && !path.includes('/auth/login')) {
+      clearStoredToken();
+    }
     const body = await res.json().catch(() => ({ error: res.statusText || 'API error' }));
     throw new Error((body as { error?: string }).error ?? 'API error');
   }

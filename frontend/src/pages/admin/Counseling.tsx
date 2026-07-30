@@ -1,29 +1,169 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Search, UserCheck, UserPlus, Trash2, CheckCircle2, AlertCircle, Users, GraduationCap, X } from 'lucide-react';
+import { Search, UserCheck, UserPlus, Trash2, GraduationCap, Building2 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Avatar } from '../../components/shared/Avatar';
-import { EmptyState } from '../../components/shared/EmptyState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
+
+// Helper to extract last 2 characters or suffix from roll number (e.g. 24B91A0744 -> 44, 24B91A07LE1 -> LE1)
+function extractRollSuffix(rollStr: string): string {
+  if (!rollStr) return '';
+  const clean = rollStr.trim().toUpperCase();
+  const leMatch = clean.match(/LE0*([1-9]|1[0-2])$/);
+  if (leMatch) {
+    return `LE${leMatch[1]}`;
+  }
+  const suffixMatch = clean.match(/([A-D][0-9]|[0-9]{1,2})$/);
+  if (suffixMatch) {
+    const val = suffixMatch[1];
+    if (/^\d+$/.test(val)) {
+      return String(parseInt(val, 10));
+    }
+    return val;
+  }
+  return clean;
+}
+
+// Year roll number prefix mapping
+const YEAR_PREFIX_MAP: Record<string, string> = {
+  '1st Year': '26',
+  '2nd Year': '25',
+  '3rd Year': '24',
+  '4th Year': '23',
+};
+
+// Generate roll numbers strictly based on Section:
+// - CSD & CSIT A: 1 to 72
+// - CSIT B: 73 to 99, A0-A9, B0-B9, C0-C9, D0, D1, LE1 to LE12
+function getRollNumbersForSection(sectionKey: string): string[] {
+  if (sectionKey.includes('CSIT B') || sectionKey.includes('CSIT-B')) {
+    const list: string[] = [];
+    for (let i = 73; i <= 99; i++) list.push(String(i));
+    for (let i = 0; i <= 9; i++) list.push(`A${i}`);
+    for (let i = 0; i <= 9; i++) list.push(`B${i}`);
+    for (let i = 0; i <= 9; i++) list.push(`C${i}`);
+    list.push('D0', 'D1');
+    for (let i = 1; i <= 12; i++) list.push(`LE${i}`);
+    return list;
+  }
+
+  // CSD and CSIT A: 1 to 72
+  return Array.from({ length: 72 }, (_, i) => String(i + 1));
+}
+
+// Check if a student belongs to the selected Year & Section
+function isStudentInYearAndSection(
+  student: api.AuthUser,
+  selectedYear: string,
+  selectedSection: 'CSIT A' | 'CSIT B' | 'CSD'
+): boolean {
+  const roll = (student.rollNumber || student.id || '').toUpperCase();
+  const dept = (student.department || '').toUpperCase();
+
+  // 1. Department / Section filtering
+  if (selectedSection === 'CSD') {
+    if (dept !== 'CSD') return false;
+  } else if (selectedSection === 'CSIT A') {
+    if (dept !== 'CSIT' && dept !== 'CSIT-A') return false;
+    const suffix = extractRollSuffix(roll);
+    const num = parseInt(suffix, 10);
+    if (!isNaN(num) && (num < 1 || num > 72)) return false;
+  } else if (selectedSection === 'CSIT B') {
+    if (dept !== 'CSIT' && dept !== 'CSIT-B') return false;
+    const suffix = extractRollSuffix(roll);
+    const num = parseInt(suffix, 10);
+    if (!isNaN(num) && num >= 1 && num <= 72) return false;
+  }
+
+  // 2. Year filtering (Roll Prefix: 26=1st, 25=2nd, 24=3rd, 23=4th)
+  const expectedPrefix = YEAR_PREFIX_MAP[selectedYear];
+  if (expectedPrefix && roll.length >= 2) {
+    if (roll.startsWith(expectedPrefix)) return true;
+  }
+
+  // Fallback to semester if available
+  if (student.semester) {
+    const sem = student.semester;
+    if (selectedYear === '1st Year' && (sem === 1 || sem === 2)) return true;
+    if (selectedYear === '2nd Year' && (sem === 3 || sem === 4)) return true;
+    if (selectedYear === '3rd Year' && (sem === 5 || sem === 6)) return true;
+    if (selectedYear === '4th Year' && (sem === 7 || sem === 8)) return true;
+  }
+
+  // Default fallback to 3rd Year for standard un-prefixed roll numbers
+  return selectedYear === '3rd Year';
+}
 
 export default function AdminCounseling() {
   const queryClient = useQueryClient();
   const [selectedFacultyId, setSelectedFacultyId] = useState('');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  const [searchUnassigned, setSearchUnassigned] = useState('');
+  const [selectedYear, setSelectedYear] = useState('3rd Year');
+  const [selectedSection, setSelectedSection] = useState<'CSIT A' | 'CSIT B' | 'CSD'>('CSIT A');
   const [searchFaculty, setSearchFaculty] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Fetch admin counseling overview data
-  const { data, isLoading } = useQuery({
+  const { data } = useQuery({
     queryKey: ['admin-counseling'],
     queryFn: () => api.getAdminCounselingData(),
   });
 
   const facultyCounselors = data?.facultyCounselors ?? [];
   const unassignedStudents = data?.unassignedStudents ?? [];
+
+  // Filter unassigned students matching current Year & Section
+  const activeUnassignedStudents = useMemo(() => {
+    return unassignedStudents.filter(s => isStudentInYearAndSection(s, selectedYear, selectedSection));
+  }, [unassignedStudents, selectedYear, selectedSection]);
+
+  // Student map for the currently selected Year & Section (suffix -> student)
+  const currentSectionStudentsMap = useMemo(() => {
+    const map = new Map<string, api.AuthUser>();
+
+    // 1. Add unassigned for active Year & Section
+    activeUnassignedStudents.forEach(s => {
+      const roll = s.rollNumber || s.id;
+      const suffix = extractRollSuffix(roll);
+      if (suffix) map.set(suffix, s);
+    });
+
+    // 2. Add assigned for active Year & Section
+    facultyCounselors.forEach(f => {
+      f.counselees?.forEach(s => {
+        if (isStudentInYearAndSection(s, selectedYear, selectedSection)) {
+          const roll = s.rollNumber || s.id;
+          const suffix = extractRollSuffix(roll);
+          if (suffix) map.set(suffix, s);
+        }
+      });
+    });
+
+    return map;
+  }, [activeUnassignedStudents, facultyCounselors, selectedYear, selectedSection]);
+
+  // Counselor map for current Year & Section (suffix -> counselorName)
+  const currentCounselorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    facultyCounselors.forEach(f => {
+      f.counselees?.forEach(s => {
+        if (isStudentInYearAndSection(s, selectedYear, selectedSection)) {
+          const roll = s.rollNumber || s.id;
+          const suffix = extractRollSuffix(roll);
+          if (suffix) map.set(suffix, f.name);
+        }
+      });
+    });
+    return map;
+  }, [facultyCounselors, selectedYear, selectedSection]);
+
+  // Section Roll Numbers list (dynamic per selected section)
+  const sectionRollNumbers = useMemo(
+    () => getRollNumbersForSection(selectedSection),
+    [selectedSection]
+  );
 
   // Assign Mutation
   const assignMutation = useMutation({
@@ -53,15 +193,37 @@ export default function AdminCounseling() {
     },
   });
 
-  const handleToggleSelectStudent = (id: string) => {
+  const handleToggleRollNumber = (suffix: string) => {
+    const student = currentSectionStudentsMap.get(suffix);
+    let targetId = '';
+
+    if (student) {
+      targetId = student.id || (student as any).userId;
+    } else {
+      const yrPrefix = YEAR_PREFIX_MAP[selectedYear] || '24';
+      const formattedSuffix = String(suffix).padStart(2, '0');
+      targetId = `stu-${yrPrefix}B91A07${formattedSuffix}`;
+    }
+
     setSelectedStudentIds(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+      prev.includes(targetId) ? prev.filter(i => i !== targetId) : [...prev, targetId]
     );
   };
 
-  const handleSelectAllFiltered = () => {
-    const ids = filteredUnassigned.map(s => s.id);
-    setSelectedStudentIds(ids);
+  const handleSelectAllSection = () => {
+    const idsToSelect: string[] = [];
+    const yrPrefix = YEAR_PREFIX_MAP[selectedYear] || '24';
+
+    sectionRollNumbers.forEach(suffix => {
+      const student = currentSectionStudentsMap.get(suffix);
+      if (student) {
+        idsToSelect.push(student.id || (student as any).userId);
+      } else {
+        const formattedSuffix = String(suffix).padStart(2, '0');
+        idsToSelect.push(`stu-${yrPrefix}B91A07${formattedSuffix}`);
+      }
+    });
+    setSelectedStudentIds(idsToSelect);
   };
 
   const handleClearSelection = () => {
@@ -70,22 +232,17 @@ export default function AdminCounseling() {
 
   const handleAssign = () => {
     if (!selectedFacultyId) {
-      setErrorMsg('Please select a target Faculty member first.');
+      setErrorMsg('Please select a target Faculty member first on the left column.');
       setTimeout(() => setErrorMsg(null), 4000);
       return;
     }
     if (selectedStudentIds.length === 0) {
-      setErrorMsg('Please select at least one student to assign.');
+      setErrorMsg('Please select at least one student roll number to assign.');
       setTimeout(() => setErrorMsg(null), 4000);
       return;
     }
     assignMutation.mutate({ facultyId: selectedFacultyId, studentIds: selectedStudentIds });
   };
-
-  const filteredUnassigned = unassignedStudents.filter(s =>
-    (s.name || '').toLowerCase().includes(searchUnassigned.toLowerCase()) ||
-    (s.rollNumber || s.id || '').toLowerCase().includes(searchUnassigned.toLowerCase())
-  );
 
   const filteredFaculty = facultyCounselors.filter(f =>
     (f.name || '').toLowerCase().includes(searchFaculty.toLowerCase()) ||
@@ -106,7 +263,7 @@ export default function AdminCounseling() {
         >
           <p className="text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">Admin Portal</p>
           <h1 className="text-[26px] font-heading font-bold text-slate-900">Faculty Counseling Management</h1>
-          <p className="text-[14px] text-slate-400 mt-1">Assign students to faculty counselors and manage departmental counseling workloads</p>
+          <p className="text-[14px] text-slate-400 mt-1">Assign students to faculty counselors using the interactive section roll grid</p>
         </motion.div>
 
         {/* Toast Alerts */}
@@ -142,7 +299,7 @@ export default function AdminCounseling() {
               />
             </div>
 
-            <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1 no-scrollbar">
+            <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1 no-scrollbar">
               {filteredFaculty.map(f => {
                 const isSelected = selectedFacultyId === f.id || selectedFacultyId === (f as any).userId;
                 return (
@@ -171,21 +328,21 @@ export default function AdminCounseling() {
             </div>
           </div>
 
-          {/* Right Column: Multi-Select Students to Assign */}
+          {/* Right Column: Interactive Roll Number Grid */}
           <div className="lg:col-span-7 bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <UserPlus size={18} className="text-orange-500" />
-                  <h2 className="text-[16px] font-bold text-slate-900">2. Select Students to Assign</h2>
+                  <h2 className="text-[16px] font-bold text-slate-900">2. Select Students by Roll Number</h2>
                 </div>
                 <div className="flex items-center gap-2 text-[11px] font-bold">
                   <button
                     type="button"
-                    onClick={handleSelectAllFiltered}
+                    onClick={handleSelectAllSection}
                     className="text-orange-600 hover:underline cursor-pointer"
                   >
-                    Select All ({filteredUnassigned.length})
+                    Select All
                   </button>
                   <span>•</span>
                   <button
@@ -210,58 +367,112 @@ export default function AdminCounseling() {
                 </div>
               )}
 
-              {/* Search Unassigned */}
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search students by roll number or name…"
-                  value={searchUnassigned}
-                  onChange={e => setSearchUnassigned(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-[12px] bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500"
-                />
+              {/* Top Filter Controls: Year & Section */}
+              <div className="bg-slate-50/80 border border-slate-200/60 rounded-xl p-3 space-y-2.5">
+                {/* Year Selectors */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px]">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+                    <GraduationCap size={13} className="text-orange-500" />
+                    Year:
+                  </span>
+                  {['1st Year', '2nd Year', '3rd Year', '4th Year'].map(yr => (
+                    <button
+                      key={yr}
+                      type="button"
+                      onClick={() => {
+                        setSelectedYear(yr);
+                        setSelectedStudentIds([]);
+                      }}
+                      className={`px-3 py-1 font-bold rounded-lg cursor-pointer shrink-0 transition-all ${
+                        selectedYear === yr
+                          ? 'bg-orange-500 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {yr}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Section Selectors */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px]">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+                    <Building2 size={13} className="text-orange-500" />
+                    Section:
+                  </span>
+                  {(['CSD', 'CSIT A', 'CSIT B'] as const).map(sec => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSection(sec);
+                        setSelectedStudentIds([]);
+                      }}
+                      className={`px-3 py-1 font-bold rounded-lg cursor-pointer shrink-0 transition-all ${
+                        selectedSection === sec
+                          ? 'bg-slate-900 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {sec}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Students Checklist */}
-              <div className="max-h-[260px] overflow-y-auto space-y-1.5 pr-1 no-scrollbar">
-                {filteredUnassigned.length === 0 ? (
-                  <p className="text-[12px] text-slate-400 text-center py-6">No unassigned students match your filter.</p>
-                ) : (
-                  filteredUnassigned.map(s => {
-                    const isChecked = selectedStudentIds.includes(s.id);
+              {/* ── Stationary Roll Number Buttons Grid (Dynamic per Year & Section) ── */}
+              <div className="p-3 bg-slate-50/40 border border-slate-200/50 rounded-xl">
+                <div className="flex flex-wrap justify-center gap-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+                  {sectionRollNumbers.map(suffix => {
+                    const student = currentSectionStudentsMap.get(suffix);
+                    const yrPrefix = YEAR_PREFIX_MAP[selectedYear] || '24';
+                    const formattedSuffix = String(suffix).padStart(2, '0');
+                    const targetId = student ? (student.id || (student as any).userId) : `stu-${yrPrefix}B91A07${formattedSuffix}`;
+                    
+                    const isSelected = selectedStudentIds.includes(targetId);
+                    const assignedCounselor = currentCounselorMap.get(suffix);
+
+                    let buttonBg = 'bg-white border-slate-200 text-slate-700 hover:bg-orange-50 hover:border-orange-300';
+                    if (isSelected) {
+                      buttonBg = 'bg-orange-500 border-orange-600 text-white shadow-md ring-2 ring-orange-300';
+                    } else if (assignedCounselor) {
+                      buttonBg = 'bg-slate-100 border-slate-300 text-slate-500 hover:bg-orange-50';
+                    }
+
                     return (
-                      <label
-                        key={s.id}
-                        onClick={() => handleToggleSelectStudent(s.id)}
-                        className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                          isChecked
-                            ? 'bg-orange-50 border-orange-300'
-                            : 'bg-white border-slate-100 hover:bg-slate-50'
-                        }`}
+                      <motion.button
+                        key={suffix}
+                        type="button"
+                        whileTap={{ scale: 0.94 }}
+                        onClick={() => handleToggleRollNumber(suffix)}
+                        className={`
+                          w-[50px] h-[50px] sm:w-[54px] sm:h-[54px]
+                          rounded-xl font-extrabold text-[13px] sm:text-[14px]
+                          flex flex-col items-center justify-center
+                          select-none cursor-pointer border shadow-2xs shrink-0
+                          transition-all duration-150 relative
+                          ${buttonBg}
+                        `}
+                        title={
+                          assignedCounselor
+                            ? `[${selectedYear} ${selectedSection}] Roll #${suffix}: Assigned to ${assignedCounselor}. Click to toggle.`
+                            : `[${selectedYear} ${selectedSection}] Roll #${suffix}: Click to select for assignment`
+                        }
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}}
-                            className="w-4 h-4 accent-orange-500 rounded cursor-pointer"
-                          />
-                          <div className="min-w-0">
-                            <span className="text-[13px] font-bold text-slate-800 truncate block">{s.name}</span>
-                            <span className="text-[11px] font-mono text-slate-400 font-bold">{s.rollNumber || s.id}</span>
-                          </div>
-                        </div>
-                        <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                          {s.department}
-                        </span>
-                      </label>
+                        <span>{suffix}</span>
+                        {assignedCounselor && !isSelected && (
+                          <span className="text-[8px] opacity-75 truncate max-w-[42px]">
+                            {assignedCounselor.split(' ')[0]}
+                          </span>
+                        )}
+                      </motion.button>
                     );
-                  })
-                )}
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Submit Button */}
+            {/* Submit Action Button */}
             <div className="pt-3 border-t border-slate-100">
               <button
                 type="button"
@@ -277,7 +488,7 @@ export default function AdminCounseling() {
 
         </div>
 
-        {/* ── Step 2: Faculty Counseling Directory ── */}
+        {/* ── Step 2: Faculty Counseling Directory Overview ── */}
         <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
@@ -322,7 +533,7 @@ export default function AdminCounseling() {
                           className="w-6 h-6 rounded-md bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 flex items-center justify-center cursor-pointer transition-all shrink-0"
                           title="Unassign Student"
                         >
-                          <X size={13} />
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     ))}

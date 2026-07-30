@@ -114,7 +114,7 @@ export default function FacultyAttendance() {
 
   // Roll numbers generator for section
   const currentRollNumbers = useMemo(() => {
-    if (sectionFilter === 'CSIT-B') {
+    if (sectionFilter.includes('B') || sectionFilter === 'CSIT-B') {
       const rolls: string[] = [];
       for (let i = 73; i <= 99; i++) rolls.push(String(i));
       const series = ['A', 'B', 'C'];
@@ -125,7 +125,7 @@ export default function FacultyAttendance() {
       for (let i = 1; i <= 12; i++) rolls.push(`LE${i}`);
       return rolls;
     }
-    // Section A (CSD-A, CSIT-A)
+    // Section A (CSD, CSD-A, CSIT-A, CSIT A)
     return Array.from({ length: 72 }, (_, i) => String(i + 1));
   }, [sectionFilter]);
 

@@ -7,7 +7,7 @@ const router = Router();
 
 function formatUserResponse(user: {
   userId: string; email: string; role: string; name: string;
-  department: string; rollNumber?: string | null;
+  department: string; designation?: string | null; rollNumber?: string | null;
   semester?: number | null; avatarUrl?: string | null; phone?: string | null;
   counselorId?: string | null;
 }) {
@@ -17,6 +17,7 @@ function formatUserResponse(user: {
     role:        user.role,
     name:        user.name,
     department:  user.department,
+    ...(user.designation && { designation: user.designation }),
     ...(user.rollNumber  && { rollNumber:  user.rollNumber  }),
     ...(user.semester    && { semester:    user.semester    }),
     ...(user.avatarUrl   && { avatarUrl:   user.avatarUrl   }),
@@ -41,51 +42,76 @@ router.get('/counselees', verifyToken, async (req: Request, res: Response) => {
       orderBy: { rollNumber: 'asc' },
     });
 
-    // Calculate attendance percentage for each counseling student
-    const counseleesWithStats = await Promise.all(
-      counselees.map(async (student) => {
-        const roll = student.rollNumber || student.userId;
-        const suffix = roll.length > 2 ? roll.slice(-2) : roll;
+    if (counselees.length === 0) {
+      res.json({ counselees: [] });
+      return;
+    }
 
-        // Total conducted attendance records for this student's roll number
-        const records = await prisma.attendanceRecord.findMany({
-          where: {
-            OR: [
-              { rollNumber: roll },
-              { rollNumber: suffix },
-            ],
-          },
-        });
+    // Collect all roll numbers and user IDs for batch querying
+    const studentUserIds = counselees.map(s => s.userId);
+    const rollNumbers = counselees.map(s => s.rollNumber || s.userId).filter(Boolean) as string[];
+    const rollSuffixes = rollNumbers.map(r => r.length > 2 ? r.slice(-2) : r);
+    const allRollTargets = Array.from(new Set([...rollNumbers, ...rollSuffixes]));
 
-        const conductedCount = records.length;
-        const presentCount = records.filter(r => r.status === 'present').length;
+    // Batch fetch attendance records and approved permissions
+    const [allRecords, approvedRequests] = await Promise.all([
+      prisma.attendanceRecord.findMany({
+        where: { rollNumber: { in: allRollTargets } },
+      }),
+      prisma.request.findMany({
+        where: {
+          studentId: { in: studentUserIds },
+          status: 'approved',
+        },
+        select: { studentId: true },
+      }),
+    ]);
 
-        // Approved permissions count for this student
-        const approvedPermissionsCount = await prisma.request.count({
-          where: {
-            studentId: student.userId,
-            status: 'approved',
-          },
-        });
+    // Group records by roll number and approved requests by studentId
+    const recordsByRoll = new Map<string, typeof allRecords>();
+    allRecords.forEach(r => {
+      const existing = recordsByRoll.get(r.rollNumber) || [];
+      recordsByRoll.set(r.rollNumber, [...existing, r]);
+    });
 
-        // Attendance percentage calculation
-        const effectivePresent = presentCount + approvedPermissionsCount;
-        const percentage = conductedCount > 0 
-          ? Math.min(100, Math.round((effectivePresent / conductedCount) * 100))
-          : 85; // Default 85% if no attendance conducted yet
+    const approvedCountByStudent = new Map<string, number>();
+    approvedRequests.forEach(reqItem => {
+      approvedCountByStudent.set(reqItem.studentId, (approvedCountByStudent.get(reqItem.studentId) || 0) + 1);
+    });
 
-        return {
-          ...formatUserResponse(student),
-          stats: {
-            conductedCount,
-            presentCount,
-            approvedPermissionsCount,
-            absentCount: conductedCount - presentCount,
-            percentage,
-          },
-        };
-      })
-    );
+    // Compute stats for each counselee in-memory
+    const counseleesWithStats = counselees.map(student => {
+      const roll = student.rollNumber || student.userId;
+      const suffix = roll.length > 2 ? roll.slice(-2) : roll;
+
+      const fullRecords = recordsByRoll.get(roll) || [];
+      const suffixRecords = roll !== suffix ? (recordsByRoll.get(suffix) || []) : [];
+      
+      // Combine unique record IDs
+      const recordMap = new Map<string, typeof fullRecords[0]>();
+      [...fullRecords, ...suffixRecords].forEach(rec => recordMap.set(rec.id, rec));
+      const studentRecords = Array.from(recordMap.values());
+
+      const conductedCount = studentRecords.length;
+      const presentCount = studentRecords.filter(r => r.status === 'present').length;
+      const approvedPermissionsCount = approvedCountByStudent.get(student.userId) || 0;
+
+      const effectivePresent = presentCount + approvedPermissionsCount;
+      const percentage = conductedCount > 0
+        ? Math.min(100, Math.round((effectivePresent / conductedCount) * 100))
+        : 85;
+
+      return {
+        ...formatUserResponse(student),
+        stats: {
+          conductedCount,
+          presentCount,
+          approvedPermissionsCount,
+          absentCount: conductedCount - presentCount,
+          percentage,
+        },
+      };
+    });
 
     res.json({ counselees: counseleesWithStats });
   } catch (err) {
@@ -125,6 +151,7 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
             email: true,
             rollNumber: true,
             department: true,
+            semester: true,
             avatarUrl: true,
           },
         },
@@ -144,6 +171,7 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
         email: true,
         rollNumber: true,
         department: true,
+        semester: true,
         avatarUrl: true,
       },
       orderBy: { rollNumber: 'asc' },
@@ -158,6 +186,7 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
           email: s.email,
           rollNumber: s.rollNumber ?? s.userId,
           department: s.department,
+          semester: s.semester ?? undefined,
           avatarUrl: s.avatarUrl ?? undefined,
         })),
       })),
@@ -167,6 +196,7 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
         email: s.email,
         rollNumber: s.rollNumber ?? s.userId,
         department: s.department,
+        semester: s.semester ?? undefined,
         avatarUrl: s.avatarUrl ?? undefined,
       })),
     });

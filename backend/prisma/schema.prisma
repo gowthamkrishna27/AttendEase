@@ -47,6 +47,7 @@ model User {
   rollNumber  String?
   semester    Int?
   avatarUrl   String?
+  designation String?
   phone       String?
   fcmToken    String?
   isActive    Boolean  @default(true)
