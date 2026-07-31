@@ -121,27 +121,30 @@ interface RollButtonProps {
 }
 
 const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollButtonProps) => {
-  const isPermission = Boolean(request);
   const isPresent = markedStatus === 'present';
   const isAbsent = markedStatus === 'absent';
+  // Bug 8 Fix: Attendance has HIGHEST priority. Permission (yellow) only shows
+  // when there is NO attendance record for this student.
+  const hasAttendance = isPresent || isAbsent;
+  const isPermission = Boolean(request) && !hasAttendance;
 
-  // Determine dynamic background color & text style
+  // Priority: Present (Green) > Absent (Red) > Permission (Yellow) > Unmarked (White)
   let bgColor = '#FFFFFF';
   let textColor = 'text-slate-800';
-  let badgeStyle = 'bg-white border-amber-300/80 text-slate-800 hover:border-amber-400 hover:bg-amber-50/40';
+  let badgeStyle = 'bg-white border-slate-200 text-slate-800 hover:border-slate-300 hover:bg-slate-50/40';
 
-  if (isPermission) {
-    bgColor = '#FDE047'; // Yellow
-    textColor = 'text-slate-900';
-    badgeStyle = 'bg-[#FDE047] border-amber-400 text-slate-900 shadow-amber-200/50 hover:bg-[#FACC15] ring-2 ring-amber-300/40';
-  } else if (isPresent) {
-    bgColor = '#10B981'; // Emerald Green
+  if (isPresent) {
+    bgColor = '#10B981'; // Emerald Green — HIGHEST PRIORITY
     textColor = 'text-white';
     badgeStyle = 'bg-emerald-500 border-emerald-600 text-white shadow-emerald-200/50 hover:bg-emerald-600 ring-2 ring-emerald-300/40';
   } else if (isAbsent) {
-    bgColor = '#EF4444'; // Rose Red
+    bgColor = '#EF4444'; // Rose Red — SECOND PRIORITY
     textColor = 'text-white';
     badgeStyle = 'bg-rose-500 border-rose-600 text-white shadow-rose-200/50 hover:bg-rose-600 ring-2 ring-rose-300/40';
+  } else if (isPermission) {
+    bgColor = '#FDE047'; // Yellow — only when no attendance exists
+    textColor = 'text-slate-900';
+    badgeStyle = 'bg-[#FDE047] border-amber-400 text-slate-900 shadow-amber-200/50 hover:bg-[#FACC15] ring-2 ring-amber-300/40';
   }
 
   return (
@@ -167,12 +170,12 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
         ${textColor}
       `}
       title={
-        isPermission
-          ? `Roll #${rollNo}: Approved Permission (${request?.reasonLabel}) - Click to view slip`
-          : isPresent
-          ? `Roll #${rollNo}: Marked Present`
+        isPresent
+          ? `Roll #${rollNo}: Marked Present${Boolean(request) ? ' (Has Approved Permission)' : ''}`
           : isAbsent
-          ? `Roll #${rollNo}: Marked Absent`
+          ? `Roll #${rollNo}: Marked Absent${Boolean(request) ? ' (Has Approved Permission — marked absent by faculty)' : ''}`
+          : isPermission
+          ? `Roll #${rollNo}: Approved Permission (${request?.reasonLabel}) - Click to view slip`
           : `Roll #${rollNo}: Unmarked`
       }
     >
@@ -450,15 +453,44 @@ export default function PermissionsPage() {
     refetchOnWindowFocus: true,
   });
 
+  /**
+   * Bug 9 Fix: Determine section from department + roll number range.
+   * The User model has NO `section` field. Section is derived:
+   *   - Department CSD → Section A only (CSD — Section A)
+   *   - Department CSIT, roll suffix 01–72 → CSIT — Section A
+   *   - Department CSIT, roll suffix 73–99 / A0-C9 / D0-D1 / LE1-LE12 → CSIT — Section B
+   */
+  const getStudentSectionKey = useCallback((req: any): string => {
+    const dept = (req.student?.department ?? '').toUpperCase().trim();
+    const rawRoll = (req.student?.rollNumber ?? req.studentId ?? '').toUpperCase().trim();
+
+    // CSD students are all in Section A
+    if (dept === 'CSD' || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
+      return 'CSD — Section A';
+    }
+
+    // CSIT: extract the roll suffix (last 2 chars of 24B91A07XX)
+    // Roll numbers 01–72 → Section A; 73+ and alpha-suffix → Section B
+    const suffix = extractRollSuffix(rawRoll);
+    if (!suffix) return 'CSIT — Section A'; // safe default
+
+    // Pure numeric suffix
+    if (/^\d+$/.test(suffix)) {
+      const num = parseInt(suffix, 10);
+      return num >= 73 ? 'CSIT — Section B' : 'CSIT — Section A';
+    }
+
+    // Alpha-suffix (A0-C9, D0, D1, LE1-LE12) → Section B
+    return 'CSIT — Section B';
+  }, []);
+
   // Filtered Approved List
   const filteredApproved = useMemo(() => {
     const dbApproved = apiRequests.filter(r => r.status === 'approved');
     return dbApproved.filter(req => {
       const studentName = req.student?.name ?? req.studentId ?? '';
       const rollNo = req.student?.rollNumber ?? '';
-      const dept = req.student?.department ?? 'CSD';
-      const studentSec = req.student?.section ?? (req.studentId.slice(-2) < '35' ? 'A' : 'B');
-      const secName = req.sectionName ?? `${dept} — Section ${studentSec}`;
+      const sectionKey = getStudentSectionKey(req);
 
       const matchesDate = dateMode === 'all' || req.date === todayStr;
       const matchesSearch =
@@ -466,15 +498,16 @@ export default function PermissionsPage() {
         rollNo.toLowerCase().includes(search.toLowerCase()) ||
         req.reasonLabel.toLowerCase().includes(search.toLowerCase());
 
+      // Bug 9 Fix: Use the derived sectionKey for accurate filtering
       const matchesSection =
         sectionFilter === 'all' ||
-        (sectionFilter === 'CSD-A' && secName.includes('CSD') && secName.includes('Section A')) ||
-        (sectionFilter === 'CSIT-A' && secName.includes('CSIT') && secName.includes('Section A')) ||
-        (sectionFilter === 'CSIT-B' && secName.includes('CSIT') && secName.includes('Section B'));
+        (sectionFilter === 'CSD-A' && sectionKey === 'CSD — Section A') ||
+        (sectionFilter === 'CSIT-A' && sectionKey === 'CSIT — Section A') ||
+        (sectionFilter === 'CSIT-B' && sectionKey === 'CSIT — Section B');
 
       return matchesDate && matchesSearch && matchesSection;
     });
-  }, [apiRequests, dateMode, search, sectionFilter, todayStr]);
+  }, [apiRequests, dateMode, search, sectionFilter, todayStr, getStudentSectionKey]);
 
   // Group by Section (Ensure standard section keys exist so grids are always rendered)
   const { sectionsMap, sectionKeys } = useMemo(() => {
@@ -485,9 +518,7 @@ export default function PermissionsPage() {
     };
 
     filteredApproved.forEach(req => {
-      const dept = req.student?.department ?? 'CSD';
-      const sec = req.student?.section ?? (req.studentId.slice(-2) < '35' ? 'A' : 'B');
-      const key = req.sectionName ?? `${dept} — Section ${sec}`;
+      const key = getStudentSectionKey(req);
       if (!map[key]) map[key] = [];
       map[key].push(req);
     });
@@ -507,7 +538,7 @@ export default function PermissionsPage() {
     }
 
     return { sectionsMap: map, sectionKeys: keys };
-  }, [filteredApproved, sectionFilter]);
+  }, [filteredApproved, sectionFilter, getStudentSectionKey]);
 
   // Filter attendance submissions for current section filter so submissions don't bleed across sections
   const activeSectionSubmissions = useMemo(() => {
@@ -905,7 +936,7 @@ export default function PermissionsPage() {
                   sectionKey={sectionKey}
                   passes={sectionsMap[sectionKey] || []}
                   markedAttendance={markedAttendance}
-                  attendanceSubmissions={attendanceSubmissions}
+                  attendanceSubmissions={activeSectionSubmissions}
                   selectedSubmissionId={selectedSubmissionId}
                   isCollapsed={Boolean(collapsedSections[sectionKey])}
                   onToggleCollapse={() => toggleSection(sectionKey)}

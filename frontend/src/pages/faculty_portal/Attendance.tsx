@@ -118,15 +118,35 @@ export default function FacultyAttendance() {
   }, [approvedRequests, selectedDate]);
 
   // Find submission matching current selected periods
+  // Bug 11 Fix: Normalize both sides to sorted comma-separated form
+  // so "2,1" stored in DB matches "1,2" from frontend
   const currentSubmission = useMemo(() => {
-    return existingSubmissions.find(sub => sub.periods === periodsKey);
+    const normalizePeriodsStr = (p: string | number | undefined | null): string => {
+      if (!p) return '';
+      const s = String(p).trim();
+      const nums = s.includes(',')
+        ? s.split(',').map(n => Number(n.trim())).filter(n => !isNaN(n))
+        : [Number(s)].filter(n => !isNaN(n));
+      return [...new Set(nums)].sort((a, b) => a - b).join(',');
+    };
+    const normalizedKey = normalizePeriodsStr(periodsKey);
+    return existingSubmissions.find(sub => normalizePeriodsStr(String(sub.periods)) === normalizedKey);
   }, [existingSubmissions, periodsKey]);
 
-  // Check ownership (Faculty can update attendance they personally marked, Admin can edit all)
+  // Check ownership (Faculty can update attendance they personally marked, Admin & HOD can edit all)
   const isOwner = useMemo(() => {
     if (!currentSubmission) return true;
-    const currentUserId = user?.id || user?.userId;
-    return currentSubmission.markedById === currentUserId || user?.role === 'admin';
+    const currentUserId = (user?.id || user?.userId || '').toLowerCase().trim();
+    const markedById = (currentSubmission.markedById || '').toLowerCase().trim();
+    const userEmail = (user?.email || '').toLowerCase().trim();
+    const markedEmail = (currentSubmission.markedBy?.email || '').toLowerCase().trim();
+
+    return (
+      (currentUserId && markedById && currentUserId === markedById) ||
+      (userEmail && markedEmail && userEmail === markedEmail) ||
+      user?.role === 'admin' ||
+      user?.role === 'hod'
+    );
   }, [currentSubmission, user]);
 
   // Populate grid when switching periods/date/section if a submission exists, and pre-mark permissions as present
@@ -396,8 +416,19 @@ export default function FacultyAttendance() {
                     : [Number(s.periods)];
                   return pArr.includes(slot.id);
                 });
-                const isLocked = subForSlot && subForSlot.markedById !== user?.id && subForSlot.markedById !== user?.userId && user?.role !== 'admin';
-                const lockedBy = isLocked ? subForSlot.markedBy?.name || 'Faculty' : null;
+                const currentUid = (user?.id || user?.userId || '').toLowerCase().trim();
+                const currentUemail = (user?.email || '').toLowerCase().trim();
+                const subUid = (subForSlot?.markedById || '').toLowerCase().trim();
+                const subUemail = (subForSlot?.markedBy?.email || '').toLowerCase().trim();
+
+                const isLocked = Boolean(
+                  subForSlot &&
+                  !(currentUid && subUid && currentUid === subUid) &&
+                  !(currentUemail && subUemail && currentUemail === subUemail) &&
+                  user?.role !== 'admin' &&
+                  user?.role !== 'hod'
+                );
+                const lockedBy = isLocked ? subForSlot?.markedBy?.name || 'Faculty' : null;
 
                 return (
                   <button
