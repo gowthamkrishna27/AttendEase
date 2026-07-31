@@ -274,24 +274,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    // HOD can view requests from their own department (flexible matching)
-    if (user.role === 'hod') {
-      const userDept = (user.department || '').trim().toLowerCase();
-      const studentDept = (doc.student?.department || '').trim().toLowerCase();
-      const primaryFacDept = (doc.primaryFaculty?.department || '').trim().toLowerCase();
-      const assignedFacDepts = doc.faculties.map(rf => (rf.faculty.department || '').trim().toLowerCase());
+    // HOD can view any request across the system without restriction to perform executive reviews
 
-      const isMatch =
-        !userDept ||
-        studentDept.includes(userDept) || userDept.includes(studentDept) ||
-        primaryFacDept.includes(userDept) || userDept.includes(primaryFacDept) ||
-        assignedFacDepts.some(d => d.includes(userDept) || userDept.includes(d));
-
-      if (!isMatch) {
-        res.status(403).json({ error: 'This request does not belong to your department' });
-        return;
-      }
-    }
 
     res.json({ request: toApi(doc) });
   } catch (err) {
@@ -464,14 +448,19 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:id', async (req: Request, res: Response) => {
   let user = req.user!;
 
-  // Allow role override from HOD executive control panel
+  // Role override from HOD executive control panel
   const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  if (roleOverride === 'hod' || roleOverride === 'admin' || (user.role as string) === 'viewer') {
-    user = { ...user, role: (roleOverride as any) || 'hod' };
+  if (roleOverride === 'hod' || (user.role as string) === 'viewer') {
+    user = { ...user, role: 'hod' };
   }
 
   if (user.role === 'student') {
     res.status(403).json({ error: 'Students cannot review requests' });
+    return;
+  }
+
+  if (user.role === 'admin') {
+    res.status(403).json({ error: 'System Admins manage users only; attendance requests are reviewed by HOD and Faculty.' });
     return;
   }
 
@@ -528,24 +517,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    // ── HOD authorization ─────────────────────────────────────────────────────
-    if (user.role === 'hod') {
-      const userDept = (user.department || '').trim().toLowerCase();
-      const studentDept = (existing.student?.department || '').trim().toLowerCase();
-      const primaryFacDept = (existing.primaryFaculty?.department || '').trim().toLowerCase();
-      const assignedFacDepts = existing.faculties.map(rf => (rf.faculty.department || '').trim().toLowerCase());
+    // HOD & Admin have full executive override authority over any request status
 
-      const isMatch =
-        !userDept ||
-        studentDept.includes(userDept) || userDept.includes(studentDept) ||
-        primaryFacDept.includes(userDept) || userDept.includes(primaryFacDept) ||
-        assignedFacDepts.some(d => d.includes(userDept) || userDept.includes(d));
-
-      if (!isMatch) {
-        res.status(403).json({ error: 'This request does not belong to your department' });
-        return;
-      }
-    }
 
     // ── Determine Action Name & Status ────────────────────────────────────────
     const newStatus = action === 'approve' ? 'approved' : 'rejected';
