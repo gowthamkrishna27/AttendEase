@@ -4,8 +4,17 @@
  * Attaches JWT from localStorage to every authenticated request
  */
 
-const rawBase = (import.meta.env['VITE_API_URL'] || 'https://attendease-apuw.onrender.com').trim();
-const BASE = rawBase.replace(/\/+$/, '');
+const getApiBase = (): string => {
+  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
+  if (envUrl) return envUrl.replace(/\/+$/, '');
+
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:3000';
+  }
+  return 'https://attendease-apuw.onrender.com';
+};
+
+const BASE = getApiBase();
 
 const TOKEN_KEY = 'attendease_token';
 

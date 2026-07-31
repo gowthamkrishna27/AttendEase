@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -88,11 +88,18 @@ export default function FacultyAttendance() {
     queryFn: () => api.getAttendanceSubmissions(selectedDate, sectionFilter, selectedYear),
   });
 
+  // Stable empty-array constant — avoids new reference on every render when query data is undefined.
+  // BUG FIX: Using `= []` inline creates a new array reference each render → permissionStudentsSet
+  // recalculates → useEffect fires → setMarkedAttendance called every render → infinite loop.
+  const STABLE_EMPTY = useMemo<api.AttendanceRequest[]>(() => [], []);
+
   // Query approved permission passes for date pre-highlighting
-  const { data: approvedRequests = [] } = useQuery({
+  const { data: approvedRequestsRaw } = useQuery({
     queryKey: ['public-approved-requests-for-attendance'],
     queryFn: () => api.getPublicApprovedRequests(),
+    retry: 1,
   });
+  const approvedRequests = approvedRequestsRaw ?? STABLE_EMPTY;
 
   // Map students who have approved permission passes for selectedDate
   const permissionStudentsSet = useMemo(() => {
@@ -116,6 +123,13 @@ export default function FacultyAttendance() {
     });
     return set;
   }, [approvedRequests, selectedDate]);
+
+  // Derive a stable primitive string from the Set so useEffect can use it as a dep
+  // without firing on every render due to Set object reference changes.
+  const permissionRollsKey = useMemo(
+    () => [...permissionStudentsSet].sort().join(','),
+    [permissionStudentsSet]
+  );
 
   // Find submission matching current selected periods
   // Bug 11 Fix: Normalize both sides to sorted comma-separated form
@@ -149,8 +163,26 @@ export default function FacultyAttendance() {
     );
   }, [currentSubmission, user]);
 
+  // Ref to track the last submission ID and permissionRollsKey that triggered a re-population
+  // to prevent useEffect from calling setMarkedAttendance when nothing actually changed.
+  const lastPopulatedRef = useRef<{ submissionId: string | undefined; permissionKey: string }>({
+    submissionId: undefined,
+    permissionKey: '',
+  });
+
   // Populate grid when switching periods/date/section if a submission exists, and pre-mark permissions as present
+  // BUG FIX: Use permissionRollsKey (stable string) instead of permissionStudentsSet (object ref)
+  // to prevent re-firing on every render when Set content hasn't actually changed.
   useEffect(() => {
+    const submissionId = currentSubmission?.id;
+    const prevRef = lastPopulatedRef.current;
+
+    // Early exit: skip if nothing content-wise has changed
+    if (submissionId === prevRef.submissionId && permissionRollsKey === prevRef.permissionKey) {
+      return;
+    }
+    lastPopulatedRef.current = { submissionId, permissionKey: permissionRollsKey };
+
     const initialMap: Record<string, 'present' | 'absent'> = {};
     if (currentSubmission && currentSubmission.records) {
       currentSubmission.records.forEach(rec => {
@@ -164,7 +196,8 @@ export default function FacultyAttendance() {
       }
     });
     setMarkedAttendance(initialMap);
-  }, [currentSubmission, permissionStudentsSet]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSubmission, permissionRollsKey]);
 
   // Roll numbers generator for section
   const currentRollNumbers = useMemo(() => {
