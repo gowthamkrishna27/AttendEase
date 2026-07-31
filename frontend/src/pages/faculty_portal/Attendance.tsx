@@ -553,10 +553,10 @@ export default function FacultyAttendance() {
                 Click Mode:
               </span>
               <div className="flex items-center gap-2">
-                <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${
+                <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${
                   markMode === 'present'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold shadow-2xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 shadow-2xs ring-2 ring-emerald-500/20'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}>
                   <input
                     type="radio"
@@ -565,14 +565,14 @@ export default function FacultyAttendance() {
                     onChange={() => setMarkMode('present')}
                     className="sr-only"
                   />
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-                  <span>Presentees 🟢</span>
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${markMode === 'present' ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-slate-400'}`} />
+                  <span>Presentees</span>
                 </label>
 
-                <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${
+                <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${
                   markMode === 'absent'
-                    ? 'bg-rose-50 border-rose-300 text-rose-800 font-bold shadow-2xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    ? 'bg-rose-50/80 border-rose-300 text-rose-900 shadow-2xs ring-2 ring-rose-500/20'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}>
                   <input
                     type="radio"
@@ -581,8 +581,8 @@ export default function FacultyAttendance() {
                     onChange={() => setMarkMode('absent')}
                     className="sr-only"
                   />
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
-                  <span>Absentees 🔴</span>
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${markMode === 'absent' ? 'bg-rose-500 shadow-xs shadow-rose-500/50' : 'bg-slate-400'}`} />
+                  <span>Absentees</span>
                 </label>
               </div>
             </div>
