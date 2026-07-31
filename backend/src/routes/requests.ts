@@ -537,6 +537,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     const decisionRole = user.role === 'hod' ? 'HOD' : 'Faculty';
 
+    const performingUserId = (user as any).userId || user.id;
+
     const updated = await prisma.$transaction(async tx => {
       const result = await tx.request.update({
         where: { id: existing.id },
@@ -545,43 +547,55 @@ router.patch('/:id', async (req: Request, res: Response) => {
           rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || null) : null,
           reviewedAt:          new Date().toISOString(),
           finalDecisionBy:     decisionRole,
-          finalDecisionUserId: user.id,
+          finalDecisionUserId: performingUserId,
         },
         include: REQUEST_INCLUDE,
       });
 
-      // Record audit action
+      // Record audit action (performedById references User.userId)
       await tx.requestAction.create({
         data: {
           requestId:     existing.id,
-          performedById: user.id,
+          performedById: performingUserId,
           action:        actionName,
           remarks:       effectiveRemarks,
         },
       });
 
-      // Generate Notification for student
-      await tx.notification.create({
-        data: {
-          userId:    existing.studentId,
-          requestId: existing.id,
-          type:      newStatus,
-          title:     `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-          message:   `Your request for ${existing.reasonLabel} has been ${newStatus} by ${user.name} (${decisionRole}).`,
-        },
-      });
+      // Safely generate notification for student without breaking transaction
+      try {
+        const studentRecipientId = existing.student?.userId || existing.studentId;
+        if (studentRecipientId) {
+          await tx.notification.create({
+            data: {
+              userId:    studentRecipientId,
+              requestId: existing.id,
+              type:      newStatus,
+              title:     `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
+              message:   `Your request for ${existing.reasonLabel} has been ${newStatus} by ${user.name} (${decisionRole}).`,
+            },
+          });
+        }
+      } catch (notifErr) {
+        console.warn('Student notification generation skipped:', notifErr);
+      }
 
-      // If HOD override, notify assigned faculty
+      // Safely generate notification for assigned faculty if HOD override
       if (user.role === 'hod' && assignedFacultyIds.length > 0) {
-        await tx.notification.createMany({
-          data: assignedFacultyIds.map(facId => ({
-            userId:    facId,
-            requestId: existing.id,
-            type:      'override',
-            title:     'HOD Decision Override',
-            message:   `HOD ${user.name} updated decision to ${newStatus} for student ${existing.student?.name || 'Student'}.`,
-          })),
-        });
+        try {
+          await tx.notification.createMany({
+            data: assignedFacultyIds.map(facId => ({
+              userId:    facId,
+              requestId: existing.id,
+              type:      'override',
+              title:     'HOD Decision Override',
+              message:   `HOD ${user.name} updated decision to ${newStatus} for student ${existing.student?.name || 'Student'}.`,
+            })),
+            skipDuplicates: true,
+          });
+        } catch (facNotifErr) {
+          console.warn('Faculty notification generation skipped:', facNotifErr);
+        }
       }
 
       return result;
