@@ -5,12 +5,15 @@
  */
 
 const getApiBase = (): string => {
-  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
-  if (envUrl) return envUrl.replace(/\/+$/, '');
-
+  // If running in browser on localhost / 127.0.0.1, always target local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:3000';
   }
+
+  // Otherwise (on Vercel production deployment), use VITE_API_URL or fallback to Render
+  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
+  if (envUrl) return envUrl.replace(/\/+$/, '');
+
   return 'https://attendease-apuw.onrender.com';
 };
 
