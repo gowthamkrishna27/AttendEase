@@ -30,15 +30,49 @@ export function formatTimeAgo(dateStr: string): string {
   }
 }
 
-export function formatTime(time: string): string {
+export function formatTime(time: string | undefined | null): string {
+  if (!time || typeof time !== 'string') return '';
+  const str = time.trim();
+  if (!str) return '';
+
   try {
-    const [hours, minutes] = time.split(':').map(Number);
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`;
+    // 1. Check if time already contains AM/PM (e.g. "09:00 AM", "9:00am", "4 PM")
+    const ampmMatch = str.match(/^(\d{1,2})(?::(\d{1,2}))?\s*(AM|PM|am|pm)$/i);
+    if (ampmMatch) {
+      const h = parseInt(ampmMatch[1], 10);
+      const m = ampmMatch[2] ? parseInt(ampmMatch[2], 10) : 0;
+      const period = ampmMatch[3].toUpperCase();
+      const displayH = h % 12 || 12;
+      const displayM = String(isNaN(m) ? 0 : m).padStart(2, '0');
+      return `${displayH}:${displayM} ${period}`;
+    }
+
+    // 2. Check if 24-hr time format "HH:MM" or "HH:MM:SS" (e.g. "09:00", "16:30")
+    const match24 = str.match(/^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/);
+    if (match24) {
+      const hours = parseInt(match24[1], 10);
+      const minutes = parseInt(match24[2], 10);
+      if (!isNaN(hours) && !isNaN(minutes)) {
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours % 12 || 12;
+        const displayMinutes = String(minutes).padStart(2, '0');
+        return `${displayHours}:${displayMinutes} ${period}`;
+      }
+    }
+
+    // 3. Fallback: extract hours and optional minutes if string has format issues
+    const fallbackMatch = str.match(/^(\d{1,2})/);
+    if (fallbackMatch) {
+      const hours = parseInt(fallbackMatch[1], 10);
+      const period = str.toUpperCase().includes('PM') || hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      return `${displayHours}:00 ${period}`;
+    }
   } catch {
-    return time;
+    // ignore
   }
+
+  return str.replace(/NaN/gi, '00');
 }
 
 export const REASON_LABELS: Record<string, string> = {

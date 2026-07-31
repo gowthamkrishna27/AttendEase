@@ -363,7 +363,7 @@ const PermissionGrid = React.memo(({
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
                           <Calendar size={11} className="text-orange-500 shrink-0" />
-                          <span>{pass.date} | {pass.startTime} - {pass.endTime}</span>
+                          <span>{pass.date} | {formatTime(pass.startTime)} - {formatTime(pass.endTime)}</span>
                         </p>
                       </div>
                     </div>
@@ -989,7 +989,7 @@ export default function PermissionsPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Date &amp; Time Slot:</span>
-                    <span className="font-bold text-slate-800">{selectedPass.date} ({selectedPass.startTime} - {selectedPass.endTime})</span>
+                    <span className="font-bold text-slate-800">{selectedPass.date} ({formatTime(selectedPass.startTime)} - {formatTime(selectedPass.endTime)})</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Approved By:</span>
@@ -1082,7 +1082,7 @@ export default function PermissionsPage() {
                     <div className="pl-4 space-y-2 border-l-2 border-orange-500 bg-orange-50/40 p-3 rounded-r-lg text-[11.5px]">
                       <p><strong>Permission Reason:</strong> {selectedPass.reasonLabel}</p>
                       <p><strong>Purpose &amp; Description:</strong> "{selectedPass.description || 'Permission request for academic/personal reasons.'}"</p>
-                      <p><strong>Date &amp; Time Slot:</strong> {selectedPass.date} ({selectedPass.startTime} – {selectedPass.endTime})</p>
+                      <p><strong>Date &amp; Time Slot:</strong> {selectedPass.date} ({formatTime(selectedPass.startTime)} – {formatTime(selectedPass.endTime)})</p>
                       <p><strong>Approved Faculty Advisor:</strong> {selectedPass.faculty?.name ?? 'Faculty Advisor'}</p>
                     </div>
 
