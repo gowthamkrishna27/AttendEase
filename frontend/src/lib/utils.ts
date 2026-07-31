@@ -75,6 +75,81 @@ export function formatTime(time: string | undefined | null): string {
   return str.replace(/NaN/gi, '00');
 }
 
+export const PERIOD_SLOTS = [
+  { id: 1, label: 'Period 1', start: '09:00', end: '09:45' },
+  { id: 2, label: 'Period 2', start: '09:45', end: '10:30' },
+  { id: 3, label: 'Period 3', start: '10:30', end: '11:15' },
+  { id: 4, label: 'Period 4', start: '11:15', end: '12:00' },
+  { id: 5, label: 'Period 5', start: '13:30', end: '14:15' },
+  { id: 6, label: 'Period 6', start: '14:15', end: '15:00' },
+  { id: 7, label: 'Period 7', start: '15:00', end: '15:45' },
+  { id: 8, label: 'Period 8', start: '15:45', end: '16:30' },
+];
+
+/**
+ * Parse a period string (e.g. "1,2", "1-4", "3") or startTime/endTime range
+ * into an array of period numbers [1, 2, 3, 4].
+ */
+export function getPeriodsFromRequest(req: { periods?: string | null; startTime?: string; endTime?: string }): number[] {
+  if (!req) return [1, 2, 3, 4, 5, 6, 7, 8];
+
+  // 1. Try parsing explicit periods string if provided
+  if (req.periods) {
+    const trimmed = String(req.periods).trim();
+    if (trimmed.includes(',')) {
+      const nums = trimmed.split(',').map(s => parseInt(s.replace(/\D/g, ''), 10)).filter(n => !isNaN(n) && n >= 1 && n <= 8);
+      if (nums.length > 0) return [...new Set(nums)].sort((a, b) => a - b);
+    }
+    if (trimmed.includes('-')) {
+      const parts = trimmed.split('-');
+      const start = parseInt(parts[0].replace(/\D/g, ''), 10);
+      const end = parseInt(parts[1].replace(/\D/g, ''), 10);
+      if (!isNaN(start) && !isNaN(end) && start >= 1 && end >= start) {
+        const arr: number[] = [];
+        for (let i = Math.max(1, start); i <= Math.min(8, end); i++) arr.push(i);
+        return arr;
+      }
+    }
+    const single = parseInt(trimmed.replace(/\D/g, ''), 10);
+    if (!isNaN(single) && single >= 1 && single <= 8) {
+      return [single];
+    }
+  }
+
+  // 2. If periods string is missing/empty, derive periods from startTime & endTime
+  if (req.startTime && req.endTime) {
+    const toMinutes = (timeStr: string): number => {
+      const clean = timeStr.trim();
+      const match = clean.match(/^(\d{1,2}):(\d{2})/);
+      if (!match) return 0;
+      let h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      if (clean.toUpperCase().includes('PM') && h < 12) h += 12;
+      if (clean.toUpperCase().includes('AM') && h === 12) h = 0;
+      return h * 60 + m;
+    };
+
+    const reqStartM = toMinutes(req.startTime);
+    const reqEndM = toMinutes(req.endTime);
+
+    if (reqStartM > 0 && reqEndM > reqStartM) {
+      const matchingPeriods: number[] = [];
+      PERIOD_SLOTS.forEach(slot => {
+        const slotStartM = toMinutes(slot.start);
+        const slotEndM = toMinutes(slot.end);
+        // Overlap condition: reqStart < slotEnd AND reqEnd > slotStart
+        if (reqStartM < slotEndM && reqEndM > slotStartM) {
+          matchingPeriods.push(slot.id);
+        }
+      });
+      if (matchingPeriods.length > 0) return matchingPeriods;
+    }
+  }
+
+  // Fallback: If no periods or time range can be parsed, assume all periods 1-8
+  return [1, 2, 3, 4, 5, 6, 7, 8];
+}
+
 export const REASON_LABELS: Record<string, string> = {
   internship: 'Internship',
   medical: 'Medical Leave',
@@ -88,3 +163,4 @@ export const DEPARTMENTS = [
   'CSD',
   'CSIT',
 ];
+

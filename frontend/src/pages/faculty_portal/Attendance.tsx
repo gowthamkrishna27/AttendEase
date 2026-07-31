@@ -9,6 +9,7 @@ import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import * as api from '../../lib/api';
 import type { AttendanceSubmissionItem } from '../../lib/api';
+import { getPeriodsFromRequest } from '../../lib/utils';
 
 // Period Definition with 45-min slots and 12:00 - 1:30 PM Lunch Break
 export interface PeriodSlot {
@@ -101,28 +102,34 @@ export default function FacultyAttendance() {
   });
   const approvedRequests = approvedRequestsRaw ?? STABLE_EMPTY;
 
-  // Map students who have approved permission passes for selectedDate
+  // Map students who have approved permission passes for selectedDate AND matching selectedPeriodIds
   const permissionStudentsSet = useMemo(() => {
     const set = new Set<string>();
     approvedRequests.forEach(req => {
       if (req.status === 'approved' && req.date === selectedDate) {
-        const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
-        if (rollStr) {
-          set.add(rollStr);
-          const suffix = rollStr.match(/(\d+|\w+)$/)?.[1];
-          if (suffix) {
-            set.add(suffix);
-            const num = parseInt(suffix, 10);
-            if (!isNaN(num)) {
-              set.add(String(num));
-              set.add(String(num).padStart(2, '0'));
+        // Period overlap check: req periods must overlap with currently selected faculty periods
+        const reqPeriods = getPeriodsFromRequest(req);
+        const hasOverlap = selectedPeriodIds.some(pId => reqPeriods.includes(pId));
+
+        if (hasOverlap) {
+          const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
+          if (rollStr) {
+            set.add(rollStr);
+            const suffix = rollStr.match(/(\d+|\w+)$/)?.[1];
+            if (suffix) {
+              set.add(suffix);
+              const num = parseInt(suffix, 10);
+              if (!isNaN(num)) {
+                set.add(String(num));
+                set.add(String(num).padStart(2, '0'));
+              }
             }
           }
         }
       }
     });
     return set;
-  }, [approvedRequests, selectedDate]);
+  }, [approvedRequests, selectedDate, selectedPeriodIds]);
 
   // Derive a stable primitive string from the Set so useEffect can use it as a dep
   // without firing on every render due to Set object reference changes.
@@ -512,7 +519,7 @@ export default function FacultyAttendance() {
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
               <span>
-                {permissionStudentsSet.size} Student(s) have approved out-pass permissions today (Pre-highlighted in 🟡 Yellow & pre-set to Present).
+                {permissionStudentsSet.size} Student(s) have approved permissions for Period(s) {selectedPeriodIds.join(', ')} today (Pre-highlighted in 🟡 Yellow &amp; pre-set to Present).
               </span>
             </div>
             <span className="text-[10.5px] bg-amber-200/80 px-2 py-0.5 rounded-md text-amber-950 font-black uppercase tracking-wider">

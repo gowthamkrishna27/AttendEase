@@ -10,6 +10,7 @@ import {
 import { PageWrapper } from '../components/layout/PageWrapper';
 import * as api from '../lib/api';
 import type { AttendanceRequest } from '../types';
+import { formatTime, getPeriodsFromRequest } from '../lib/utils';
 import srkrEmblem from '../assets/srkr-emblem.png';
 
 export interface ExtendedAttendanceRequest extends AttendanceRequest {
@@ -244,7 +245,24 @@ const PermissionGrid = React.memo(({
 
   const permissionMap = useMemo(() => {
     const map = new Map<string, ExtendedAttendanceRequest>();
+
+    // Parse active submission periods if a period-specific submission is selected
+    const activeSub = selectedSubmissionId !== 'combined'
+      ? attendanceSubmissions.find(s => s.id === selectedSubmissionId)
+      : null;
+
+    const activePeriodNums: number[] = activeSub && activeSub.periods
+      ? activeSub.periods.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n))
+      : [];
+
     passes.forEach(p => {
+      // If filtering by a specific period submission, verify period overlap
+      if (activeSub && activePeriodNums.length > 0) {
+        const passPeriods = getPeriodsFromRequest(p);
+        const hasOverlap = activePeriodNums.some(pNum => passPeriods.includes(pNum));
+        if (!hasOverlap) return;
+      }
+
       const rollStr = p.student?.rollNumber ?? p.studentId;
       const suffix = extractRollSuffix(rollStr);
       if (suffix && rollNumbers.includes(suffix)) {
@@ -252,7 +270,7 @@ const PermissionGrid = React.memo(({
       }
     });
     return map;
-  }, [passes, rollNumbers]);
+  }, [passes, rollNumbers, selectedSubmissionId, attendanceSubmissions]);
 
   const permissionCount = permissionMap.size;
   
