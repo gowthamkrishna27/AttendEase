@@ -221,7 +221,19 @@ const PermissionGrid = React.memo(({
 
     relevantSubmissions.forEach(sub => {
       sub.records.forEach(rec => {
-        map[rec.rollNumber] = rec.status as 'present' | 'absent';
+        const raw = rec.rollNumber;
+        const suffix = extractRollSuffix(raw);
+        const status = rec.status as 'present' | 'absent';
+
+        map[raw] = status;
+        if (suffix) {
+          map[suffix] = status;
+          const num = parseInt(suffix, 10);
+          if (!isNaN(num)) {
+            map[String(num)] = status;
+            map[String(num).padStart(2, '0')] = status;
+          }
+        }
       });
     });
     return map;
@@ -305,7 +317,7 @@ const PermissionGrid = React.memo(({
               <div className="flex flex-wrap justify-center gap-3 sm:gap-3.5 max-w-[680px] mx-auto">
                 {rollNumbers.map(numStr => {
                   const req = permissionMap.get(numStr);
-                  const marked = markedAttendance[numStr];
+                  const marked = combinedAttendance[numStr];
                   return (
                     <RollButton
                       key={numStr}
@@ -386,7 +398,7 @@ export default function PermissionsPage() {
   const [search, setSearch] = useState('');
   const [selectedYear, setSelectedYear] = useState('3rd Year');
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
-  const [sectionFilter, setSectionFilter] = useState('all');
+  const [sectionFilter, setSectionFilter] = useState('none');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>('combined');
   const [dateMode, setDateMode] = useState<'today' | 'all'>('today');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -408,7 +420,7 @@ export default function PermissionsPage() {
 
   const todayStr = getTodayDateString();
 
-  // Query Backend Requests from Database
+  // Query Backend Requests from Database (Enabled only when section selected)
   const { data: apiRequests = [], isLoading } = useQuery({
     queryKey: ['public-approved-requests'],
     queryFn: async () => {
@@ -425,13 +437,17 @@ export default function PermissionsPage() {
         }
       }
     },
+    enabled: sectionFilter !== 'none',
     retry: false,
   });
 
-  // Query Faculty Attendance Submissions from Database
+  // Query Faculty Attendance Submissions for TODAY ONLY (Enabled only when section selected)
   const { data: attendanceSubmissions = [] } = useQuery<api.AttendanceSubmissionItem[]>({
     queryKey: ['public-attendance-submissions', todayStr, sectionFilter, selectedYear],
     queryFn: () => api.getAttendanceSubmissions(todayStr, sectionFilter, selectedYear),
+    enabled: sectionFilter !== 'none',
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
   });
 
   // Filtered Approved List
@@ -460,9 +476,14 @@ export default function PermissionsPage() {
     });
   }, [apiRequests, dateMode, search, sectionFilter, todayStr]);
 
-  // Group by Section (Ensure default section exists if empty so grid remains still)
+  // Group by Section (Ensure standard section keys exist so grids are always rendered)
   const { sectionsMap, sectionKeys } = useMemo(() => {
-    const map: Record<string, ExtendedAttendanceRequest[]> = {};
+    const map: Record<string, ExtendedAttendanceRequest[]> = {
+      'CSD — Section A': [],
+      'CSIT — Section A': [],
+      'CSIT — Section B': [],
+    };
+
     filteredApproved.forEach(req => {
       const dept = req.student?.department ?? 'CSD';
       const sec = req.student?.section ?? (req.studentId.slice(-2) < '35' ? 'A' : 'B');
@@ -471,14 +492,32 @@ export default function PermissionsPage() {
       map[key].push(req);
     });
 
-    let keys = Object.keys(map).sort();
-    if (keys.length === 0) {
-      const defaultSec = sectionFilter !== 'all' ? sectionFilter : 'CSD — Section A';
-      map[defaultSec] = [];
-      keys = [defaultSec];
+    if (sectionFilter === 'none') {
+      return { sectionsMap: map, sectionKeys: [] };
     }
+
+    let keys = Object.keys(map).sort();
+
+    if (sectionFilter === 'CSD-A') {
+      keys = keys.filter(k => k.includes('CSD') && k.includes('Section A'));
+    } else if (sectionFilter === 'CSIT-A') {
+      keys = keys.filter(k => k.includes('CSIT') && k.includes('Section A'));
+    } else if (sectionFilter === 'CSIT-B') {
+      keys = keys.filter(k => k.includes('CSIT') && (k.includes('Section B') || k.includes('CSIT-B')));
+    }
+
     return { sectionsMap: map, sectionKeys: keys };
   }, [filteredApproved, sectionFilter]);
+
+  // Filter attendance submissions for current section filter so submissions don't bleed across sections
+  const activeSectionSubmissions = useMemo(() => {
+    if (sectionFilter === 'all') return attendanceSubmissions;
+    return attendanceSubmissions.filter(sub => {
+      const subSec = (sub.section || '').toUpperCase().replace(/[\s-]/g, '');
+      const filterSec = sectionFilter.toUpperCase().replace(/[\s-]/g, '');
+      return subSec.includes(filterSec) || filterSec.includes(subSec);
+    });
+  }, [attendanceSubmissions, sectionFilter]);
 
   const toggleSection = useCallback((key: string) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -596,7 +635,9 @@ export default function PermissionsPage() {
                   <Building2 size={15} className="text-orange-500" />
                   <span className="text-slate-400 font-medium">Select Section:</span>
                   <span className="text-slate-900 font-bold">
-                    {sectionFilter === 'all'
+                    {sectionFilter === 'none'
+                      ? 'Choose Section...'
+                      : sectionFilter === 'all'
                       ? 'All Sections'
                       : sectionFilter === 'CSD-A'
                       ? 'CSD - Sec A'
@@ -618,10 +659,11 @@ export default function PermissionsPage() {
                     className="absolute left-0 right-0 top-[44px] z-30 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden py-1"
                   >
                     {[
-                      { label: 'All Sections', value: 'all' },
+                      { label: 'Choose Section...', value: 'none' },
                       { label: 'CSD - Sec A', value: 'CSD-A' },
                       { label: 'CSIT - Sec A', value: 'CSIT-A' },
                       { label: 'CSIT - Sec B', value: 'CSIT-B' },
+                      { label: 'All Sections', value: 'all' },
                     ].map(sec => (
                       <button
                         key={sec.value}
@@ -686,7 +728,7 @@ export default function PermissionsPage() {
                 {/* Morning Session: Periods 1-4 */}
                 <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
                   {[1, 2, 3, 4].map(pNum => {
-                    const sub = attendanceSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
+                    const sub = activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
                     const isSelected = sub && selectedSubmissionId === sub.id;
                     const isSubmitted = !!sub;
                     const isLiveNow = getCurrentPeriodId() === pNum;
@@ -746,7 +788,7 @@ export default function PermissionsPage() {
                 {/* Afternoon Session: Periods 5-8 */}
                 <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
                   {[5, 6, 7, 8].map(pNum => {
-                    const sub = attendanceSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
+                    const sub = activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
                     const isSelected = sub && selectedSubmissionId === sub.id;
                     const isSubmitted = !!sub;
                     const isLiveNow = getCurrentPeriodId() === pNum;
@@ -839,11 +881,21 @@ export default function PermissionsPage() {
 
           </div>
 
-          {/* Section Grid Content (1-72 Grid Always Displayed) */}
-          {isLoading ? (
+          {/* Section Grid Content */}
+          {sectionFilter === 'none' ? (
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-8 text-center space-y-3 shadow-2xs">
+              <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto shadow-xs">
+                <Building2 size={24} />
+              </div>
+              <h3 className="font-bold text-slate-800 text-[15px]">Select Section & Year to View Today's Attendance</h3>
+              <p className="text-slate-500 text-[12px] max-w-md mx-auto">
+                Please select your section (CSD, CSIT-A, CSIT-B) and Year above to load today's live attendance & approved permission passes.
+              </p>
+            </div>
+          ) : isLoading ? (
             <div className="py-12 text-center text-slate-400">
               <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-orange-500" />
-              <p className="text-[12px]">Loading permissions...</p>
+              <p className="text-[12px]">Loading today's attendance...</p>
             </div>
           ) : (
             <div className="space-y-4">

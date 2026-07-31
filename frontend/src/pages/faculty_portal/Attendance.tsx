@@ -88,29 +88,63 @@ export default function FacultyAttendance() {
     queryFn: () => api.getAttendanceSubmissions(selectedDate, sectionFilter, selectedYear),
   });
 
+  // Query approved permission passes for date pre-highlighting
+  const { data: approvedRequests = [] } = useQuery({
+    queryKey: ['public-approved-requests-for-attendance'],
+    queryFn: () => api.getPublicApprovedRequests(),
+  });
+
+  // Map students who have approved permission passes for selectedDate
+  const permissionStudentsSet = useMemo(() => {
+    const set = new Set<string>();
+    approvedRequests.forEach(req => {
+      if (req.status === 'approved' && req.date === selectedDate) {
+        const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
+        if (rollStr) {
+          set.add(rollStr);
+          const suffix = rollStr.match(/(\d+|\w+)$/)?.[1];
+          if (suffix) {
+            set.add(suffix);
+            const num = parseInt(suffix, 10);
+            if (!isNaN(num)) {
+              set.add(String(num));
+              set.add(String(num).padStart(2, '0'));
+            }
+          }
+        }
+      }
+    });
+    return set;
+  }, [approvedRequests, selectedDate]);
+
   // Find submission matching current selected periods
   const currentSubmission = useMemo(() => {
     return existingSubmissions.find(sub => sub.periods === periodsKey);
   }, [existingSubmissions, periodsKey]);
 
-  // Check ownership
+  // Check ownership (Faculty can update attendance they personally marked, Admin can edit all)
   const isOwner = useMemo(() => {
     if (!currentSubmission) return true;
-    return currentSubmission.markedById === user?.userId || user?.role === 'admin';
+    const currentUserId = user?.id || user?.userId;
+    return currentSubmission.markedById === currentUserId || user?.role === 'admin';
   }, [currentSubmission, user]);
 
-  // Populate grid when switching periods/date/section if a submission exists
+  // Populate grid when switching periods/date/section if a submission exists, and pre-mark permissions as present
   useEffect(() => {
+    const initialMap: Record<string, 'present' | 'absent'> = {};
     if (currentSubmission && currentSubmission.records) {
-      const initialMap: Record<string, 'present' | 'absent'> = {};
       currentSubmission.records.forEach(rec => {
         initialMap[rec.rollNumber] = rec.status as 'present' | 'absent';
       });
-      setMarkedAttendance(initialMap);
-    } else {
-      setMarkedAttendance({});
     }
-  }, [currentSubmission]);
+    // Automatically default students with approved permissions to present if unmarked
+    permissionStudentsSet.forEach(roll => {
+      if (!initialMap[roll]) {
+        initialMap[roll] = 'present';
+      }
+    });
+    setMarkedAttendance(initialMap);
+  }, [currentSubmission, permissionStudentsSet]);
 
   // Roll numbers generator for section
   const currentRollNumbers = useMemo(() => {
@@ -179,10 +213,25 @@ export default function FacultyAttendance() {
       return;
     }
 
-    const recordsPayload = Object.entries(markedAttendance).map(([rollNumber, status]) => ({
-      rollNumber,
-      status,
-    }));
+    // Build complete record list for every student in the section
+    const recordsPayload = currentRollNumbers.map(roll => {
+      let status: 'present' | 'absent' = 'absent';
+      const rawStatus = markedAttendance[roll];
+
+      if (rawStatus) {
+        status = rawStatus;
+      } else if (permissionStudentsSet.has(roll)) {
+        status = 'present';
+      } else if (markMode === 'absent') {
+        // If faculty operated in absentees mode, unmarked non-absent students default to present
+        status = 'present';
+      } else {
+        // If faculty operated in presentees mode, unmarked students default to absent
+        status = 'absent';
+      }
+
+      return { rollNumber: roll, status };
+    });
 
     submitMutation.mutate({
       date: selectedDate,
@@ -338,23 +387,48 @@ export default function FacultyAttendance() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
               {PERIOD_SLOTS.map(slot => {
                 const isSelected = selectedPeriodIds.includes(slot.id);
+                // Check if this period slot is locked by another faculty member
+                const subForSlot = existingSubmissions.find(s => {
+                  const pArr = typeof s.periods === 'string'
+                    ? s.periods.split(',').map(n => Number(n.trim()))
+                    : Array.isArray(s.periods)
+                    ? s.periods.map(n => Number(n))
+                    : [Number(s.periods)];
+                  return pArr.includes(slot.id);
+                });
+                const isLocked = subForSlot && subForSlot.markedById !== user?.id && subForSlot.markedById !== user?.userId && user?.role !== 'admin';
+                const lockedBy = isLocked ? subForSlot.markedBy?.name || 'Faculty' : null;
+
                 return (
                   <button
                     key={slot.id}
                     type="button"
-                    onClick={() => togglePeriodSlot(slot.id)}
-                    className={`px-3 py-2 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer select-none ${
-                      isSelected
-                        ? 'bg-orange-500 border-orange-500 text-white shadow-sm scale-[1.02]'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    disabled={Boolean(isLocked)}
+                    onClick={() => {
+                      if (isLocked) {
+                        showToast(`Period ${slot.id} is locked (Submitted by ${lockedBy}).`, true);
+                        return;
+                      }
+                      togglePeriodSlot(slot.id);
+                    }}
+                    title={isLocked ? `Locked by ${lockedBy}` : slot.timeRange}
+                    className={`px-3 py-2 rounded-xl border text-left flex flex-col justify-between transition-all select-none relative ${
+                      isLocked
+                        ? 'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed opacity-80'
+                        : isSelected
+                        ? 'bg-orange-500 border-orange-500 text-white shadow-sm scale-[1.02] cursor-pointer'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
                     }`}
                   >
                     <div className="flex items-center justify-between w-full font-bold">
-                      <span>{slot.label}</span>
-                      {isSelected ? <Check size={14} /> : <span className="text-[9px] opacity-60">45m</span>}
+                      <span className="flex items-center gap-1">
+                        {slot.label}
+                        {isLocked && <Lock size={11} className="text-amber-600" />}
+                      </span>
+                      {isSelected && !isLocked ? <Check size={14} /> : <span className="text-[9px] opacity-60">45m</span>}
                     </div>
-                    <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-orange-100' : 'text-slate-400'}`}>
-                      {slot.timeRange}
+                    <span className={`text-[10px] mt-0.5 ${isLocked ? 'text-slate-400' : isSelected ? 'text-orange-100' : 'text-slate-400'}`}>
+                      {isLocked ? `Locked (${lockedBy?.split(' ')[0]})` : slot.timeRange}
                     </span>
                   </button>
                 );
@@ -367,6 +441,21 @@ export default function FacultyAttendance() {
             </div>
           </div>
         </div>
+
+        {/* ── Approved Permission Notice Banner ── */}
+        {permissionStudentsSet.size > 0 && (
+          <div className="p-3 bg-amber-50 border border-amber-300/80 text-amber-900 rounded-xl text-[12px] font-bold flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+              <span>
+                {permissionStudentsSet.size} Student(s) have approved out-pass permissions today (Pre-highlighted in 🟡 Yellow & pre-set to Present).
+              </span>
+            </div>
+            <span className="text-[10.5px] bg-amber-200/80 px-2 py-0.5 rounded-md text-amber-950 font-black uppercase tracking-wider">
+              Auto-Protected
+            </span>
+          </div>
+        )}
 
         {/* ── Submitter Ownership Warning / Status Badge ── */}
         {currentSubmission && (
@@ -470,12 +559,29 @@ export default function FacultyAttendance() {
           <div className="max-w-[820px] mx-auto pt-2">
             <div className="grid grid-cols-6 xs:grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 justify-items-center">
               {currentRollNumbers.map(roll => {
-                const status = markedAttendance[roll];
+                const rawStatus = markedAttendance[roll];
+                const hasPermission = permissionStudentsSet.has(roll);
+
+                let effectiveStatus = rawStatus;
+                if (!rawStatus) {
+                  if (hasPermission) {
+                    effectiveStatus = 'present';
+                  } else if (Object.keys(markedAttendance).length > 0) {
+                    if (markMode === 'present') {
+                      effectiveStatus = 'absent';
+                    } else if (markMode === 'absent') {
+                      effectiveStatus = 'present';
+                    }
+                  }
+                }
 
                 let btnStyle = 'bg-slate-100/90 text-slate-700 hover:bg-slate-200 border-slate-200/80';
-                if (status === 'present') {
+                if (hasPermission && !currentSubmission && rawStatus !== 'absent') {
+                  // Yellow Approved Permission Pre-highlight (Before submission)
+                  btnStyle = 'bg-amber-300 text-amber-950 border-amber-400 shadow-xs ring-2 ring-amber-400/80 font-black scale-[1.02]';
+                } else if (effectiveStatus === 'present') {
                   btnStyle = 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20 scale-[1.02] font-extrabold';
-                } else if (status === 'absent') {
+                } else if (effectiveStatus === 'absent') {
                   btnStyle = 'bg-rose-500 text-white border-rose-600 shadow-sm shadow-rose-500/20 scale-[1.02] font-extrabold';
                 }
 
@@ -485,11 +591,17 @@ export default function FacultyAttendance() {
                     type="button"
                     onClick={() => handleRollClick(roll)}
                     disabled={!isOwner}
-                    className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none ${btnStyle} ${
+                    title={hasPermission ? `Roll #${roll}: Has Approved Out-Pass Permission` : `Roll #${roll}`}
+                    className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex flex-col items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none relative ${btnStyle} ${
                       !isOwner ? 'cursor-not-allowed opacity-90' : ''
                     }`}
                   >
-                    {roll}
+                    {hasPermission && (
+                      <span className="absolute -top-1 px-1 py-0.2 bg-amber-500 text-white text-[7px] font-black rounded-full uppercase shadow-2xs">
+                        PERM
+                      </span>
+                    )}
+                    <span>{roll}</span>
                   </button>
                 );
               })}

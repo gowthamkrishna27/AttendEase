@@ -254,6 +254,8 @@ export async function getRequest(id: string): Promise<AttendanceRequest> {
 export interface CreateRequestPayload {
   reason: RequestReason;
   date: string;
+  endDate?: string;
+  periods?: string;
   startTime: string;
   endTime: string;
   description: string;
@@ -268,6 +270,12 @@ export async function createRequest(data: CreateRequestPayload): Promise<Attenda
     { method: 'POST', body: JSON.stringify(data) },
   );
   return res.request;
+}
+
+export async function deleteRequest(id: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/api/requests/${id}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function reviewRequest(

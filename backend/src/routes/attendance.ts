@@ -23,7 +23,13 @@ router.get('/', async (req: Request, res: Response) => {
     };
 
     if (typeof section === 'string' && section !== 'all' && section.trim()) {
-      whereClause['section'] = section.trim();
+      const s = section.trim();
+      const sClean = s.replace(/[\s-]/g, '');
+      whereClause['OR'] = [
+        { section: s },
+        { section: { contains: s, mode: 'insensitive' } },
+        { section: { contains: sClean, mode: 'insensitive' } },
+      ];
     }
     if (typeof year === 'string' && year.trim()) {
       whereClause['year'] = year.trim();
@@ -70,27 +76,70 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required attendance fields (date, section, periods, records)' });
     }
 
-    // Check if an attendance submission already exists for this date, section, and periods
-    const existingSubmission = await prisma.attendanceSubmission.findUnique({
-      where: {
-        date_section_periods: {
-          date,
-          section,
-          periods,
-        },
-      },
+    const incomingPeriods = (function parsePeriods(p: any): number[] {
+      if (Array.isArray(p)) return p.map(n => Number(n)).filter(n => !isNaN(n));
+      if (typeof p === 'number') return [p];
+      if (typeof p === 'string') {
+        if (p.includes(',')) return p.split(',').map(n => Number(n.trim())).filter(n => !isNaN(n));
+        if (p.includes('-')) {
+          const parts = p.split('-');
+          const start = Number(parts[0]);
+          const end = Number(parts[1]);
+          if (!isNaN(start) && !isNaN(end)) {
+            const arr: number[] = [];
+            for (let i = start; i <= end; i++) arr.push(i);
+            return arr;
+          }
+        }
+        const num = Number(p);
+        if (!isNaN(num)) return [num];
+      }
+      return [];
+    })(periods);
+
+    // Fetch all existing submissions for this date & section to check for overlapping period locks
+    const existingSubmissions = await prisma.attendanceSubmission.findMany({
+      where: { date, section },
       include: {
         markedBy: {
-          select: { name: true, userId: true },
+          select: { id: true, name: true },
         },
       },
     });
 
-    // Enforce strict ownership check
-    if (existingSubmission && existingSubmission.markedById !== user.id && user.role !== 'admin') {
-      return res.status(403).json({
-        error: `Attendance for ${periodLabel || `Period ${periods}`} was submitted by ${existingSubmission.markedBy.name}. Only the submitting faculty member can edit it.`,
-      });
+    // Enforce strict period lock: No other faculty can submit attendance for any overlapping period
+    for (const sub of existingSubmissions) {
+      const subPeriods = (function parsePeriods(p: any): number[] {
+        if (Array.isArray(p)) return p.map(n => Number(n)).filter(n => !isNaN(n));
+        if (typeof p === 'number') return [p];
+        if (typeof p === 'string') {
+          if (p.includes(',')) return p.split(',').map(n => Number(n.trim())).filter(n => !isNaN(n));
+          if (p.includes('-')) {
+            const parts = p.split('-');
+            const start = Number(parts[0]);
+            const end = Number(parts[1]);
+            if (!isNaN(start) && !isNaN(end)) {
+              const arr: number[] = [];
+              for (let i = start; i <= end; i++) arr.push(i);
+              return arr;
+            }
+          }
+          const num = Number(p);
+          if (!isNaN(num)) return [num];
+        }
+        return [];
+      })(sub.periods);
+
+      const hasOverlap = incomingPeriods.some(pNum => subPeriods.includes(pNum));
+      if (hasOverlap) {
+        const isOwner = sub.markedById === user.id || user.role === 'admin';
+        if (!isOwner) {
+          const conflicting = incomingPeriods.filter(pNum => subPeriods.includes(pNum)).join(', ');
+          return res.status(403).json({
+            error: `Attendance for Period ${conflicting} has already been submitted by ${sub.markedBy.name}. Only ${sub.markedBy.name} or an Admin can edit attendance for this period.`,
+          });
+        }
+      }
     }
 
     // Transaction: Upsert AttendanceSubmission and refresh AttendanceRecords

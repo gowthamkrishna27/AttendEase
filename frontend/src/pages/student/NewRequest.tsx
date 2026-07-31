@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -71,6 +71,46 @@ export default function NewRequest() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showAllFaculty, setShowAllFaculty] = useState(false);
 
+  // New Period Selector & Leave Calendar State
+  const [requestType, setRequestType] = useState<'permission' | 'leave'>('permission');
+  const [selectedPeriods, setSelectedPeriods] = useState<number[]>([1, 2]);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const togglePeriod = (id: number) => {
+    setSelectedPeriods(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id].sort((a, b) => a - b)
+    );
+  };
+
+  // Calculate start & end times based on selected period boxes
+  const computedTimeRange = useMemo(() => {
+    if (requestType === 'leave') {
+      return { start: '09:00 AM', end: '04:30 PM', periodsStr: '1,2,3,4,5,6,7,8' };
+    }
+    if (selectedPeriods.length === 0) {
+      return { start: '09:00 AM', end: '10:30 AM', periodsStr: '1,2' };
+    }
+    const timesMap: Record<number, { start: string; end: string }> = {
+      1: { start: '09:00 AM', end: '09:45 AM' },
+      2: { start: '09:45 AM', end: '10:30 AM' },
+      3: { start: '10:30 AM', end: '11:15 AM' },
+      4: { start: '11:15 AM', end: '12:00 PM' },
+      5: { start: '01:30 PM', end: '02:15 PM' },
+      6: { start: '02:15 PM', end: '03:00 PM' },
+      7: { start: '03:00 PM', end: '03:45 PM' },
+      8: { start: '03:45 PM', end: '04:30 PM' },
+    };
+    const sorted = [...selectedPeriods].sort((a, b) => a - b);
+    const minP = sorted[0];
+    const maxP = sorted[sorted.length - 1];
+    return {
+      start: timesMap[minP]?.start || '09:00 AM',
+      end: timesMap[maxP]?.end || '12:00 PM',
+      periodsStr: sorted.join(','),
+    };
+  }, [requestType, selectedPeriods]);
+
   const { data: rawFacultyList = [] } = useQuery({
     queryKey: ['faculty'],
     queryFn: () => api.getFaculty(),
@@ -88,21 +128,6 @@ export default function NewRequest() {
     );
   };
 
-  const getTodayDate = () => {
-    return new Date().toISOString().split('T')[0];
-  };
-
-  const getCurrentTime = () => {
-    const now = new Date();
-    return now.toTimeString().slice(0, 5);
-  };
-
-  const getHourLaterTime = () => {
-    const now = new Date();
-    now.setHours(now.getHours() + 1);
-    return now.toTimeString().slice(0, 5);
-  };
-
   const {
     register,
     handleSubmit,
@@ -112,9 +137,9 @@ export default function NewRequest() {
     defaultValues: {
       reason: '',
       facultyId: '',
-      date: getTodayDate(),
-      startTime: getCurrentTime(),
-      endTime: getHourLaterTime(),
+      date: startDate,
+      startTime: computedTimeRange.start,
+      endTime: computedTimeRange.end,
       description: ''
     },
   });
@@ -122,9 +147,11 @@ export default function NewRequest() {
   const mutation = useMutation({
     mutationFn: (data: FormData) => api.createRequest({
       reason: data.reason as api.RequestReason,
-      date: data.date,
-      startTime: data.startTime,
-      endTime: data.endTime,
+      date: startDate,
+      ...(requestType === 'leave' && endDate ? { endDate } : {}),
+      periods: computedTimeRange.periodsStr,
+      startTime: computedTimeRange.start,
+      endTime: computedTimeRange.end,
       description: data.description,
       ...(selectedFacultyIds.length > 0
         ? { facultyIds: selectedFacultyIds, facultyId: selectedFacultyIds[0] }
@@ -140,6 +167,9 @@ export default function NewRequest() {
   });
 
   const onSubmit = (data: FormData) => {
+    if (requestType === 'permission' && selectedPeriods.length === 0) {
+      return;
+    }
     mutation.mutate(data);
   };
 
@@ -352,51 +382,156 @@ export default function NewRequest() {
             </p>
           </div>
 
-          {/* Section 2 — Date & Time */}
+          {/* Section 2 — Date, Duration & Period Selection */}
           <div style={{ ...card({ padding: '22px 24px' }) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
               <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #F97316, #EA580C)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CalendarDays size={14} style={{ color: '#fff' }} />
               </div>
-              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Date &amp; Duration</h2>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Request Type & Duration</h2>
             </div>
 
-            {/* Date */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Date</label>
-              <div style={{ position: 'relative' }}>
-                <CalendarDays size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
-                <input
-                  type="date"
-                  {...register('date')}
-                  min={new Date().toISOString().split('T')[0]}
-                  onFocus={focusStyle as any}
-                  onBlur={blurStyle as any}
-                  style={inputStyle}
-                />
-              </div>
-              {errors.date && <p style={{ fontSize: 12, color: '#DC2626', margin: '5px 0 0' }}>{errors.date.message}</p>}
+            {/* Request Type Selector Tabs */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 18, background: '#F8FAFC', padding: 4, borderRadius: 12, border: '1px solid #E8EDF2' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setRequestType('permission');
+                  if (selectedPeriods.length === 0) setSelectedPeriods([1, 2]);
+                }}
+                style={{
+                  flex: 1, padding: '9px 12px', fontSize: 13, fontWeight: 700, borderRadius: 9,
+                  border: 'none', cursor: 'pointer', transition: 'all 0.15s ease',
+                  background: requestType === 'permission' ? '#ffffff' : 'transparent',
+                  color: requestType === 'permission' ? '#EA580C' : '#64748B',
+                  boxShadow: requestType === 'permission' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                }}
+              >
+                ⚡ Short Permission (By Hours/Periods)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRequestType('leave');
+                  setEndDate(startDate);
+                }}
+                style={{
+                  flex: 1, padding: '9px 12px', fontSize: 13, fontWeight: 700, borderRadius: 9,
+                  border: 'none', cursor: 'pointer', transition: 'all 0.15s ease',
+                  background: requestType === 'leave' ? '#ffffff' : 'transparent',
+                  color: requestType === 'leave' ? '#EA580C' : '#64748B',
+                  boxShadow: requestType === 'leave' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                }}
+              >
+                📅 Full-Day / Multi-Day Leave
+              </button>
             </div>
 
-            {/* Start / End Time */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div>
-                <label style={labelStyle}>Start Time</label>
-                <div style={{ position: 'relative' }}>
-                  <Clock size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
-                  <input type="time" {...register('startTime')} onFocus={focusStyle as any} onBlur={blurStyle as any} style={inputStyle} />
+            {requestType === 'permission' ? (
+              <>
+                {/* Single Date Input */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle}>Permission Date</label>
+                  <div style={{ position: 'relative' }}>
+                    <CalendarDays size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={e => setStartDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      onFocus={focusStyle as any}
+                      onBlur={blurStyle as any}
+                      style={inputStyle}
+                    />
+                  </div>
                 </div>
-                {errors.startTime && <p style={{ fontSize: 12, color: '#DC2626', margin: '5px 0 0' }}>{errors.startTime.message}</p>}
-              </div>
-              <div>
-                <label style={labelStyle}>End Time</label>
-                <div style={{ position: 'relative' }}>
-                  <Clock size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
-                  <input type="time" {...register('endTime')} onFocus={focusStyle as any} onBlur={blurStyle as any} style={inputStyle} />
+
+                {/* 8 Linear Period Selector Boxes */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <label style={{ ...labelStyle, margin: 0 }}>
+                      Select Permission Period(s) <span style={{ fontSize: 11, color: '#EA580C', fontWeight: 700 }}>(Select 1 or more hours)</span>
+                    </label>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', background: '#F1F5F9', padding: '2px 8px', borderRadius: 6 }}>
+                      {computedTimeRange.start} — {computedTimeRange.end}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    {[
+                      { id: 1, label: 'P1', time: '09:00 - 09:45' },
+                      { id: 2, label: 'P2', time: '09:45 - 10:30' },
+                      { id: 3, label: 'P3', time: '10:30 - 11:15' },
+                      { id: 4, label: 'P4', time: '11:15 - 12:00' },
+                      { id: 5, label: 'P5', time: '01:30 - 02:15' },
+                      { id: 6, label: 'P6', time: '02:15 - 03:00' },
+                      { id: 7, label: 'P7', time: '03:00 - 03:45' },
+                      { id: 8, label: 'P8', time: '03:45 - 04:30' },
+                    ].map(p => {
+                      const isSel = selectedPeriods.includes(p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => togglePeriod(p.id)}
+                          style={{
+                            padding: '10px 8px', borderRadius: 12, border: isSel ? '2px solid #F97316' : '1.5px solid #E8EDF2',
+                            background: isSel ? '#FFF7ED' : '#F8FAFC',
+                            color: isSel ? '#EA580C' : '#334155',
+                            cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                            boxShadow: isSel ? '0 2px 8px rgba(249,115,22,0.15)' : 'none',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <span style={{ fontSize: 13, fontWeight: 800 }}>{p.label}</span>
+                          <span style={{ fontSize: 9, fontWeight: 600, opacity: isSel ? 0.9 : 0.6 }}>{p.time}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedPeriods.length === 0 && (
+                    <p style={{ fontSize: 12, color: '#DC2626', margin: '6px 0 0' }}>Please select at least one period box</p>
+                  )}
                 </div>
-                {errors.endTime && <p style={{ fontSize: 12, color: '#DC2626', margin: '5px 0 0' }}>{errors.endTime.message}</p>}
+              </>
+            ) : (
+              /* Multi-Day Leave Scroll Calendar Input */
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                <div>
+                  <label style={labelStyle}>Start Date</label>
+                  <div style={{ position: 'relative' }}>
+                    <CalendarDays size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={e => {
+                        setStartDate(e.target.value);
+                        if (e.target.value > endDate) setEndDate(e.target.value);
+                      }}
+                      min={new Date().toISOString().split('T')[0]}
+                      onFocus={focusStyle as any}
+                      onBlur={blurStyle as any}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>End Date</label>
+                  <div style={{ position: 'relative' }}>
+                    <CalendarDays size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={e => setEndDate(e.target.value)}
+                      min={startDate}
+                      onFocus={focusStyle as any}
+                      onBlur={blurStyle as any}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Section 3 — Description */}

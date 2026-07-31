@@ -103,9 +103,12 @@ export default function RequestDetails() {
                 <Calendar size={15} className="text-[#6B7280]" />
               </div>
               <div>
-                <p className="text-[13px] text-[#6B7280] mb-0.5">Date</p>
+                <p className="text-[13px] text-[#6B7280] mb-0.5">Date & Range</p>
                 <p className="text-[14px] font-medium text-[#111111]">
                   {formatDate(request.date)}
+                  {request.endDate && request.endDate !== request.date && (
+                    <span> — {formatDate(request.endDate)}</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -115,10 +118,15 @@ export default function RequestDetails() {
                 <Clock size={15} className="text-[#6B7280]" />
               </div>
               <div>
-                <p className="text-[13px] text-[#6B7280] mb-0.5">Time</p>
+                <p className="text-[13px] text-[#6B7280] mb-0.5">Time & Periods</p>
                 <p className="text-[14px] font-medium text-[#111111]">
                   {formatTime(request.startTime)} – {formatTime(request.endTime)}
                 </p>
+                {request.periods && (
+                  <p className="text-[11px] font-semibold text-orange-600 mt-0.5">
+                    Periods: {request.periods}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -184,9 +192,31 @@ export default function RequestDetails() {
           </div>
         </div>
 
-        <Button variant="secondary" size="lg" fullWidth onClick={() => navigate('/student/history')}>
-          Back to History
-        </Button>
+        {/* Action Buttons */}
+        <div className="flex gap-3">
+          {request.status === 'pending' && (
+            <Button
+              variant="danger"
+              size="lg"
+              className="flex-1"
+              onClick={async () => {
+                if (window.confirm('Are you sure you want to cancel and delete this request?')) {
+                  try {
+                    await api.deleteRequest(request.id);
+                    navigate('/student/history');
+                  } catch (err) {
+                    alert('Failed to delete request.');
+                  }
+                }
+              }}
+            >
+              Cancel / Delete Request
+            </Button>
+          )}
+          <Button variant="secondary" size="lg" className="flex-1" onClick={() => navigate('/student/history')}>
+            Back to History
+          </Button>
+        </div>
       </div>
     </PageWrapper>
   );

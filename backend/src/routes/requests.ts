@@ -88,6 +88,8 @@ function toApi(r: any) {
     reason:              r.reason,
     reasonLabel:         r.reasonLabel,
     date:                r.date,
+    endDate:             r.endDate ?? undefined,
+    periods:             r.periods ?? undefined,
     startTime:           r.startTime,
     endTime:             r.endTime,
     description:         r.description,
@@ -308,9 +310,11 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const { reason, date, startTime, endTime, description, documentName, facultyId, facultyIds } = req.body as {
+  const { reason, date, endDate, periods, startTime, endTime, description, documentName, facultyId, facultyIds } = req.body as {
     reason:        string;
     date:          string;
+    endDate?:      string;
+    periods?:      string;
     startTime:     string;
     endTime:       string;
     description:   string;
@@ -396,6 +400,8 @@ router.post('/', async (req: Request, res: Response) => {
           reason:           safeReason,
           reasonLabel:      REASON_LABELS[safeReason] ?? String(reason),
           date,
+          ...(endDate && { endDate }),
+          ...(periods && { periods }),
           startTime,
           endTime,
           description,
@@ -728,6 +734,55 @@ router.get('/:id/actions', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('GET /requests/:id/actions error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * DELETE /api/requests/:id — student cancels/deletes a PENDING request
+ */
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const user = req.user!;
+    const idParam = (req.params['id'] || '').trim();
+
+    const existing = await prisma.request.findFirst({
+      where: {
+        OR: [
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    // Verify ownership
+    if (user.role === 'student' && existing.studentId !== user.id) {
+      res.status(403).json({ error: 'You are not authorized to delete this request' });
+      return;
+    }
+
+    // Enforce strict pending status check
+    if (existing.status !== 'pending') {
+      res.status(400).json({ error: 'Only pending requests can be deleted. Approved or rejected requests cannot be deleted.' });
+      return;
+    }
+
+    // Delete in transaction
+    await prisma.$transaction(async tx => {
+      await tx.requestAction.deleteMany({ where: { requestId: existing.id } });
+      await tx.requestFaculty.deleteMany({ where: { requestId: existing.id } });
+      await tx.notification.deleteMany({ where: { requestId: existing.id } });
+      await tx.request.delete({ where: { id: existing.id } });
+    });
+
+    res.json({ message: 'Request deleted successfully' });
+  } catch (err) {
+    console.error('DELETE /requests/:id error:', err);
+    res.status(500).json({ error: 'Failed to delete request' });
   }
 });
 

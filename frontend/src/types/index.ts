@@ -36,6 +36,8 @@ export interface AttendanceRequest {
   reason: RequestReason;
   reasonLabel: string;
   date: string; // ISO date string YYYY-MM-DD
+  endDate?: string; // ISO date string YYYY-MM-DD for multi-day leave
+  periods?: string; // comma-separated period numbers e.g. "1,2,3,4"
   startTime: string; // HH:mm
   endTime: string; // HH:mm
   description: string;

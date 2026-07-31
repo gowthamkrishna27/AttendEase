@@ -82,6 +82,8 @@ model Request {
   reason              RequestReason
   reasonLabel         String
   date                String
+  endDate             String?
+  periods             String?
   startTime           String
   endTime             String
   description         String
