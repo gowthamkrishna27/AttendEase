@@ -647,9 +647,9 @@ export default function FacultyAttendance() {
                 }
 
                 let btnStyle = 'bg-slate-100/90 text-slate-700 hover:bg-slate-200 border-slate-200/80';
-                if (hasPermission && !currentSubmission && rawStatus !== 'absent') {
-                  // Yellow Approved Permission Pre-highlight (Before submission)
-                  btnStyle = 'bg-amber-300 text-amber-950 border-amber-400 shadow-xs ring-2 ring-amber-400/80 font-black scale-[1.02]';
+                if (hasPermission && rawStatus !== 'absent') {
+                  // Yellow Approved Permission — ALWAYS marked Yellow for approved permission students (unless explicitly marked absent)
+                  btnStyle = 'bg-[#FDE047] text-slate-950 border-amber-400 shadow-xs ring-2 ring-amber-400/80 font-black scale-[1.02]';
                 } else if (effectiveStatus === 'present') {
                   btnStyle = 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20 scale-[1.02] font-extrabold';
                 } else if (effectiveStatus === 'absent') {

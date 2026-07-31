@@ -122,30 +122,27 @@ interface RollButtonProps {
 }
 
 const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollButtonProps) => {
-  const isPresent = markedStatus === 'present';
+  const isPermission = Boolean(request) && markedStatus !== 'absent';
+  const isPresent = markedStatus === 'present' && !Boolean(request);
   const isAbsent = markedStatus === 'absent';
-  // Bug 8 Fix: Attendance has HIGHEST priority. Permission (yellow) only shows
-  // when there is NO attendance record for this student.
-  const hasAttendance = isPresent || isAbsent;
-  const isPermission = Boolean(request) && !hasAttendance;
 
-  // Priority: Present (Green) > Absent (Red) > Permission (Yellow) > Unmarked (White)
+  // Priority: Permission Approved (Yellow) > Present (Green) > Absent (Red) > Unmarked (White)
   let bgColor = '#FFFFFF';
   let textColor = 'text-slate-800';
   let badgeStyle = 'bg-white border-slate-200 text-slate-800 hover:border-slate-300 hover:bg-slate-50/40';
 
-  if (isPresent) {
-    bgColor = '#10B981'; // Emerald Green — HIGHEST PRIORITY
+  if (isPermission) {
+    bgColor = '#FDE047'; // Yellow — Approved Permission
+    textColor = 'text-slate-900';
+    badgeStyle = 'bg-[#FDE047] border-amber-400 text-slate-900 shadow-amber-200/50 hover:bg-[#FACC15] ring-2 ring-amber-300/40 font-black';
+  } else if (isPresent) {
+    bgColor = '#10B981'; // Emerald Green
     textColor = 'text-white';
     badgeStyle = 'bg-emerald-500 border-emerald-600 text-white shadow-emerald-200/50 hover:bg-emerald-600 ring-2 ring-emerald-300/40';
   } else if (isAbsent) {
-    bgColor = '#EF4444'; // Rose Red — SECOND PRIORITY
+    bgColor = '#EF4444'; // Rose Red
     textColor = 'text-white';
     badgeStyle = 'bg-rose-500 border-rose-600 text-white shadow-rose-200/50 hover:bg-rose-600 ring-2 ring-rose-300/40';
-  } else if (isPermission) {
-    bgColor = '#FDE047'; // Yellow — only when no attendance exists
-    textColor = 'text-slate-900';
-    badgeStyle = 'bg-[#FDE047] border-amber-400 text-slate-900 shadow-amber-200/50 hover:bg-[#FACC15] ring-2 ring-amber-300/40';
   }
 
   return (
