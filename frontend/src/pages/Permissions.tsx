@@ -766,9 +766,6 @@ export default function PermissionsPage() {
                 )}
               </AnimatePresence>
             </div>
-                </button>
-              ))}
-            </div>
 
             {/* ── 8 Linear Period Selector Boxes Widget (User requirement) ── */}
             <div className="pt-2.5 border-t border-slate-100 space-y-2">
