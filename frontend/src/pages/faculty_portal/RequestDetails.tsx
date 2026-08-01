@@ -11,9 +11,12 @@ import * as api from '../../lib/api';
 import { formatDate, formatTime } from '../../lib/utils';
 
 
+import { useAuth } from '../../context/AuthContext';
+
 export default function FacultyRequestDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [confirmModal, setConfirmModal] = useState<'approve' | 'reject' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -81,6 +84,28 @@ export default function FacultyRequestDetails() {
 
   const currentStatus = request.status;
 
+  const isAssignedFaculty = () => {
+    if (!user || !request) return true;
+    if (user.role === 'admin' || user.role === 'hod') return true;
+
+    const userEmail = (user.email || '').toLowerCase();
+    const userName = (user.name || '').toLowerCase();
+    const userId = user.id;
+
+    if (request.facultyId && request.facultyId === userId) return true;
+    if (request.faculty?.email && request.faculty.email.toLowerCase() === userEmail) return true;
+    if (request.faculty?.name && request.faculty.name.toLowerCase() === userName) return true;
+
+    if (request.facultyIds && request.facultyIds.includes(userId)) return true;
+    if (request.faculties && request.faculties.some(f => f.email?.toLowerCase() === userEmail || f.name?.toLowerCase() === userName || f.id === userId)) return true;
+
+    if (!request.facultyId && !request.faculty?.email && (!request.faculties || request.faculties.length === 0)) return true;
+
+    return false;
+  };
+
+  const isAssigned = isAssignedFaculty();
+
   const handleConfirm = () => {
     reviewMutation.mutate({
       action: confirmModal === 'approve' ? 'approve' : 'reject',
@@ -112,6 +137,23 @@ export default function FacultyRequestDetails() {
           </div>
           <StatusBadge status={currentStatus} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
         </div>
+
+        {/* Unassigned Faculty View Only Banner */}
+        {!isAssigned && (
+          <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-center justify-between text-[13px] text-amber-950 font-medium shadow-2xs">
+            <div>
+              <p className="font-bold text-[14px] text-amber-950 flex items-center gap-1.5">
+                👁️ View-Only Access (Non-Assigned Faculty)
+              </p>
+              <p className="text-[12px] text-amber-800 mt-0.5">
+                You are viewing this request in read-only mode. Assigned reviewer: <span className="font-bold text-amber-950">{request.faculty?.name || 'Assigned Faculty'}</span>.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 bg-amber-200/80 text-amber-950 font-bold text-[11px] rounded-lg shrink-0">
+              Read Only
+            </span>
+          </div>
+        )}
 
         {/* HOD Decision Banner */}
         {request.finalDecisionBy === 'HOD' && (
@@ -240,8 +282,8 @@ export default function FacultyRequestDetails() {
           <p className="text-[15px] text-[#111111] leading-relaxed">{request.description}</p>
         </div>
 
-        {/* Actions — only show if still pending */}
-        {currentStatus === 'pending' && (
+        {/* Actions — only show approve/reject if assigned and pending */}
+        {currentStatus === 'pending' && isAssigned && (
           <div className="flex gap-3">
             <Button
               variant="secondary"
@@ -258,6 +300,18 @@ export default function FacultyRequestDetails() {
             >
               Approve Request
             </Button>
+          </div>
+        )}
+
+        {/* Pending & Not Assigned Notice */}
+        {currentStatus === 'pending' && !isAssigned && (
+          <div className="rounded-xl px-5 py-4 text-center bg-slate-100/90 border border-slate-200 shadow-2xs">
+            <p className="text-[14px] font-bold text-slate-800 flex items-center justify-center gap-1.5">
+              🔒 Approval Restricted to Assigned Reviewer
+            </p>
+            <p className="text-[12px] text-slate-600 mt-1">
+              This request is assigned to <span className="font-semibold text-slate-900">{request.faculty?.name || 'the assigned faculty member'}</span>. Only the assigned faculty or HOD can approve or reject this request.
+            </p>
           </div>
         )}
 

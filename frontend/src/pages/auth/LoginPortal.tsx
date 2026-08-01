@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, BookOpen, ShieldCheck,
@@ -52,7 +52,18 @@ const FACULTY_PHOTO_MAP: Record<string, { name: string; dept: string; photo: str
 
 export default function LoginPortal() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, setUser } = useAuth();
+
+  const handlePostLoginRedirect = (role: UserRole) => {
+    const redirectTarget = sessionStorage.getItem('attendease_redirect_after_login') || (location.state as any)?.from?.pathname;
+    if (redirectTarget) {
+      sessionStorage.removeItem('attendease_redirect_after_login');
+      navigate(redirectTarget, { replace: true });
+    } else {
+      navigate(role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod');
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<Tab>('student');
   const [identifier, setIdentifier] = useState('');
@@ -193,7 +204,7 @@ export default function LoginPortal() {
       setError('');
 
       localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier);
-      navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
+      handlePostLoginRedirect(activeTab);
     } catch (err: unknown) {
       console.warn('Passkey login error:', err);
       const msg = err instanceof Error ? err.message : 'Passkey authentication failed.';
@@ -249,7 +260,7 @@ export default function LoginPortal() {
         setPendingLoginUser({ email: res.user.email, name: res.user.name, role });
         setShowRegisterPasskeyModal(true);
       } else {
-        navigate(role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod');
+        handlePostLoginRedirect(role);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed. Please try again.';
@@ -758,8 +769,7 @@ export default function LoginPortal() {
           onClose={() => {
             setShowRegisterPasskeyModal(false);
             if (pendingLoginUser) {
-              const r = pendingLoginUser.role;
-              navigate(r === 'student' ? '/student' : r === 'faculty' ? '/faculty' : '/hod');
+              handlePostLoginRedirect(pendingLoginUser.role);
             }
           }}
           userEmail={pendingLoginUser?.email || ''}
@@ -767,8 +777,7 @@ export default function LoginPortal() {
           onSuccess={() => {
             setShowRegisterPasskeyModal(false);
             if (pendingLoginUser) {
-              const r = pendingLoginUser.role;
-              navigate(r === 'student' ? '/student' : r === 'faculty' ? '/faculty' : '/hod');
+              handlePostLoginRedirect(pendingLoginUser.role);
             }
           }}
         />
