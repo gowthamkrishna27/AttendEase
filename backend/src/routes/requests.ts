@@ -503,17 +503,14 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
   // Role override from HOD executive control panel
   const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  if (roleOverride === 'hod' || (user.role as string) === 'viewer') {
+  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod' || (user.role as string) === 'viewer';
+
+  if (isHodOrAdmin) {
     user = { ...user, role: 'hod' };
   }
 
   if (user.role === 'student') {
     res.status(403).json({ error: 'Students cannot review requests' });
-    return;
-  }
-
-  if (user.role === 'admin') {
-    res.status(403).json({ error: 'System Admins manage users only; attendance requests are reviewed by HOD and Faculty.' });
     return;
   }
 
@@ -528,15 +525,15 @@ router.patch('/:id', async (req: Request, res: Response) => {
     return;
   }
 
-  const effectiveRemarks = remarks?.trim() || rejectionReason?.trim() || (action === 'reject' ? `Rejected by ${user.role.toUpperCase()}` : `Approved by ${user.role.toUpperCase()}`);
+  const effectiveRemarks = remarks?.trim() || rejectionReason?.trim() || (action === 'reject' ? `Rejected by ${user.role.toUpperCase()} Override` : `Approved by ${user.role.toUpperCase()} Override`);
 
   try {
-    const idParam = req.params['id'];
+    const idParam = (req.params['id'] || '').trim();
     const existing = await prisma.request.findFirst({
       where: {
         OR: [
-          { id:        idParam },
-          { requestId: idParam },
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
         ],
       },
       include: REQUEST_INCLUDE,
@@ -597,7 +594,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
         where: { id: existing.id },
         data: {
           status:              newStatus,
-          rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || null) : null,
+          rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || 'Rejected by HOD Executive Override') : null,
           reviewedAt:          new Date().toISOString(),
           finalDecisionBy:     decisionRole,
           finalDecisionUserId: performingUserId,

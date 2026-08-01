@@ -71,7 +71,10 @@ export default function HODRequestDetails() {
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
       void queryClient.invalidateQueries({ queryKey: ['public-approved-requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['public-approved-requests-for-attendance'] });
+      void queryClient.invalidateQueries({ queryKey: ['attendanceSubmissions'] });
       void queryClient.invalidateQueries({ queryKey: ['request', id] });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
       setConfirmModal(null);
       setRejectionReason('');
       setToastMsg(`✅ HOD Executive Override Applied: Request is now ${variables.action === 'approve' ? 'APPROVED' : 'REJECTED'}`);

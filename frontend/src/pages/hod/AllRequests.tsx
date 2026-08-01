@@ -62,6 +62,9 @@ export default function HODAllRequests() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
       void queryClient.invalidateQueries({ queryKey: ['public-approved-requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['public-approved-requests-for-attendance'] });
+      void queryClient.invalidateQueries({ queryKey: ['attendanceSubmissions'] });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 
