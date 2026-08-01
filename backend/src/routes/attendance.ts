@@ -45,6 +45,83 @@ function normalizePeriods(p: unknown): string {
   return unique.join(',');
 }
 
+/** Thrown when incoming periods overlap an existing submission with a different period grouping. */
+export class PeriodOverlapError extends Error {
+  readonly code = 'PERIOD_OVERLAP';
+  readonly statusCode = 409;
+  constructor(message: string) {
+    super(message);
+    this.name = 'PeriodOverlapError';
+  }
+}
+
+/** Thrown when a non-owner tries to edit an existing submission. */
+export class PeriodLockedError extends Error {
+  readonly code = 'PERIOD_LOCKED';
+  readonly statusCode = 403;
+  constructor(message: string) {
+    super(message);
+    this.name = 'PeriodLockedError';
+  }
+}
+
+type OverlapSubmission = {
+  periods: string;
+  markedById: string;
+  markedBy?: { userId: string; name: string; email: string } | null;
+};
+
+type OverlapUser = {
+  id: string;
+  email: string;
+  role: string;
+};
+
+/**
+ * C3: Reject any submit whose period numbers intersect an existing submission but use
+ * a different normalized periods key — even for the original owner or HOD/Admin.
+ * Updates must target the exact same (date, section, periods) row via upsert.
+ */
+export function assertNoOverlappingPeriodConflict(
+  existingSubmissions: OverlapSubmission[],
+  incomingPeriodNums: number[],
+  normalizedPeriods: string,
+  user: OverlapUser,
+): void {
+  for (const sub of existingSubmissions) {
+    const subPeriodNums = parsePeriods(sub.periods);
+    const subPeriodsNorm = normalizePeriods(sub.periods);
+    const overlappingPeriods = incomingPeriodNums.filter(pNum => subPeriodNums.includes(pNum));
+
+    if (overlappingPeriods.length === 0) continue;
+
+    const conflicting = overlappingPeriods.join(', ');
+    const ownerName = sub.markedBy?.name ?? 'another faculty member';
+
+    if (subPeriodsNorm !== normalizedPeriods) {
+      throw new PeriodOverlapError(
+        `Period(s) ${conflicting} are already covered by an existing submission for Period(s) ${subPeriodsNorm} ` +
+        `(submitted by ${ownerName}). Select Period(s) ${subPeriodsNorm} to edit that attendance — ` +
+        `you cannot create a separate submission for overlapping periods.`,
+      );
+    }
+
+    const isOriginalOwner =
+      sub.markedById === user.id ||
+      sub.markedById === (user as { userId?: string }).userId ||
+      (sub.markedBy?.email === user.email);
+
+    const isPrivilegedOverride = user.role === 'admin' || user.role === 'hod';
+
+    if (!isOriginalOwner && !isPrivilegedOverride) {
+      throw new PeriodLockedError(
+        `Attendance for Period(s) ${conflicting} has already been submitted by ${ownerName}. ` +
+        `Only ${ownerName} (original submitter), HOD, or an Admin can edit this attendance.`,
+      );
+    }
+  }
+}
+
 /**
  * Get today's date string in IST (UTC+5:30) as YYYY-MM-DD.
  * Prevents timezone bugs where UTC midnight flips the date while IST is still the same day.
@@ -192,38 +269,13 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
           },
         });
 
-        // 2. Enforce period ownership / lock
-        for (const sub of existingSubmissions) {
-          const subPeriodNums = parsePeriods(sub.periods);
-          const hasOverlap = incomingPeriodNums.some(pNum => subPeriodNums.includes(pNum));
-
-          if (hasOverlap) {
-            const conflicting = incomingPeriodNums
-              .filter(pNum => subPeriodNums.includes(pNum))
-              .join(', ');
-
-            // Determine if the current user is the original owner
-            // Bug 1 Fix: HOD/Admin can EDIT but are NOT owners — original faculty is always the owner
-            const isOriginalOwner =
-              sub.markedById === user.id ||
-              sub.markedById === (user as any).userId ||
-              (sub.markedBy && (sub.markedBy as any).email === user.email);
-
-            const isPrivilegedOverride =
-              user.role === 'admin' || user.role === 'hod';
-
-            if (!isOriginalOwner && !isPrivilegedOverride) {
-              // Bug 5: Surface a clear error instead of race-condition P2002 500
-              throw Object.assign(
-                new Error(
-                  `Attendance for Period(s) ${conflicting} has already been submitted by ${sub.markedBy.name}. ` +
-                  `Only ${sub.markedBy.name} (original submitter), HOD, or an Admin can edit this attendance.`
-                ),
-                { code: 'PERIOD_LOCKED', statusCode: 403 }
-              );
-            }
-          }
-        }
+        // 2. Enforce period overlap + ownership (C3: no duplicate overlapping period rows)
+        assertNoOverlappingPeriodConflict(
+          existingSubmissions,
+          incomingPeriodNums,
+          normalizedPeriods,
+          user,
+        );
 
         // 3. Upsert the AttendanceSubmission header
         const result = await tx.attendanceSubmission.upsert({
@@ -271,13 +323,23 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
         // Use serializable isolation to prevent concurrent overlap bypass
         isolationLevel: 'Serializable',
       });
-    } catch (txErr: any) {
-      // Bug 5: Handle period lock errors clearly
-      if (txErr.code === 'PERIOD_LOCKED') {
+    } catch (txErr: unknown) {
+      if (txErr instanceof PeriodOverlapError) {
+        return res.status(409).json({ error: txErr.message });
+      }
+      if (txErr instanceof PeriodLockedError) {
         return res.status(403).json({ error: txErr.message });
       }
+      const err = txErr as { code?: string; message?: string };
+      // Legacy-shaped errors (should not occur after refactor)
+      if (err.code === 'PERIOD_LOCKED') {
+        return res.status(403).json({ error: err.message });
+      }
+      if (err.code === 'PERIOD_OVERLAP') {
+        return res.status(409).json({ error: err.message });
+      }
       // Handle DB unique constraint violation (P2002) from race condition
-      if (txErr.code === 'P2002') {
+      if (err.code === 'P2002') {
         return res.status(409).json({
           error:
             'Attendance for one or more of these periods is being submitted simultaneously by another faculty member. ' +
@@ -285,14 +347,14 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
         });
       }
       // Handle serialization failure (Postgres code 40001)
-      if (txErr.code === '40001' || (txErr.message && txErr.message.includes('could not serialize'))) {
+      if (err.code === '40001' || (err.message && err.message.includes('could not serialize'))) {
         return res.status(409).json({
           error:
             'Attendance for one or more of these periods is being submitted simultaneously by another faculty member. ' +
             'Please refresh and check the section details.',
         });
       }
-      throw txErr;
+      throw err;
     }
 
     // ── Return the full updated submission ────────────────────────────────────
