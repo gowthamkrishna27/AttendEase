@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock, FileText, Paperclip, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { StatusBadge } from './StatusBadge';
+import { ShareRequestButton } from './ShareRequestButton';
 import { formatDate, formatTime } from '../../lib/utils';
 import type { AttendanceRequest } from '../../types';
 
@@ -72,6 +73,15 @@ export function RequestOverviewModal({
 
           {/* Body content — scrollable */}
           <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+
+            {/* Quick Share Banner */}
+            <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] font-bold text-emerald-950">📲 Share Request</p>
+                <p className="text-[11px] text-emerald-700 truncate">Send link via WhatsApp or copy URL</p>
+              </div>
+              <ShareRequestButton request={request} size="sm" />
+            </div>
 
             {/* Student Info Box */}
             <div className="flex items-center gap-3.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">

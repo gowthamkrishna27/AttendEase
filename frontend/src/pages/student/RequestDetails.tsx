@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, FileText, User } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
+import { ShareRequestButton } from '../../components/shared/ShareRequestButton';
 import { Button } from '../../components/ui/Button';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
@@ -98,6 +99,19 @@ export default function RequestDetails() {
             </span>
           </div>
         )}
+
+        {/* Quick WhatsApp Share Card */}
+        <div className="card p-4 mb-5 bg-gradient-to-r from-emerald-50/80 via-teal-50/40 to-emerald-50/60 border border-emerald-200/80 rounded-2xl flex items-center justify-between flex-wrap gap-3 shadow-2xs">
+          <div>
+            <p className="text-[14px] font-bold text-emerald-950 flex items-center gap-1.5">
+              📲 Share Request Link
+            </p>
+            <p className="text-[12px] text-emerald-700 mt-0.5">
+              Send request details & link directly via WhatsApp or copy link.
+            </p>
+          </div>
+          <ShareRequestButton request={request} size="md" />
+        </div>
 
         {/* Info grid */}
         <div className="card p-5 mb-4">

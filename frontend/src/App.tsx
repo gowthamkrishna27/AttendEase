@@ -84,6 +84,21 @@ function ProtectedRoute({
   return <>{children}</>;
 }
 
+import { useParams } from 'react-router-dom';
+
+function SmartRequestRedirect() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+
+  if (user?.role === 'faculty') {
+    return <Navigate to={`/faculty/request/${id}`} replace />;
+  }
+  if (user?.role === 'hod') {
+    return <Navigate to={`/hod/request/${id}`} replace />;
+  }
+  return <Navigate to={`/student/request/${id}`} replace />;
+}
+
 function AppRoutes() {
   const location = useLocation();
 
@@ -93,6 +108,9 @@ function AppRoutes() {
         {/* Public */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<LoginPortal />} />
+
+        {/* Universal Smart Request Route */}
+        <Route path="/request/:id" element={<SmartRequestRedirect />} />
 
         {/* Approved Permissions page (all roles & URL aliases) */}
         <Route path="/permissions" element={<PermissionsPage />} />
