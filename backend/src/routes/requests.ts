@@ -602,13 +602,21 @@ router.patch('/:id', async (req: Request, res: Response) => {
         include: REQUEST_INCLUDE,
       });
 
+      const previousDecisionText = existing.finalDecisionBy
+        ? `${existing.status.toUpperCase()} by ${existing.finalDecisionBy}`
+        : existing.status.toUpperCase();
+      const newDecisionText = `${newStatus.toUpperCase()} by ${decisionRole}`;
+      const logTimestamp = new Date().toISOString();
+
+      const auditRemarks = `[Override Log] Previous: ${previousDecisionText} -> New: ${newDecisionText} | PerformedBy: ${performingUserId} | At: ${logTimestamp}. ${effectiveRemarks}`;
+
       // Record audit action (performedById references User.userId)
       await tx.requestAction.create({
         data: {
           requestId:     existing.id,
           performedById: performingUserId,
           action:        actionName,
-          remarks:       effectiveRemarks,
+          remarks:       auditRemarks,
         },
       });
 

@@ -328,4 +328,107 @@ describe('Permission Rendering & Filtering Pipeline Regression Suite', () => {
   });
 });
 
+describe('HOD Approval & Executive Override Workflow Suite', () => {
+  interface MockRequestState {
+    id: string;
+    status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+    finalDecisionBy: 'Faculty' | 'HOD' | null;
+    finalDecisionUserId: string | null;
+  }
+
+  function simulateReviewAction(
+    request: MockRequestState,
+    actorRole: 'faculty' | 'hod',
+    actorUserId: string,
+    action: 'approve' | 'reject',
+    remarks?: string
+  ) {
+    if (actorRole === 'faculty') {
+      if (request.finalDecisionBy === 'HOD') {
+        throw new Error('Faculty cannot override a decision made by HOD');
+      }
+      const newStatus = action === 'approve' ? 'approved' : 'rejected';
+      const prevDecision = request.finalDecisionBy ? `${request.status.toUpperCase()} by ${request.finalDecisionBy}` : request.status.toUpperCase();
+      request.status = newStatus;
+      request.finalDecisionBy = 'Faculty';
+      request.finalDecisionUserId = actorUserId;
+
+      const log = `[Override Log] Previous: ${prevDecision} -> New: ${newStatus.toUpperCase()} by Faculty | PerformedBy: ${actorUserId} | At: ${new Date().toISOString()}. ${remarks || ''}`;
+      return { request, log };
+    } else {
+      // HOD action — always overrides regardless of prior status or decision
+      const newStatus = action === 'approve' ? 'approved' : 'rejected';
+      const prevDecision = request.finalDecisionBy ? `${request.status.toUpperCase()} by ${request.finalDecisionBy}` : request.status.toUpperCase();
+      request.status = newStatus;
+      request.finalDecisionBy = 'HOD';
+      request.finalDecisionUserId = actorUserId;
+
+      const log = `[Override Log] Previous: ${prevDecision} -> New: ${newStatus.toUpperCase()} by HOD | PerformedBy: ${actorUserId} | At: ${new Date().toISOString()}. ${remarks || ''}`;
+      return { request, log };
+    }
+  }
+
+  it('Faculty approve -> HOD reject -> Final = Rejected (finalDecisionBy: HOD)', () => {
+    let req: MockRequestState = {
+      id: 'req-001',
+      status: 'pending',
+      finalDecisionBy: null,
+      finalDecisionUserId: null,
+    };
+
+    // Step 1: Faculty approves
+    const res1 = simulateReviewAction(req, 'faculty', 'fac-01', 'approve');
+    assert.equal(res1.request.status, 'approved');
+    assert.equal(res1.request.finalDecisionBy, 'Faculty');
+
+    // Step 2: HOD rejects (Force Reject Override)
+    const res2 = simulateReviewAction(req, 'hod', 'hod-01', 'reject', 'Not justified');
+    assert.equal(res2.request.status, 'rejected');
+    assert.equal(res2.request.finalDecisionBy, 'HOD');
+    assert.match(res2.log, /Previous: APPROVED by Faculty -> New: REJECTED by HOD/);
+    assert.match(res2.log, /PerformedBy: hod-01/);
+  });
+
+  it('Faculty reject -> HOD approve -> Final = Approved (finalDecisionBy: HOD)', () => {
+    let req: MockRequestState = {
+      id: 'req-002',
+      status: 'pending',
+      finalDecisionBy: null,
+      finalDecisionUserId: null,
+    };
+
+    // Step 1: Faculty rejects
+    const res1 = simulateReviewAction(req, 'faculty', 'fac-01', 'reject');
+    assert.equal(res1.request.status, 'rejected');
+    assert.equal(res1.request.finalDecisionBy, 'Faculty');
+
+    // Step 2: HOD approves (Force Approve Override)
+    const res2 = simulateReviewAction(req, 'hod', 'hod-01', 'approve', 'Approved by department head');
+    assert.equal(res2.request.status, 'approved');
+    assert.equal(res2.request.finalDecisionBy, 'HOD');
+    assert.match(res2.log, /Previous: REJECTED by Faculty -> New: APPROVED by HOD/);
+    assert.match(res2.log, /PerformedBy: hod-01/);
+  });
+
+  it('Prevents faculty from modifying a request after HOD has acted', () => {
+    let req: MockRequestState = {
+      id: 'req-003',
+      status: 'pending',
+      finalDecisionBy: null,
+      finalDecisionUserId: null,
+    };
+
+    // Step 1: HOD acts first (Rejects)
+    simulateReviewAction(req, 'hod', 'hod-01', 'reject');
+    assert.equal(req.status, 'rejected');
+    assert.equal(req.finalDecisionBy, 'HOD');
+
+    // Step 2: Faculty tries to approve -> Throws Error
+    assert.throws(
+      () => simulateReviewAction(req, 'faculty', 'fac-01', 'approve'),
+      /Faculty cannot override a decision made by HOD/
+    );
+  });
+});
+
 
