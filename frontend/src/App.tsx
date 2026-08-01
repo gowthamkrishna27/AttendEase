@@ -77,8 +77,14 @@ function ProtectedRoute({
   }
 
   if (user.role !== role && user.role !== 'admin') {
-    // Allow seamless access to portals during pair programming and testing
-    return <>{children}</>;
+    const roleRedirectMap: Record<string, string> = {
+      student: '/student',
+      faculty: '/faculty',
+      hod:     '/hod',
+      admin:   '/admin',
+    };
+    const target = roleRedirectMap[user.role] || '/login';
+    return <Navigate to={target} replace />;
   }
 
   return <>{children}</>;

@@ -22,15 +22,14 @@ const BASE = getApiBase();
 const TOKEN_KEY = 'attendease_token';
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
 }
 
 export function setStoredToken(token: string, remember: boolean = true): void {
+  sessionStorage.setItem(TOKEN_KEY, token);
   if (remember) {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem('attendease_remember_me', 'true');
-  } else {
-    sessionStorage.setItem(TOKEN_KEY, token);
   }
 }
 
