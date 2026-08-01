@@ -42,7 +42,7 @@ router.get('/public-approved', async (req: Request, res: Response) => {
         }
         // Fallback: derive from roll number
         const roll = (r.student?.rollNumber || r.studentId || '').toUpperCase();
-        const isRollB = /^(7[3-9]|[89]\d|A\d|B\d|C\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B');
+        const isRollB = /^(7[3-9]|[89]\d|A\d|B\d|C\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B') || roll.includes('95A') || roll.includes('LE');
         return isSecB ? isRollB : !isRollB;
       });
     }

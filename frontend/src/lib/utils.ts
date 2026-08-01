@@ -162,10 +162,25 @@ export const REASON_LABELS: Record<string, string> = {
 export function extractRollSuffix(rawRoll: string): string {
   if (!rawRoll) return '';
   const str = rawRoll.trim().toUpperCase();
+
+  // 1. Explicit LE prefix/infix (e.g. "24B91A07LE1", "24B91A07LE05")
   const leMatch = str.match(/LE0*([1-9]|1[0-2])$/i);
   if (leMatch) {
-    return `LE${leMatch[1]}`;
+    return `LE${parseInt(leMatch[1], 10)}`;
   }
+
+  // 2. Lateral Entry scheme: 95A code (e.g. "25B95A0701" -> "LE1", "25B95A0712" -> "LE12")
+  if (str.includes('95A')) {
+    const numMatch = str.match(/(\d{1,2})$/);
+    if (numMatch) {
+      const num = parseInt(numMatch[1], 10);
+      if (num >= 1 && num <= 12) {
+        return `LE${num}`;
+      }
+    }
+  }
+
+  // 3. Regular 91A scheme (e.g. "24B91A0773" -> "73", "24B91A07B7" -> "B7", "24B91A0705" -> "5")
   const suffixMatch = str.match(/([A-D][0-9]|[0-9]{1,2})$/i);
   if (suffixMatch) {
     const val = suffixMatch[1];
