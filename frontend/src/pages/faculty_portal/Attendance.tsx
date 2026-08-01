@@ -107,14 +107,16 @@ export default function FacultyAttendance() {
   });
   const approvedRequests = approvedRequestsRaw ?? STABLE_EMPTY;
 
-  // Set of unique full roll numbers of students with approved permissions for selectedDate AND matching selectedPeriodIds
+  // Set of unique full roll numbers of students with approved permissions for selectedDate AND matching selectedPeriodIds (or all today if no specific period selected)
   const approvedStudentRollsSet = useMemo(() => {
     const set = new Set<string>();
     approvedRequests.forEach(req => {
       if (req.status === 'approved' && req.date === selectedDate) {
-        // Period overlap check: req periods must overlap with currently selected faculty periods
+        // Period overlap check: req periods must overlap with currently selected faculty periods (or all today if no period selected)
         const reqPeriods = getPeriodsFromRequest(req);
-        const hasOverlap = selectedPeriodIds.some(pId => reqPeriods.includes(pId));
+        const hasOverlap = selectedPeriodIds.length === 0
+          ? true
+          : selectedPeriodIds.some(pId => reqPeriods.includes(pId));
 
         if (hasOverlap) {
           const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
@@ -534,35 +536,20 @@ export default function FacultyAttendance() {
           </div>
         </div>
 
-        {/* ── Conditional Render: Require Year, Section & Period Numbers Selection ── */}
-        {selectedPeriodIds.length === 0 ? (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-8 sm:p-12 text-center space-y-3 shadow-xs">
-            <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 border border-orange-200/60 flex items-center justify-center mx-auto shadow-xs">
-              <Calendar size={24} />
+        {/* ── Approved Permission Notice Banner ── */}
+        {approvedStudentsCount > 0 && (
+          <div className="p-3 bg-amber-50 border border-amber-300/80 text-amber-900 rounded-xl text-[12px] font-bold flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+              <span>
+                {approvedStudentsCount} Student(s) have approved permissions for {sectionFilter} ({selectedYear}) today (Pre-highlighted in 🟡 Yellow).
+              </span>
             </div>
-            <div className="space-y-1 max-w-md mx-auto">
-              <h3 className="text-sm sm:text-base font-bold text-slate-900">Select Academic Year, Section & Period Numbers</h3>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                Student roll numbers and approved permissions will appear here once you select the required Year, Target Section, and Period number(s) above.
-              </p>
-            </div>
+            <span className="text-[10.5px] bg-amber-200/80 px-2 py-0.5 rounded-md text-amber-950 font-black uppercase tracking-wider">
+              Auto-Protected
+            </span>
           </div>
-        ) : (
-          <>
-            {/* ── Approved Permission Notice Banner ── */}
-            {approvedStudentsCount > 0 && (
-              <div className="p-3 bg-amber-50 border border-amber-300/80 text-amber-900 rounded-xl text-[12px] font-bold flex items-center justify-between shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-                  <span>
-                    {approvedStudentsCount} Student(s) have approved permissions for Period(s) {selectedPeriodIds.join(', ')} today (Pre-highlighted in 🟡 Yellow).
-                  </span>
-                </div>
-                <span className="text-[10.5px] bg-amber-200/80 px-2 py-0.5 rounded-md text-amber-950 font-black uppercase tracking-wider">
-                  Auto-Protected
-                </span>
-              </div>
-            )}
+        )}
 
             {/* ── Submitter Ownership Warning / Status Badge ── */}
             {currentSubmission && (
@@ -717,8 +704,6 @@ export default function FacultyAttendance() {
               </div>
 
             </div>
-          </>
-        )}
 
       </div>
     </PageWrapper>

@@ -431,7 +431,7 @@ export default function PermissionsPage() {
   const [search] = useState('');
   const [selectedYear, setSelectedYear] = useState('3rd Year');
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
-  const [sectionFilter, setSectionFilter] = useState('none');
+  const [sectionFilter, setSectionFilter] = useState('CSIT-B');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>('combined');
   const [dateMode, setDateMode] = useState<'today' | 'all'>('today');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
