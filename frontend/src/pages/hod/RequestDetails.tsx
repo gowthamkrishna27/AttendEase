@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, Clock, FileText,
-  Check, X, ShieldAlert, RotateCcw
+  Check, X, ShieldAlert
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
@@ -275,10 +275,10 @@ export default function HODRequestDetails() {
         </div>
 
         {/* Rejection reason */}
-        {request.status === 'rejected' && request.rejectionReason && (
+        {request.status === 'rejected' && Boolean((request as any).rejectionReason) && (
           <div className="bg-danger/5 border border-danger/20 rounded-xl px-5 py-4 mb-4">
             <p className="text-[13px] font-medium text-danger mb-1">Rejection Reason</p>
-            <p className="text-[14px] text-[#111111]">{request.rejectionReason}</p>
+            <p className="text-[14px] text-[#111111]">{(request as any).rejectionReason}</p>
           </div>
         )}
 
@@ -328,7 +328,7 @@ export default function HODRequestDetails() {
 
       {/* Confirmation / Rejection Modal */}
       <Modal
-        isOpen={Boolean(confirmModal)}
+        open={Boolean(confirmModal)}
         onClose={() => { setConfirmModal(null); setRejectionReason(''); }}
         title={
           confirmModal === 'approve'
