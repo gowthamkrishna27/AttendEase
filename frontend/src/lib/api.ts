@@ -7,7 +7,7 @@
 const getApiBase = (): string => {
   // If running in browser on localhost / 127.0.0.1, always target local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:3002';
+    return 'http://localhost:3000';
   }
 
   // Otherwise (on Vercel production deployment), use VITE_API_URL or fallback to Render
