@@ -4,6 +4,7 @@ import { verifyToken } from '../middleware/auth.js';
 import { prisma } from '../db/prisma.js';
 import type { RequestReason } from '../types.js';
 import type { Prisma, RequestStatus } from '@prisma/client';
+import { sendFcmNotification } from '../services/fcm.service.js';
 
 const router = Router();
 
@@ -434,6 +435,25 @@ router.post('/', async (req: Request, res: Response) => {
       });
     });
 
+    // FCM Dispatch #1: Send push notification to assigned Faculty
+    if (newDoc && facultyDocs.length > 0) {
+      for (const fac of facultyDocs) {
+        if (fac.fcmToken) {
+          sendFcmNotification(
+            fac.fcmToken,
+            'New Attendance Request',
+            `${studentUser.name} submitted a new attendance request requiring your approval.`,
+            {
+              requestId: newDoc.id,
+              role: 'faculty',
+              notificationType: 'new_request',
+            },
+            fac.userId
+          ).catch(e => console.error('[FCM] Error sending faculty push notification:', e));
+        }
+      }
+    }
+
     res.status(201).json({ request: toApi(newDoc!) });
   } catch (err) {
     console.error('POST /requests error:', err);
@@ -600,6 +620,44 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
       return result;
     });
+
+    // FCM Dispatch #2: Send push notification to Student regarding approval/rejection
+    if (updated && existing.student) {
+      const studentToken = existing.student.fcmToken;
+      if (studentToken) {
+        sendFcmNotification(
+          studentToken,
+          `Attendance Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
+          `Your request for ${existing.reasonLabel} has been ${newStatus} by ${user.name} (${decisionRole}).`,
+          {
+            requestId: updated.id,
+            role: 'student',
+            notificationType: newStatus === 'approved' ? 'approved' : 'rejected',
+          },
+          existing.studentId
+        ).catch(e => console.error('[FCM] Error sending student push notification:', e));
+      }
+    }
+
+    // FCM Dispatch #3: If Faculty approves/forwards, send push notification to HOD
+    if (user.role === 'faculty' && updated) {
+      const hodUser = await prisma.user.findFirst({
+        where: { role: 'hod', department: user.department },
+      });
+      if (hodUser?.fcmToken) {
+        sendFcmNotification(
+          hodUser.fcmToken,
+          'Request Forwarded for HOD Review',
+          `Attendance request from ${existing.student?.name || 'Student'} has been forwarded for HOD approval.`,
+          {
+            requestId: updated.id,
+            role: 'hod',
+            notificationType: 'forwarded_request',
+          },
+          hodUser.userId
+        ).catch(e => console.error('[FCM] Error sending HOD push notification:', e));
+      }
+    }
 
     res.json({ request: toApi(updated) });
   } catch (err) {

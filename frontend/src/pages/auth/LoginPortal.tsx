@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -12,6 +12,7 @@ import srkrEmblem from '../../assets/srkr-emblem.png';
 import campusImg from '../../assets/campus.png';
 import { RegisterPasskeyModal } from '../../components/auth/RegisterPasskeyModal';
 import * as api from '../../lib/api';
+import { getRememberedAccount, clearRememberedAccount, authenticateWithBiometrics, getSecureToken, clearSecureToken, isBiometricEnabled } from '../../lib/nativeAuth';
 
 type Tab = 'student' | 'faculty' | 'hod';
 
@@ -52,8 +53,18 @@ const FACULTY_PHOTO_MAP: Record<string, { name: string; dept: string; photo: str
 
 export default function LoginPortal() {
   const navigate = useNavigate();
-  const { login, setUser } = useAuth();
+  const { user, isLoading: authLoading, setUser } = useAuth();
 
+  // Auto-redirect authenticated users directly to their dashboard
+  useEffect(() => {
+    if (!authLoading && user) {
+      const dest = user.role === 'student' ? '/student' : user.role === 'faculty' ? '/faculty' : user.role === 'hod' ? '/hod' : '/admin';
+      navigate(dest, { replace: true });
+    }
+  }, [user, authLoading, navigate]);
+
+  const [rememberedUser, setRememberedUser] = useState(() => getRememberedAccount());
+  const [showRememberedCard, setShowRememberedCard] = useState(() => !!getRememberedAccount());
   const [activeTab, setActiveTab] = useState<Tab>('student');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -129,79 +140,36 @@ export default function LoginPortal() {
       }
     }
 
-    if (!targetIdentifier) {
-      if (activeTab === 'faculty') {
-        setError('Please select your Faculty name from the dropdown before using Passkey / Fingerprint.');
-      } else if (activeTab === 'hod') {
-        setError('Please select your HOD name from the dropdown before using Passkey / Fingerprint.');
-      } else {
-        setError('Please enter your Roll Number before using Passkey / Fingerprint.');
-      }
-      return;
-    }
-
     setPasskeyLoading(true);
 
     try {
-      if (!window.PublicKeyCredential || typeof navigator.credentials?.get !== 'function') {
-        throw new Error('Passkey authentication is not supported on this browser/device.');
-      }
+      // Launch native Android BiometricPrompt system dialog
+      const result = await authenticateWithBiometrics('Scan fingerprint to sign in to AttendEase');
 
-      // 1. Fetch challenge & allowed credential IDs from PostgreSQL for this user
-      const challengeRes = await api.loginPasskeyChallenge(targetIdentifier);
-
-      if (!challengeRes.hasPasskey || !challengeRes.allowCredentials || challengeRes.allowCredentials.length === 0) {
-        setError('No passkey registered for this account on this device yet. Please enter your 4-digit PIN (1234) to log in first.');
+      if (!result.success) {
+        setError(result.error || 'Fingerprint authentication failed.');
         setPasskeyLoading(false);
         return;
       }
 
-      // 2. Convert base64url challenge bytes
-      const challengeBytes = new Uint8Array(32);
-      window.crypto.getRandomValues(challengeBytes);
-
-      // Convert stored credential IDs
-      const allowCredentials = challengeRes.allowCredentials.map((c: any) => {
+      // Check if session token exists in Android Keystore / storage
+      const token = api.getStoredToken();
+      if (token) {
         try {
-          const raw = atob(c.id.replace(/-/g, '+').replace(/_/g, '/'));
-          const arr = new Uint8Array(raw.length);
-          for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-          return { id: arr, type: 'public-key' as const };
-        } catch {
-          return { id: new TextEncoder().encode(c.id), type: 'public-key' as const };
+          const u = await api.getMe();
+          setUser(u);
+          setError('');
+          localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier || u.email);
+          navigate(u.role === 'student' ? '/student' : u.role === 'faculty' ? '/faculty' : '/hod');
+          return;
+        } catch (e) {
+          // Token expired or invalid
         }
-      });
-
-      // 3. Trigger native WebAuthn get prompt with explicit allowCredentials filter
-      const credential = (await navigator.credentials.get({
-        publicKey: {
-          challenge: challengeBytes,
-          rpId: window.location.hostname,
-          allowCredentials,
-          timeout: 30000,
-          userVerification: 'preferred',
-        },
-      })) as PublicKeyCredential | null;
-
-      // 4. Send verified assertion to backend to authenticate against PostgreSQL UserPasskey records
-      const { token, user: u } = await api.verifyPasskeyLogin(targetIdentifier, credential?.id);
-      api.setStoredToken(token, rememberMe);
-      setUser(u);
-
-      setPin(['1', '2', '3', '4']);
-      setPassword('1234');
-      setError('');
-
-      localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier);
-      navigate(activeTab === 'student' ? '/student' : activeTab === 'faculty' ? '/faculty' : '/hod');
-    } catch (err: unknown) {
-      console.warn('Passkey login error:', err);
-      const msg = err instanceof Error ? err.message : 'Passkey authentication failed.';
-      if (msg.includes('cancel') || (err as any)?.name === 'AbortError') {
-        setError('Passkey authentication was cancelled by user.');
-      } else {
-        setError('No passkey registered for this account on this device yet. Please enter your 4-digit PIN (1234) to log in.');
       }
+
+      setError('Fingerprint verified! Enter your 4-digit PIN (1234) once to establish secure session.');
+    } catch (err: any) {
+      setError(err?.message || 'Biometric authentication error.');
     } finally {
       setPasskeyLoading(false);
     }
@@ -242,15 +210,12 @@ export default function LoginPortal() {
       setUser(res.user);
       localStorage.setItem('attendease_last_login_' + activeTab, identifier.trim());
 
-      const devicePasskeyRegistered = localStorage.getItem(`attendease_device_passkey_${res.user.email}`);
-
-      // If user logged in via PIN and has no registered device passkey, prompt to register device passkey
-      if ((role === 'faculty' || role === 'hod') && !res.hasPasskey && !devicePasskeyRegistered && window.PublicKeyCredential) {
-        setPendingLoginUser({ email: res.user.email, name: res.user.name, role });
-        setShowRegisterPasskeyModal(true);
-      } else {
-        navigate(role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod');
+      // Enable biometrics by default for Faculty & HOD after first PIN login
+      if (role === 'faculty' || role === 'hod') {
+        saveRememberedAccount(res.user);
       }
+
+      navigate(role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed. Please try again.';
       setError(msg);
@@ -260,365 +225,465 @@ export default function LoginPortal() {
   };
 
   /* ── Shared form section (used in both desktop right panel & mobile card) ── */
-  const renderForm = () => (
-    <>
-      {/* Avatar + heading */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 20 }}>
-        <h2 className="login-heading" style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 5px' }}>
-          Welcome Back!
-        </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-          <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
-            v1.1.4.3
-          </span>
-        </div>
-      </div>
-
-      {/* Role tabs */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
-        background: '#F8FAFC', border: '1px solid #E8EDF2',
-        borderRadius: 16, padding: 6, marginBottom: 20,
-      }}>
-        {TABS.map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => handleTabChange(tab.key)}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '10px 6px', fontSize: 13, fontWeight: 600,
-                borderRadius: 11, cursor: 'pointer',
-                border: isActive ? '1.5px solid #F97316' : '1.5px solid #E2E8F0',
-                background: isActive ? 'rgba(249,115,22,0.08)' : '#ffffff',
-                color: isActive ? '#F97316' : '#64748B',
-                boxShadow: isActive ? '0 1px 6px rgba(249,115,22,0.15)' : 'none',
-                transition: 'all 0.18s ease',
-              }}
-            >
-              <Icon size={13} />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Form */}
-      <AnimatePresence mode="wait">
-        <motion.form
-          key={activeTab}
-          initial={{ opacity: 0, x: 8 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -8 }}
-          transition={{ duration: 0.16 }}
-          onSubmit={handleSubmit}
-          style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
-        >
-          {/* Identifier: Dropdown for Faculty/HOD or Text Input for Student */}
-          {activeTab === 'faculty' ? (
-            <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                Select Faculty Member (CSD &amp; CSIT)
-              </label>
-              <select
-                value={identifier}
-                onChange={e => setIdentifier(e.target.value)}
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  height: 46, paddingLeft: 14, paddingRight: 14,
-                  fontSize: 14, fontWeight: 600, color: '#1E293B',
-                  background: '#F8FAFC', border: '1.5px solid #E2E8F0',
-                  borderRadius: 12, outline: 'none', cursor: 'pointer',
-                  transition: 'border-color 0.15s, box-shadow 0.15s',
-                }}
-              >
-                <option value="">-- Select Faculty Name --</option>
-                <optgroup label="CSD Department Faculty">
-                  <option value="aapriyanka@srkrec.ac.in">A. Aswini Priyanka (CSD)</option>
-                  <option value="asatyam@srkrec.ac.in">Angara Satyam (CSD)</option>
-                  <option value="ksrinivasarao@srkrec.ac.in">Dr. K. Srinivasa Rao (CSD)</option>
-                  <option value="suresh.mudunuri@srkrec.ac.in">Dr. Suresh Babu Mudunuri (CSD)</option>
-                  <option value="kbrnaidu@srkrec.ac.in">K. Bhanu Rajesh Naidu (CSD)</option>
-                  <option value="madhuryamudundi@gmail.com">M Sai Madhuri (CSD)</option>
-                  <option value="aneela@srkrec.ac.in">N. Aneela (CSD)</option>
-                  <option value="psvsuryakumar@srkrec.ac.in">P S V Surya Kumar (CSD)</option>
-                  <option value="mohanakrishna.seerla@srkrec.ac.in">S. Mohan Krishna (CSD)</option>
-                </optgroup>
-                <optgroup label="CSIT Department Faculty">
-                  <option value="akveni@srkrec.ac.in">Anusuri Krishna Veni (CSIT)</option>
-                  <option value="parvathiram21@gmail.com">D Parvathi (CSIT)</option>
-                  <option value="gopinukala@gmail.com">Dr. NGK Murthy (CSIT)</option>
-                  <option value="vignyak@gmail.com">K Sri Vigyna (CSIT)</option>
-                  <option value="kvsunilvarma@srkrec.ac.in">K V Sunil Varma (CSIT)</option>
-                  <option value="kvvstnaidu@srkrec.ac.in">K V V Satya Trinadh Naidu (CSIT)</option>
-                  <option value="navyanallaparaju@srkrec.ac.in">N. Navya (CSIT)</option>
-                  <option value="npraveen@srkrec.ac.in">Neti Praveen (CSIT)</option>
-                  <option value="manoj.p@srkrec.ac.in">P Manoj (CSIT)</option>
-                  <option value="mouna.p@srkrec.ac.in">P Mouna (CSIT)</option>
-                </optgroup>
-              </select>
-            </div>
-          ) : activeTab === 'hod' ? (
-            <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                Select Department HOD
-              </label>
-              <select
-                value={identifier}
-                onChange={e => setIdentifier(e.target.value)}
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  height: 46, paddingLeft: 14, paddingRight: 14,
-                  fontSize: 14, fontWeight: 600, color: '#1E293B',
-                  background: '#F8FAFC', border: '1.5px solid #E2E8F0',
-                  borderRadius: 12, outline: 'none', cursor: 'pointer',
-                  transition: 'border-color 0.15s, box-shadow 0.15s',
-                }}
-              >
-                <option value="">-- Select HOD Name --</option>
-                <option value="hod.csit@srkrec.ac.in">Dr. NGK Murthy — CSIT HOD</option>
-                <option value="hod.csd@srkrec.ac.in">Dr. Suresh Babu Mudunuri — CSD HOD</option>
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                Register / Roll Number
-              </label>
-              <div style={{ position: 'relative' }}>
-                <User size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#CBD5E1', pointerEvents: 'none' }} />
-                <input
-                  type="text"
-                  placeholder="e.g. 24B91A0724"
-                  value={identifier}
-                  onChange={e => setIdentifier(e.target.value)}
-                  autoComplete="username"
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    height: 46, paddingLeft: 38, paddingRight: 14,
-                    fontSize: 14, color: '#1E293B',
-                    background: '#F8FAFC', border: '1.5px solid #E2E8F0',
-                    borderRadius: 12, outline: 'none',
-                    transition: 'border-color 0.15s, box-shadow 0.15s',
-                  }}
-                  onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
-                  onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
-                />
+  const renderForm = () => {
+    if (showRememberedCard && rememberedUser) {
+      return (
+        <div style={{ background: '#fff', borderRadius: 24, padding: 24, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.06)', border: '1px solid #F1F5F9', textAlign: 'center' }}>
+          <div style={{ position: 'relative', width: 72, height: 72, margin: '0 auto 16px' }}>
+            {rememberedUser.avatarUrl ? (
+              <img src={rememberedUser.avatarUrl} alt={rememberedUser.name} style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)', color: '#fff', fontSize: 26, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {rememberedUser.name.charAt(0)}
               </div>
-            </div>
-          )}
-
-          {/* Photo Avatar Preview Card for Selected Faculty / HOD */}
-          {(activeTab === 'faculty' || activeTab === 'hod') && identifier && FACULTY_PHOTO_MAP[identifier] && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '10px 14px', background: '#FFF7ED',
-                border: '1.5px solid #FED7AA', borderRadius: 14,
-                marginTop: 2, marginBottom: 2,
-              }}
-            >
-              <div style={{ width: 44, height: 44, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: '#EA580C', border: '1.5px solid #F97316', boxShadow: '0 2px 6px rgba(249,115,22,0.2)' }}>
-                <img
-                  src={FACULTY_PHOTO_MAP[identifier].photo}
-                  alt={FACULTY_PHOTO_MAP[identifier].name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(FACULTY_PHOTO_MAP[identifier].name)}&background=F97316&color=fff`;
-                  }}
-                />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>
-                  {FACULTY_PHOTO_MAP[identifier].name}
-                </p>
-                <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, color: '#EA580C', background: 'rgba(234,88,12,0.1)', padding: '1px 6px', borderRadius: 6, marginTop: 3 }}>
-                  {FACULTY_PHOTO_MAP[identifier].dept}
-                </span>
-              </div>
-            </motion.div>
-          )}
-
-          {/* 4-Box PIN Passcode for Faculty & HOD / Standard Password for Student */}
-          {activeTab === 'faculty' || activeTab === 'hod' ? (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                  4-Digit Passcode
-                </label>
-                <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>Enter code or use Passkey</span>
-              </div>
-
-              {/* 4 Boxes + Passkey Button beside them */}
-              <div style={{ display: 'flex', gap: 'clamp(5px, 2vw, 10px)', alignItems: 'center', justifyContent: 'center', margin: '8px 0' }}>
-                <div style={{ display: 'flex', gap: 'clamp(4px, 1.8vw, 8px)' }}>
-                  {[0, 1, 2, 3].map((idx) => (
-                    <input
-                      key={idx}
-                      id={`pin-box-${idx}`}
-                      type={showPassword ? 'text' : 'password'}
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={pin[idx]}
-                      onChange={(e) => handlePinChange(idx, e.target.value)}
-                      onKeyDown={(e) => handlePinKeyDown(idx, e)}
-                      onPaste={handlePinPaste}
-                      style={{
-                        width: 'clamp(38px, 10vw, 48px)',
-                        height: 'clamp(44px, 11vw, 50px)',
-                        textAlign: 'center',
-                        fontSize: 'clamp(17px, 4.5vw, 20px)',
-                        fontWeight: 800,
-                        color: '#0F172A',
-                        background: pin[idx] ? '#FFF7ED' : '#F8FAFC',
-                        border: pin[idx] ? '2px solid #F97316' : '1.5px solid #E2E8F0',
-                        borderRadius: 12,
-                        outline: 'none',
-                        boxShadow: pin[idx] ? '0 2px 8px rgba(249,115,22,0.15)' : 'none',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = '#F97316';
-                        e.target.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)';
-                      }}
-                      onBlur={(e) => {
-                        if (!pin[idx]) {
-                          e.target.style.borderColor = '#E2E8F0';
-                          e.target.style.boxShadow = 'none';
-                        }
-                      }}
-                    />
-                  ))}
-                </div>
-
-                {/* 5th Square Fingerprint Box */}
-                <button
-                  type="button"
-                  onClick={handlePasskeyLogin}
-                  disabled={isLoading || passkeyLoading}
-                  title="One-Tap Fingerprint / Passkey / Face ID Login"
-                  style={{
-                    width: 'clamp(38px, 10vw, 48px)',
-                    height: 'clamp(44px, 11vw, 50px)',
-                    borderRadius: 12,
-                    background: '#FFF7ED',
-                    border: '1.5px solid #F97316',
-                    color: '#EA580C',
-                    cursor: (isLoading || passkeyLoading) ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    boxShadow: '0 2px 8px rgba(249,115,22,0.15)',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#F97316'; e.currentTarget.style.color = '#ffffff'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#FFF7ED'; e.currentTarget.style.color = '#EA580C'; }}
-                >
-                  {passkeyLoading ? (
-                    <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid currentColor', borderTopColor: 'transparent', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
-                  ) : (
-                    <Fingerprint size={22} />
-                  )}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(v => !v)}
-                  style={{ fontSize: 11, fontWeight: 600, color: '#F97316', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                >
-                  {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
-                  <span>{showPassword ? 'Hide Digits' : 'Show Digits'}</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                Password
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#CBD5E1', pointerEvents: 'none' }} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    height: 46, paddingLeft: 38, paddingRight: 42,
-                    fontSize: 14, color: '#1E293B',
-                    background: '#F8FAFC', border: '1.5px solid #E2E8F0',
-                    borderRadius: 12, outline: 'none',
-                    transition: 'border-color 0.15s, box-shadow 0.15s',
-                  }}
-                  onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
-                  onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(v => !v)}
-                  style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
-                >
-                  {showPassword ? <Eye size={15} /> : <EyeOff size={15} />}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Remember me */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#64748B' }}>
-              <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#F97316' }} />
-              Remember me
-            </label>
+            )}
+            <div style={{ position: 'absolute', bottom: 2, right: 2, width: 20, height: 20, borderRadius: '50%', background: '#10B981', border: '2px solid #fff' }} />
           </div>
 
-          {/* Error */}
-          {error && (
-            <div style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '9px 13px' }}>
-              {error}
-            </div>
-          )}
+          <h3 style={{ fontSize: 19, fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>{rememberedUser.name}</h3>
+          <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 20px', textTransform: 'capitalize' }}>
+            {rememberedUser.role} · {rememberedUser.department}
+          </p>
 
-          {/* Sign In button */}
-          <motion.button
-            id="login-submit-btn"
-            type="submit"
-            disabled={isLoading || passkeyLoading}
-            whileHover={{ scale: (isLoading || passkeyLoading) ? 1 : 1.01, y: (isLoading || passkeyLoading) ? 0 : -1 }}
-            whileTap={{ scale: 0.985 }}
-            style={{
-              width: '100%', height: 50, borderRadius: 14,
-              background: '#F97316',
-              color: '#fff', fontSize: 15, fontWeight: 700,
-              border: 'none', cursor: (isLoading || passkeyLoading) ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              boxShadow: '0 4px 18px rgba(249,115,22,0.30)',
-              opacity: (isLoading || passkeyLoading) ? 0.8 : 1,
-              transition: 'background 0.2s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#000000'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#F97316'; }}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button
+              onClick={async () => {
+                const token = api.getStoredToken();
+                if (token) {
+                  try {
+                    const u = await api.getMe();
+                    setUser(u);
+                    navigate(u.role === 'student' ? '/student' : u.role === 'faculty' ? '/faculty' : '/hod');
+                    return;
+                  } catch (e) { }
+                }
+                setActiveTab(rememberedUser.role as Tab);
+                setIdentifier(rememberedUser.email || rememberedUser.rollNumber || '');
+                setShowRememberedCard(false);
+              }}
+              style={{ width: '100%', padding: '14px', background: '#F97316', color: '#fff', borderRadius: 14, fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 12px rgba(249,115,22,0.25)' }}
+            >
+              <span>Continue as {rememberedUser.name.split(' ')[0]}</span>
+              <ArrowRight size={16} />
+            </button>
+
+            {rememberedUser.role !== 'student' && isBiometricEnabled() && (
+              <button
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    const result = await authenticateWithBiometrics('Unlock AttendEase with Fingerprint');
+                    if (result.success) {
+                      let token = await getSecureToken() || api.getStoredToken();
+                      if (!token) {
+                        token = localStorage.getItem('attendease_secure_jwt') || localStorage.getItem('attendease_token');
+                      }
+                      if (token) {
+                        api.setStoredToken(token, true);
+                        try {
+                          const u = await api.getMe();
+                          setUser(u);
+                          navigate(u.role === 'student' ? '/student' : u.role === 'faculty' ? '/faculty' : u.role === 'hod' ? '/hod' : '/admin');
+                          return;
+                        } catch (e) {
+                          console.warn('Biometric token validation failed:', e);
+                        }
+                      }
+                    } else {
+                      alert(result.error || 'Biometric authentication failed.');
+                    }
+                    setActiveTab(rememberedUser.role as Tab);
+                    setIdentifier(rememberedUser.email || rememberedUser.rollNumber || '');
+                    setShowRememberedCard(false);
+                  } catch (err) {
+                    console.error(err);
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                style={{ width: '100%', padding: '13px', background: '#FFF7ED', color: '#EA580C', border: '1px solid #FFEDD5', borderRadius: 14, fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                <Fingerprint size={18} />
+                <span>Unlock with Fingerprint</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                clearRememberedAccount();
+                clearSecureToken().catch(() => { });
+                setRememberedUser(null);
+                setShowRememberedCard(false);
+              }}
+              style={{ background: 'transparent', border: 'none', color: '#94A3B8', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}
+            >
+              Switch Account
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {/* Avatar + heading */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 20 }}>
+          <h2 className="login-heading" style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '0 0 5px' }}>
+            Welcome Back!
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Sign in to your account and continue</p>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
+              v1.1.4.3
+            </span>
+          </div>
+        </div>
+
+        {/* Role tabs */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
+          background: '#F8FAFC', border: '1px solid #E8EDF2',
+          borderRadius: 16, padding: 6, marginBottom: 20,
+        }}>
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => handleTabChange(tab.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '10px 6px', fontSize: 13, fontWeight: 600,
+                  borderRadius: 11, cursor: 'pointer',
+                  border: isActive ? '1.5px solid #F97316' : '1.5px solid #E2E8F0',
+                  background: isActive ? 'rgba(249,115,22,0.08)' : '#ffffff',
+                  color: isActive ? '#F97316' : '#64748B',
+                  boxShadow: isActive ? '0 1px 6px rgba(249,115,22,0.15)' : 'none',
+                  transition: 'all 0.18s ease',
+                }}
+              >
+                <Icon size={13} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Form */}
+        <AnimatePresence mode="wait">
+          <motion.form
+            key={activeTab}
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -8 }}
+            transition={{ duration: 0.16 }}
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
           >
-            {isLoading
-              ? <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
-              : <><span>Sign In</span><ArrowRight size={16} /></>
-            }
-          </motion.button>
-        </motion.form>
-      </AnimatePresence>
-    </>
-  );
+            {/* Identifier: Dropdown for Faculty/HOD or Text Input for Student */}
+            {activeTab === 'faculty' ? (
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  Select Faculty Member (CSD &amp; CSIT)
+                </label>
+                <select
+                  value={identifier}
+                  onChange={e => setIdentifier(e.target.value)}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    height: 46, paddingLeft: 14, paddingRight: 14,
+                    fontSize: 14, fontWeight: 600, color: '#1E293B',
+                    background: '#F8FAFC', border: '1.5px solid #E2E8F0',
+                    borderRadius: 12, outline: 'none', cursor: 'pointer',
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                  }}
+                >
+                  <option value="">-- Select Faculty Name --</option>
+                  <optgroup label="CSD Department Faculty">
+                    <option value="aapriyanka@srkrec.ac.in">A. Aswini Priyanka (CSD)</option>
+                    <option value="asatyam@srkrec.ac.in">Angara Satyam (CSD)</option>
+                    <option value="ksrinivasarao@srkrec.ac.in">Dr. K. Srinivasa Rao (CSD)</option>
+                    <option value="suresh.mudunuri@srkrec.ac.in">Dr. Suresh Babu Mudunuri (CSD)</option>
+                    <option value="kbrnaidu@srkrec.ac.in">K. Bhanu Rajesh Naidu (CSD)</option>
+                    <option value="madhuryamudundi@gmail.com">M Sai Madhuri (CSD)</option>
+                    <option value="aneela@srkrec.ac.in">N. Aneela (CSD)</option>
+                    <option value="psvsuryakumar@srkrec.ac.in">P S V Surya Kumar (CSD)</option>
+                    <option value="mohanakrishna.seerla@srkrec.ac.in">S. Mohan Krishna (CSD)</option>
+                  </optgroup>
+                  <optgroup label="CSIT Department Faculty">
+                    <option value="akveni@srkrec.ac.in">Anusuri Krishna Veni (CSIT)</option>
+                    <option value="parvathiram21@gmail.com">D Parvathi (CSIT)</option>
+                    <option value="gopinukala@gmail.com">Dr. NGK Murthy (CSIT)</option>
+                    <option value="vignyak@gmail.com">K Sri Vigyna (CSIT)</option>
+                    <option value="kvsunilvarma@srkrec.ac.in">K V Sunil Varma (CSIT)</option>
+                    <option value="kvvstnaidu@srkrec.ac.in">K V V Satya Trinadh Naidu (CSIT)</option>
+                    <option value="navyanallaparaju@srkrec.ac.in">N. Navya (CSIT)</option>
+                    <option value="npraveen@srkrec.ac.in">Neti Praveen (CSIT)</option>
+                    <option value="manoj.p@srkrec.ac.in">P Manoj (CSIT)</option>
+                    <option value="mouna.p@srkrec.ac.in">P Mouna (CSIT)</option>
+                  </optgroup>
+                </select>
+              </div>
+            ) : activeTab === 'hod' ? (
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  Select Department HOD
+                </label>
+                <select
+                  value={identifier}
+                  onChange={e => setIdentifier(e.target.value)}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    height: 46, paddingLeft: 14, paddingRight: 14,
+                    fontSize: 14, fontWeight: 600, color: '#1E293B',
+                    background: '#F8FAFC', border: '1.5px solid #E2E8F0',
+                    borderRadius: 12, outline: 'none', cursor: 'pointer',
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                  }}
+                >
+                  <option value="">-- Select HOD Name --</option>
+                  <option value="hod.csit@srkrec.ac.in">Dr. NGK Murthy — CSIT HOD</option>
+                  <option value="hod.csd@srkrec.ac.in">Dr. Suresh Babu Mudunuri — CSD HOD</option>
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  Register / Roll Number
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <User size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#CBD5E1', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    placeholder="e.g. 24B91A0724"
+                    value={identifier}
+                    onChange={e => setIdentifier(e.target.value)}
+                    autoComplete="username"
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      height: 46, paddingLeft: 38, paddingRight: 14,
+                      fontSize: 14, color: '#1E293B',
+                      background: '#F8FAFC', border: '1.5px solid #E2E8F0',
+                      borderRadius: 12, outline: 'none',
+                      transition: 'border-color 0.15s, box-shadow 0.15s',
+                    }}
+                    onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
+                    onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Photo Avatar Preview Card for Selected Faculty / HOD */}
+            {(activeTab === 'faculty' || activeTab === 'hod') && identifier && FACULTY_PHOTO_MAP[identifier] && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 14px', background: '#FFF7ED',
+                  border: '1.5px solid #FED7AA', borderRadius: 14,
+                  marginTop: 2, marginBottom: 2,
+                }}
+              >
+                <div style={{ width: 44, height: 44, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: '#EA580C', border: '1.5px solid #F97316', boxShadow: '0 2px 6px rgba(249,115,22,0.2)' }}>
+                  <img
+                    src={FACULTY_PHOTO_MAP[identifier].photo}
+                    alt={FACULTY_PHOTO_MAP[identifier].name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(FACULTY_PHOTO_MAP[identifier].name)}&background=F97316&color=fff`;
+                    }}
+                  />
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>
+                    {FACULTY_PHOTO_MAP[identifier].name}
+                  </p>
+                  <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, color: '#EA580C', background: 'rgba(234,88,12,0.1)', padding: '1px 6px', borderRadius: 6, marginTop: 3 }}>
+                    {FACULTY_PHOTO_MAP[identifier].dept}
+                  </span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* 4-Box PIN Passcode for Faculty & HOD / Standard Password for Student */}
+            {activeTab === 'faculty' || activeTab === 'hod' ? (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                    4-Digit Passcode
+                  </label>
+                  <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500 }}>Enter code or use Passkey</span>
+                </div>
+
+                {/* 4 Boxes + Passkey Button beside them */}
+                <div style={{ display: 'flex', gap: 'clamp(5px, 2vw, 10px)', alignItems: 'center', justifyContent: 'center', margin: '8px 0' }}>
+                  <div style={{ display: 'flex', gap: 'clamp(4px, 1.8vw, 8px)' }}>
+                    {[0, 1, 2, 3].map((idx) => (
+                      <input
+                        key={idx}
+                        id={`pin-box-${idx}`}
+                        type={showPassword ? 'text' : 'password'}
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={pin[idx]}
+                        onChange={(e) => handlePinChange(idx, e.target.value)}
+                        onKeyDown={(e) => handlePinKeyDown(idx, e)}
+                        onPaste={handlePinPaste}
+                        style={{
+                          width: 'clamp(38px, 10vw, 48px)',
+                          height: 'clamp(44px, 11vw, 50px)',
+                          textAlign: 'center',
+                          fontSize: 'clamp(17px, 4.5vw, 20px)',
+                          fontWeight: 800,
+                          color: '#0F172A',
+                          background: pin[idx] ? '#FFF7ED' : '#F8FAFC',
+                          border: pin[idx] ? '2px solid #F97316' : '1.5px solid #E2E8F0',
+                          borderRadius: 12,
+                          outline: 'none',
+                          boxShadow: pin[idx] ? '0 2px 8px rgba(249,115,22,0.15)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = '#F97316';
+                          e.target.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)';
+                        }}
+                        onBlur={(e) => {
+                          if (!pin[idx]) {
+                            e.target.style.borderColor = '#E2E8F0';
+                            e.target.style.boxShadow = 'none';
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* 5th Square Fingerprint Box */}
+                  <button
+                    type="button"
+                    onClick={handlePasskeyLogin}
+                    disabled={isLoading || passkeyLoading}
+                    title="One-Tap Fingerprint / Passkey / Face ID Login"
+                    style={{
+                      width: 'clamp(38px, 10vw, 48px)',
+                      height: 'clamp(44px, 11vw, 50px)',
+                      borderRadius: 12,
+                      background: '#FFF7ED',
+                      border: '1.5px solid #F97316',
+                      color: '#EA580C',
+                      cursor: (isLoading || passkeyLoading) ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 8px rgba(249,115,22,0.15)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#F97316'; e.currentTarget.style.color = '#ffffff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#FFF7ED'; e.currentTarget.style.color = '#EA580C'; }}
+                  >
+                    {passkeyLoading ? (
+                      <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid currentColor', borderTopColor: 'transparent', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
+                    ) : (
+                      <Fingerprint size={22} />
+                    )}
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    style={{ fontSize: 11, fontWeight: 600, color: '#F97316', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                    <span>{showPassword ? 'Hide Digits' : 'Show Digits'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  Password
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#CBD5E1', pointerEvents: 'none' }} />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      height: 46, paddingLeft: 38, paddingRight: 42,
+                      fontSize: 14, color: '#1E293B',
+                      background: '#F8FAFC', border: '1.5px solid #E2E8F0',
+                      borderRadius: 12, outline: 'none',
+                      transition: 'border-color 0.15s, box-shadow 0.15s',
+                    }}
+                    onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
+                    onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
+                  >
+                    {showPassword ? <Eye size={15} /> : <EyeOff size={15} />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Remember me */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#64748B' }}>
+                <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#F97316' }} />
+                Remember me
+              </label>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '9px 13px' }}>
+                {error}
+              </div>
+            )}
+
+            {/* Sign In button */}
+            <motion.button
+              id="login-submit-btn"
+              type="submit"
+              disabled={isLoading || passkeyLoading}
+              whileHover={{ scale: (isLoading || passkeyLoading) ? 1 : 1.01, y: (isLoading || passkeyLoading) ? 0 : -1 }}
+              whileTap={{ scale: 0.985 }}
+              style={{
+                width: '100%', height: 50, borderRadius: 14,
+                background: '#F97316',
+                color: '#fff', fontSize: 15, fontWeight: 700,
+                border: 'none', cursor: (isLoading || passkeyLoading) ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: '0 4px 18px rgba(249,115,22,0.30)',
+                opacity: (isLoading || passkeyLoading) ? 0.8 : 1,
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#000000'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#F97316'; }}
+            >
+              {isLoading
+                ? <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                : <><span>Sign In</span><ArrowRight size={16} /></>
+              }
+            </motion.button>
+          </motion.form>
+        </AnimatePresence>
+      </>
+    );
+  };
 
   return (
     <>

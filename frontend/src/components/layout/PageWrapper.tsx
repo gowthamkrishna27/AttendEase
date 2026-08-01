@@ -6,7 +6,11 @@ import {
   Home, Clock, User, LogOut,
   Bell, GraduationCap, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
+<<<<<<< HEAD
   FileCheck, Building2, Layers, Award, FileText, CheckSquare, UserCheck, LogIn
+=======
+  FileCheck, Building2, Layers, Award, FileText, Sun, Moon
+>>>>>>> origin/pavan
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -184,11 +188,35 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
   const navLinks = role === 'viewer' ? viewerNav : role === 'student' ? studentNav : role === 'faculty' ? facultyNav : role === 'hod' ? hodNav : adminNav;
   const homeLink = role === 'viewer' ? '/permissions' : role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : role === 'hod' ? '/hod' : '/admin';
 
-  const handleLogout = () => { logout(); navigate('/'); };
+  const handleLogout = () => { logout(); navigate('/login'); };
 
   const hour = new Date().getHours();
   const firstName = user?.name?.split(' ')[0] ?? 'User';
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+
+  const [darkMode, setDarkMode] = useState(() => {
+    return document.documentElement.classList.contains('dark') || localStorage.getItem('attendease_dark_mode') === 'true';
+  });
+
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    if (next) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('attendease_dark_mode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('attendease_dark_mode', 'false');
+    }
+  };
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   const [deviceTime, setDeviceTime] = useState(new Date());
 
@@ -250,6 +278,16 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           }}>
             <span>{formatDeviceDateTime(deviceTime)}</span>
           </div>
+
+          {/* Dark Mode Toggle */}
+          <button
+            type="button"
+            onClick={toggleDarkMode}
+            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            style={{ width: 38, height: 38, borderRadius: 12, background: '#F8FAFC', border: '1px solid #E8EDF2', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: darkMode ? '#F97316' : '#64748B' }}
+          >
+            {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
 
           <div ref={desktopBellRef} style={{ position: 'relative' }}>
             <button
@@ -335,7 +373,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         </Link>
 
         {/* Right side: Login / Portal + Settings + Time */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
             fontSize: 10, fontWeight: 700, color: '#475569',
             background: '#F8FAFC', padding: '4px 8px', borderRadius: 8,
@@ -523,30 +561,37 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         <nav className="mobile-bottom-nav print:hidden" style={{
           display: 'none',
           position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-          height: 68, background: '#ffffff',
+          height: 64, background: '#ffffff',
           borderTop: '1px solid #EEF2F7',
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
-          alignItems: 'center', justifyContent: 'space-around',
-          padding: '0 8px 4px',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.06)',
+          alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 4px calc(env(safe-area-inset-bottom, 0px) + 2px)',
+          width: '100%',
+          boxSizing: 'border-box',
         }}>
           {(role === 'admin' ? adminMobileBottomNav : role === 'hod' ? hodMobileBottomNav : role === 'faculty' ? facultyMobileBottomNav : studentMobileBottomNav).map(item => {
             if (item.type === 'fab') {
               // Centre + FAB button -> Navigates to /student/new-request
               return (
-                <button
-                  key="fab"
-                  onClick={() => navigate(item.to || '/student/new-request')}
-                  style={{
-                    width: 52, height: 52, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                    border: 'none', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 4px 18px rgba(249,115,22,0.40)',
-                    marginBottom: 10,
-                  }}
-                >
-                  <Plus size={24} style={{ color: '#fff' }} />
-                </button>
+                <div key="fab" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                  <button
+                    type="button"
+                    key="fab-btn"
+                    onClick={() => navigate(item.to || '/student/new-request')}
+                    aria-label="New Request"
+                    style={{
+                      width: 48, height: 48, borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+                      border: '3px solid #ffffff', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 4px 14px rgba(249,115,22,0.40)',
+                      transform: 'translateY(-10px)',
+                      transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                    }}
+                  >
+                    <Plus size={22} style={{ color: '#fff' }} />
+                  </button>
+                </div>
               );
             }
 
@@ -557,18 +602,38 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                 key={item.id}
                 to={item.to!}
                 style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  flex: 1,
+                  height: '100%',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
                   textDecoration: 'none', position: 'relative',
-                  padding: '6px 12px', borderRadius: 12,
+                  padding: '4px 0',
                   color: active ? '#F97316' : '#94A3B8',
                   transition: 'color 0.15s ease',
                 }}
               >
-                <Icon size={20} />
-                <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{item.label}</span>
-                {item.hasBadge && unreadCount > 0 && (
-                  <span style={{ position: 'absolute', top: 4, right: 12, width: 7, height: 7, borderRadius: '50%', background: '#F97316', border: '1px solid #fff' }} />
-                )}
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon size={20} style={{ strokeWidth: active ? 2.2 : 1.8 }} />
+                  {item.hasBadge && unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -2, right: -4,
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: '#F97316', border: '1.5px solid #ffffff'
+                    }} />
+                  )}
+                </div>
+                <span style={{
+                  fontSize: 10,
+                  lineHeight: '12px',
+                  fontWeight: active ? 600 : 500,
+                  letterSpacing: '-0.01em',
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '100%',
+                }}>
+                  {item.label}
+                </span>
               </Link>
             );
           })}
@@ -583,7 +648,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           .desktop-sidebar  { display: none !important; }
           .mobile-topbar    { display: flex !important; }
           .mobile-bottom-nav{ display: ${role === 'viewer' ? 'none' : 'flex'} !important; }
-          .main-content     { padding: ${role === 'viewer' ? '16px 16px 24px' : '16px 16px 88px'} !important; }
+          .main-content     { padding: ${role === 'viewer' ? '16px 16px 24px' : '16px 16px calc(76px + env(safe-area-inset-bottom, 0px))'} !important; }
           .student-portal-badge { display: none !important; }
         }
         /* ── Screen Desktop ── */

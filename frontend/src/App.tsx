@@ -4,10 +4,10 @@ import { AnimatePresence } from 'framer-motion';
 
 // Context
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NativeAppProvider } from './context/NativeAppProvider';
 import type { UserRole } from './context/AuthContext';
 
 // Pages — public & auth
-import Landing from './pages/Landing';
 import LoginPortal from './pages/auth/LoginPortal';
 import AdminLogin from './pages/admin/Login';
 
@@ -53,6 +53,8 @@ const queryClient = new QueryClient({
   },
 });
 
+import { LogoPulseSplash } from './components/mobile/LogoPulseSplash';
+
 // Protected route wrapper
 function ProtectedRoute({
   children,
@@ -65,11 +67,7 @@ function ProtectedRoute({
   const location = useLocation();
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94A3B8' }}>
-        Loading...
-      </div>
-    );
+    return <LogoPulseSplash />;
   }
 
   if (!user) {
@@ -153,9 +151,11 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <NativeAppProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </NativeAppProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

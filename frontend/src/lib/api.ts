@@ -1,31 +1,30 @@
-/**
- * Typed API client for AttendEase
- * Reads VITE_API_URL (defaults to http://localhost:3000)
- * Attaches JWT from localStorage to every authenticated request
- */
+import { getSecureToken, saveSecureToken, clearSecureToken as clearNativeSecureToken } from './nativeAuth';
 
-const getApiBase = (): string => {
-  // If VITE_API_URL is explicitly defined in environment, use it
+function getApiBaseUrl(): string {
   const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
   if (envUrl) return envUrl.replace(/\/+$/, '');
 
-  // If running locally in browser without explicit env, default to local backend
+  const isCapacitorNative = (window as any).Capacitor?.isNativePlatform?.() || window.location.protocol === 'capacitor:';
+  if (isCapacitorNative) {
+    return 'https://attendease-apuw.onrender.com';
+  }
+
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:3000';
   }
 
   return 'https://attendease-apuw.onrender.com';
-};
+}
 
-const BASE = getApiBase();
-
+const BASE = getApiBaseUrl();
 const TOKEN_KEY = 'attendease_token';
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem('attendease_secure_jwt') || localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function setStoredToken(token: string, remember: boolean = true): void {
+  saveSecureToken(token).catch(e => console.warn('Keystore save async:', e));
   if (remember) {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem('attendease_remember_me', 'true');
@@ -340,6 +339,13 @@ export async function markNotificationRead(id: string): Promise<void> {
 
 export async function markAllNotificationsRead(): Promise<void> {
   await apiFetch('/api/notifications/read-all', { method: 'PATCH' });
+}
+
+export async function registerDeviceToken(fcmToken: string): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>('/api/notifications/register-device', {
+    method: 'POST',
+    body: JSON.stringify({ fcmToken }),
+  });
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
