@@ -259,7 +259,7 @@ export default function Profile() {
           }}
         >
           {avatarUrl ? (
-            <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 14 }} />
+            <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', borderRadius: 14 }} />
           ) : (
             <img src={srkrEmblem} alt="Avatar" style={{ width: 68, height: 68, objectFit: 'contain', opacity: 0.7 }} />
           )}

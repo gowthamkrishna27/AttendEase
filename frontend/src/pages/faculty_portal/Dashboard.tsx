@@ -50,9 +50,8 @@ export default function FacultyDashboard() {
             <FaceAlignedImage
               src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Faculty')}&background=F97316&color=fff&size=240`}
               alt={user?.name || 'Faculty Profile'}
-              containerClassName="sm:w-48 w-full flex-shrink-0"
-              containerStyle={{ height: '256px' }}
-              className="w-full h-full sm:absolute sm:inset-0"
+              containerClassName="sm:w-48 w-full h-[350px] sm:h-[256px] flex-shrink-0"
+              className="w-full h-full object-cover object-top sm:absolute sm:inset-0"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Faculty')}&background=F97316&color=fff&size=240`;
               }}
@@ -104,11 +103,12 @@ export default function FacultyDashboard() {
           ))}
         </motion.div>
 
-        {/* ── Quick Navigation ── */}
+        {/* ── Quick Navigation (Desktop Only) ── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.18 }}
+          className="hidden sm:block"
         >
           <h2 className="text-[15px] font-heading font-bold text-slate-700 mb-3">Quick Navigation</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">

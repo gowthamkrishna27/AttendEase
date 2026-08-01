@@ -6,7 +6,7 @@ import {
   Home, Clock, User, LogOut,
   Bell, GraduationCap, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-  FileCheck, Building2, Layers, Award, FileText, CheckSquare, UserCheck
+  FileCheck, Building2, Layers, Award, FileText, CheckSquare, UserCheck, LogIn
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -70,10 +70,10 @@ const studentMobileBottomNav = [
 
 const facultyMobileBottomNav = [
   { id: 'home', to: '/faculty', label: 'Dashboard', icon: Home, type: 'link' },
+  { id: 'attendance', to: '/faculty/attendance', label: 'Attendance', icon: CheckSquare, type: 'link' },
   { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
   { id: 'students', to: '/faculty/students', label: 'Students', icon: Users, type: 'link' },
   { id: 'reports', to: '/faculty/reports', label: 'Reports', icon: BarChart2, type: 'link' },
-  { id: 'settings', to: '/faculty/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
 const hodMobileBottomNav = [
@@ -263,6 +263,53 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             )}
             {renderNotificationDropdown()}
           </div>
+
+          {/* Top-Right Settings Icon Button */}
+          {user && (
+            <Link
+              to={user.role === 'student' ? '/student/profile' : user.role === 'faculty' ? '/faculty/settings' : user.role === 'hod' ? '/hod/settings' : '/admin/settings'}
+              style={{
+                width: 38, height: 38, borderRadius: 12, background: '#F8FAFC', border: '1px solid #E8EDF2',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', textDecoration: 'none',
+                transition: 'all 0.15s ease'
+              }}
+              title="Settings"
+            >
+              <Settings size={17} />
+            </Link>
+          )}
+
+          {/* Top-Right Login / Portal Action Button */}
+          {user ? (
+            <Link
+              to={user.role === 'student' ? '/student' : user.role === 'faculty' ? '/faculty' : user.role === 'hod' ? '/hod' : '/admin'}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '8px 18px', borderRadius: 10,
+                background: '#F97316', color: '#ffffff',
+                fontSize: 13, fontWeight: 700, textDecoration: 'none',
+                boxShadow: '0 2px 10px rgba(249,115,22,0.25)',
+                transition: 'all 0.2s',
+              }}
+            >
+              <span>{user.role.toUpperCase()} Portal</span>
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '8px 20px', borderRadius: 10,
+                background: '#F97316', color: '#ffffff',
+                fontSize: 13, fontWeight: 700, textDecoration: 'none',
+                boxShadow: '0 2px 10px rgba(249,115,22,0.25)',
+                transition: 'all 0.2s',
+              }}
+            >
+              <LogIn size={15} />
+              <span>Login</span>
+            </Link>
+          )}
         </div>
       </header>
 
@@ -275,25 +322,68 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         borderBottom: '1px solid #EEF2F7',
         boxShadow: '0 1px 8px rgba(0,0,0,0.04)',
         display: 'none', alignItems: 'center',
-        padding: '0 16px',
+        padding: '0 14px',
+        justifyContent: 'space-between',
       }}>
         {/* Left: logo + brand */}
-        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-          <img src={srkrEmblem} alt="SRKR" style={{ width: 34, height: 34, objectFit: 'contain' }} />
+        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+          <img src={srkrEmblem} alt="SRKR" style={{ width: 32, height: 32, objectFit: 'contain' }} />
           <div style={{ lineHeight: 1.15 }}>
-            <p style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>SRKR Engineering College</p>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
+            <p style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>SRKR Engineering College</p>
+            <p style={{ fontSize: 10, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
           </div>
         </Link>
 
-        {/* Center/Time (mobile) */}
-        <div style={{
-          marginLeft: 'auto',
-          fontSize: 11, fontWeight: 700, color: '#475569',
-          background: '#F8FAFC', padding: '5px 10px', borderRadius: 8,
-          border: '1px solid #EEF2F7', display: 'flex', alignItems: 'center'
-        }}>
-          <span>{formatDeviceDateTimeMobile(deviceTime)}</span>
+        {/* Right side: Login / Portal + Settings + Time */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            fontSize: 10, fontWeight: 700, color: '#475569',
+            background: '#F8FAFC', padding: '4px 8px', borderRadius: 8,
+            border: '1px solid #EEF2F7', display: 'flex', alignItems: 'center'
+          }}>
+            <span>{formatDeviceDateTimeMobile(deviceTime)}</span>
+          </div>
+
+          {user && (
+            <Link
+              to={user.role === 'student' ? '/student/profile' : user.role === 'faculty' ? '/faculty/settings' : user.role === 'hod' ? '/hod/settings' : '/admin/settings'}
+              style={{
+                width: 30, height: 30, borderRadius: 8,
+                background: '#F8FAFC', border: '1px solid #EEF2F7',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#64748B', textDecoration: 'none'
+              }}
+              title="Settings"
+            >
+              <Settings size={15} />
+            </Link>
+          )}
+
+          {user ? (
+            <Link
+              to={user.role === 'student' ? '/student' : user.role === 'faculty' ? '/faculty' : user.role === 'hod' ? '/hod' : '/admin'}
+              style={{
+                padding: '6px 12px', borderRadius: 8,
+                background: '#F97316', color: '#ffffff',
+                fontSize: 11, fontWeight: 700, textDecoration: 'none',
+              }}
+            >
+              Portal
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '6px 12px', borderRadius: 8,
+                background: '#F97316', color: '#ffffff',
+                fontSize: 11, fontWeight: 700, textDecoration: 'none',
+              }}
+            >
+              <LogIn size={13} />
+              <span>Login</span>
+            </Link>
+          )}
         </div>
       </header>
 

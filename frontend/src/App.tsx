@@ -91,7 +91,7 @@ function AppRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         {/* Public */}
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<PermissionsPage />} />
         <Route path="/login" element={<LoginPortal />} />
 
         {/* Approved Permissions page (all roles & URL aliases) */}

@@ -5,14 +5,14 @@
  */
 
 const getApiBase = (): string => {
-  // If running in browser on localhost / 127.0.0.1, always target local backend
+  // If VITE_API_URL is explicitly defined in environment, use it
+  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
+  if (envUrl) return envUrl.replace(/\/+$/, '');
+
+  // If running locally in browser without explicit env, default to local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:3000';
   }
-
-  // Otherwise (on Vercel production deployment), use VITE_API_URL or fallback to Render
-  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
-  if (envUrl) return envUrl.replace(/\/+$/, '');
 
   return 'https://attendease-apuw.onrender.com';
 };
@@ -150,7 +150,15 @@ async function apiFetch<T>(
     try {
       res = await fetch(`${fallbackBase}${path}`, reqInit);
     } catch {
-      throw new Error('Unable to connect to backend server. Please make sure the backend is running.');
+      if (!BASE.includes('onrender.com')) {
+        try {
+          res = await fetch(`https://attendease-apuw.onrender.com${path}`, reqInit);
+        } catch {
+          throw new Error('Unable to connect to backend server. Please make sure the backend is running.');
+        }
+      } else {
+        throw new Error('Unable to connect to backend server. Please make sure the backend is running.');
+      }
     }
   }
 
