@@ -674,31 +674,62 @@ export default function PermissionsPage() {
             </div>
           </div>
 
-          {/* ── Section Selector Bar & Year Quick Selection ── */}
-          <div className="bg-white border border-slate-200/80 rounded-xl p-2.5 space-y-2.5">
-            {/* Section Selector Dropdown Bar (Full Width) */}
+          {/* ── Section Selector Bar & Year Quick Selection (Matches Faculty Attendance Page) ── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 space-y-3.5 shadow-xs">
+            
+            {/* Top Row: Year Selection (Circle buttons with orange active state) */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1.5 mr-1">
+                <GraduationCap size={15} className="text-orange-500" />
+                YEAR:
+              </span>
+              <div className="flex items-center gap-2">
+                {[
+                  { label: '1', value: '1st Year' },
+                  { label: '2', value: '2nd Year' },
+                  { label: '3', value: '3rd Year' },
+                  { label: '4', value: '4th Year' },
+                ].map(yr => (
+                  <button
+                    key={yr.value}
+                    type="button"
+                    onClick={() => setSelectedYear(yr.value)}
+                    title={yr.value}
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${
+                      selectedYear === yr.value
+                        ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-500/20 scale-105'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
+                    }`}
+                  >
+                    {yr.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Second Row: Full-width Section Dropdown Bar */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setIsSectionDropdownOpen(!isSectionDropdownOpen)}
-                className="w-full h-[40px] px-3.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-lg flex items-center justify-between text-[12px] font-bold text-slate-800 transition-all cursor-pointer select-none"
+                className="w-full h-[42px] px-3.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl flex items-center justify-between text-[13px] font-bold text-slate-800 transition-all cursor-pointer select-none"
               >
                 <div className="flex items-center gap-2">
-                  <Building2 size={15} className="text-orange-500" />
-                  <span className="text-slate-400 font-medium">Select Section:</span>
+                  <Building2 size={16} className="text-orange-500" />
+                  <span className="text-slate-400 font-medium">Select Target Section:</span>
                   <span className="text-slate-900 font-bold">
-                    {sectionFilter === 'none'
-                      ? 'Choose Section...'
+                    {sectionFilter === 'CSD-A'
+                      ? 'CSD — Section A'
+                      : sectionFilter === 'CSIT-A'
+                      ? 'CSIT — Section A'
+                      : sectionFilter === 'CSIT-B'
+                      ? 'CSIT — Section B'
                       : sectionFilter === 'all'
                       ? 'All Sections'
-                      : sectionFilter === 'CSD-A'
-                      ? 'CSD - Sec A'
-                      : sectionFilter === 'CSIT-A'
-                      ? 'CSIT - Sec A'
-                      : 'CSIT - Sec B'}
+                      : 'Choose Section...'}
                   </span>
                 </div>
-                <ChevronDown size={15} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown size={16} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {/* Section Dropdown Menu List */}
@@ -708,10 +739,9 @@ export default function PermissionsPage() {
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 4 }}
-                    className="absolute left-0 right-0 top-[44px] z-30 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden py-1"
+                    className="absolute left-0 right-0 top-[48px] z-30 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1"
                   >
                     {[
-                      { label: 'Choose Section...', value: 'none' },
                       { label: 'CSD - Sec A', value: 'CSD-A' },
                       { label: 'CSIT - Sec A', value: 'CSIT-A' },
                       { label: 'CSIT - Sec B', value: 'CSIT-B' },
@@ -724,37 +754,18 @@ export default function PermissionsPage() {
                           setSectionFilter(sec.value);
                           setIsSectionDropdownOpen(false);
                         }}
-                        className={`w-full px-3.5 py-2 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${
+                        className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${
                           sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
                         }`}
                       >
                         <span>{sec.label}</span>
-                        {sectionFilter === sec.value && <CheckCircle2 size={14} className="text-orange-500" />}
+                        {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
                       </button>
                     ))}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-
-            {/* Year Selector Buttons (Replacing quick select buttons) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-[11px]">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
-                <GraduationCap size={12} className="text-orange-500" />
-                Year:
-              </span>
-              {['1st Year', '2nd Year', '3rd Year', '4th Year'].map(yr => (
-                <button
-                  key={yr}
-                  type="button"
-                  onClick={() => setSelectedYear(yr)}
-                  className={`px-3 py-1 font-bold rounded-md cursor-pointer shrink-0 transition-all ${
-                    selectedYear === yr
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {yr}
                 </button>
               ))}
             </div>
