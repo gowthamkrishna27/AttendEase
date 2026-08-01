@@ -7,7 +7,7 @@
 const getApiBase = (): string => {
   // If running in browser on localhost / 127.0.0.1, always target local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:3000';
+    return 'http://localhost:3002';
   }
 
   // Otherwise (on Vercel production deployment), use VITE_API_URL or fallback to Render
@@ -49,6 +49,7 @@ export type UserRole = 'student' | 'faculty' | 'hod' | 'admin';
 
 export interface AuthUser {
   id: string;
+  userId?: string;
   name: string;
   email: string;
   role: UserRole;
@@ -66,6 +67,8 @@ export interface Student {
   department: string;
   semester: number;
   email: string;
+  section?: string;
+  year?: string;
   avatarUrl?: string;
 }
 
@@ -75,6 +78,7 @@ export interface Faculty {
   department: string;
   email: string;
   designation?: string;
+  role?: string;
   avatarUrl?: string;
 }
 
@@ -111,6 +115,7 @@ export interface AttendanceRequest {
   endTime: string;
   description: string;
   documentName?: string;
+  documentUrl?: string;
   status: RequestStatus;
   submittedAt: string;
   facultyId?: string;
@@ -141,17 +146,25 @@ async function apiFetch<T>(
   }
 
   const reqInit = { ...options, headers };
-  let res: Response;
+  let res: Response | null = null;
   try {
     res = await fetch(`${BASE}${path}`, reqInit);
   } catch {
-    // If primary port fetch fails (e.g. backend restarted on port 3001), try fallback port 3001
-    const fallbackBase = BASE.includes('3000') ? BASE.replace('3000', '3001') : 'http://localhost:3000';
-    try {
-      res = await fetch(`${fallbackBase}${path}`, reqInit);
-    } catch {
-      throw new Error('Unable to connect to backend server. Please make sure the backend is running.');
+    // If primary port fetch fails, iterate through local backend fallback ports (3000, 3001, 3002)
+    const fallbackBases = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== BASE);
+    for (const fb of fallbackBases) {
+      try {
+        const fbRes = await fetch(`${fb}${path}`, reqInit);
+        res = fbRes;
+        break;
+      } catch {
+        // try next fallback port
+      }
     }
+  }
+
+  if (!res) {
+    throw new Error('Unable to connect to backend server. Please make sure the backend is running.');
   }
 
   if (!res.ok) {
@@ -253,8 +266,20 @@ export async function getRequests(_params?: { department?: string }): Promise<At
   return res.requests;
 }
 
-export async function getPublicApprovedRequests(): Promise<AttendanceRequest[]> {
-  const res = await apiFetch<{ requests: AttendanceRequest[] }>('/api/requests/public-approved', {}, false);
+export async function getPublicApprovedRequests(params?: {
+  date?: string;
+  section?: string;
+  year?: string;
+  department?: string;
+}): Promise<AttendanceRequest[]> {
+  const queryParams = new URLSearchParams();
+  if (params?.date) queryParams.set('date', params.date);
+  if (params?.section) queryParams.set('section', params.section);
+  if (params?.year) queryParams.set('year', params.year);
+  if (params?.department) queryParams.set('department', params.department);
+
+  const url = `/api/requests/public-approved${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const res = await apiFetch<{ requests: AttendanceRequest[] }>(url, {}, false);
   return res.requests;
 }
 

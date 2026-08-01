@@ -7,15 +7,31 @@ import type { Prisma, RequestStatus } from '@prisma/client';
 
 const router = Router();
 
-// Public endpoint for permissions page viewer (no JWT required)
-router.get('/public-approved', async (_req: Request, res: Response) => {
+// Public endpoint for permissions page viewer & attendance pre-highlighting
+router.get('/public-approved', async (req: Request, res: Response) => {
   try {
+    const { date, department } = req.query;
+
+    const where: Prisma.RequestWhereInput = {
+      status: 'approved',
+      ...(date && { date: String(date).trim() }),
+    };
+
     const requests = await prisma.request.findMany({
-      where: { status: 'approved' },
+      where,
       include: REQUEST_INCLUDE,
       orderBy: { date: 'desc' },
     });
-    res.json({ requests: requests.map(toApi) });
+
+    let filtered = requests.map(toApi);
+
+    // Filter by department if specified
+    if (department && typeof department === 'string' && department.trim() && department !== 'all') {
+      const depNorm = department.trim().toLowerCase();
+      filtered = filtered.filter(r => (r.student?.department || '').toLowerCase() === depNorm);
+    }
+
+    res.json({ requests: filtered });
   } catch (error) {
     console.error('Error fetching public approved requests:', error);
     res.status(500).json({ error: 'Failed to fetch public approved requests' });

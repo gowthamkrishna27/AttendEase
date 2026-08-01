@@ -2,6 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   assertNoOverlappingPeriodConflict,
+  parsePeriods,
+  normalizePeriods,
   PeriodOverlapError,
   PeriodLockedError,
 } from './attendance.js';
@@ -37,6 +39,34 @@ const existingOneTwo = [
     markedBy: { userId: facultyA.id, name: 'Dr. Faculty A', email: facultyA.email },
   },
 ];
+
+describe('parsePeriods & normalizePeriods (H1 regression)', () => {
+  it('parses single numbers, comma strings, and ranges', () => {
+    assert.deepEqual(parsePeriods(1), [1]);
+    assert.deepEqual(parsePeriods('1'), [1]);
+    assert.deepEqual(parsePeriods('1, 2'), [1, 2]);
+    assert.deepEqual(parsePeriods('1-3'), [1, 2, 3]);
+  });
+
+  it('parses mixed ranges and comma-separated period strings (H1)', () => {
+    assert.deepEqual(parsePeriods('1-2, 4'), [1, 2, 4]);
+    assert.deepEqual(parsePeriods('1, 3-5, 7'), [1, 3, 4, 5, 7]);
+    assert.equal(normalizePeriods('1-2, 4'), '1,2,4');
+    assert.equal(normalizePeriods(' 2, 1-3 '), '1,2,3');
+  });
+
+  it('parses arrays of mixed formats', () => {
+    assert.deepEqual(parsePeriods([1, '2-3', '4, 5']), [1, 2, 3, 4, 5]);
+    assert.equal(normalizePeriods([3, '1-2']), '1,2,3');
+  });
+
+  it('handles empty or invalid inputs gracefully', () => {
+    assert.deepEqual(parsePeriods(''), []);
+    assert.deepEqual(parsePeriods(null), []);
+    assert.deepEqual(parsePeriods(undefined), []);
+    assert.equal(normalizePeriods('invalid'), '');
+  });
+});
 
 describe('assertNoOverlappingPeriodConflict (C3 regression)', () => {
   it('allows non-overlapping period submissions', () => {
@@ -148,3 +178,43 @@ describe('assertNoOverlappingPeriodConflict (C3 regression)', () => {
     );
   });
 });
+
+describe('Academic Year Scoping & Coexistence (H3 regression)', () => {
+  it('allows Year 1, Year 2, and Year 3 for CSIT-A + Period 1 to coexist independently', () => {
+    // When lock-read filters by year, existing submissions from other academic years are isolated
+    const year1Submissions = [
+      {
+        year: '1st Year',
+        periods: '1',
+        markedById: facultyA.id,
+        markedBy: { userId: facultyA.id, name: 'Dr. Faculty A', email: facultyA.email },
+      },
+    ];
+
+    const year2Submissions = [
+      {
+        year: '2nd Year',
+        periods: '1',
+        markedById: facultyB.id,
+        markedBy: { userId: facultyB.id, name: 'Dr. Faculty B', email: facultyB.email },
+      },
+    ];
+
+    // Submitting Period 1 for 3rd Year when 1st Year and 2nd Year exist does not conflict
+    assert.doesNotThrow(() =>
+      assertNoOverlappingPeriodConflict([], [1], '1', facultyA),
+    );
+
+    // Submitting Period 1 for 1st Year by owner succeeds
+    assert.doesNotThrow(() =>
+      assertNoOverlappingPeriodConflict(year1Submissions, [1], '1', facultyA),
+    );
+
+    // Submitting Period 1 for 2nd Year by owner succeeds
+    assert.doesNotThrow(() =>
+      assertNoOverlappingPeriodConflict(year2Submissions, [1], '1', facultyB),
+    );
+  });
+});
+
+

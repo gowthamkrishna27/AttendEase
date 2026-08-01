@@ -160,7 +160,7 @@ export default function FacultyRequests() {
                   </thead>
                   <motion.tbody variants={listVariants} initial="hidden" animate="visible">
                     {filtered.map(req => {
-                      const proofDocName = req.documentName || (req.reason !== 'other' ? `${req.reason}_Proof.pdf` : null);
+                      const proofDocName = req.documentName || null;
                       return (
                         <motion.tr
                           key={req.id}
@@ -210,7 +210,7 @@ export default function FacultyRequests() {
               <div className="block sm:hidden divide-y divide-slate-100">
                 <motion.div variants={listVariants} initial="hidden" animate="visible">
                   {filtered.map(req => {
-                    const proofDocName = req.documentName || (req.reason !== 'other' ? `${req.reason}_Proof.pdf` : null);
+                    const proofDocName = req.documentName || null;
                     return (
                       <motion.div
                         key={req.id}

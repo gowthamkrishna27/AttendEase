@@ -9,40 +9,56 @@ const router = Router();
 
 /**
  * Parse a period value (array, number, or string) into a sorted number array.
- * Supports: [1,2], "1,2", "1-2", 1
+ * Supports: [1,2], "1,2", "1-2", 1, mixed "1-2, 4", ["1-2", 3]
  */
-function parsePeriods(p: unknown): number[] {
-  if (Array.isArray(p)) return p.map(n => Number(n)).filter(n => !isNaN(n) && n > 0);
-  if (typeof p === 'number' && !isNaN(p)) return [p];
+export function parsePeriods(p: unknown): number[] {
+  if (Array.isArray(p)) {
+    const nums: number[] = [];
+    for (const item of p) {
+      nums.push(...parsePeriods(item));
+    }
+    return [...new Set(nums)].sort((a, b) => a - b);
+  }
+  if (typeof p === 'number' && !isNaN(p) && p > 0) return [Math.floor(p)];
   if (typeof p === 'string') {
     const trimmed = p.trim();
+    if (!trimmed) return [];
+
     if (trimmed.includes(',')) {
-      return trimmed.split(',').map(n => Number(n.trim())).filter(n => !isNaN(n) && n > 0);
+      const parts = trimmed.split(',');
+      const nums: number[] = [];
+      for (const part of parts) {
+        nums.push(...parsePeriods(part));
+      }
+      return [...new Set(nums)].sort((a, b) => a - b);
     }
+
     if (trimmed.includes('-')) {
       const parts = trimmed.split('-');
-      const start = Number(parts[0]);
-      const end = Number(parts[1]);
-      if (!isNaN(start) && !isNaN(end) && start > 0 && end >= start) {
-        const arr: number[] = [];
-        for (let i = start; i <= end; i++) arr.push(i);
-        return arr;
+      if (parts.length === 2) {
+        const start = Number(parts[0].trim());
+        const end = Number(parts[1].trim());
+        if (!isNaN(start) && !isNaN(end) && start > 0 && end >= start) {
+          const arr: number[] = [];
+          for (let i = Math.floor(start); i <= Math.floor(end); i++) arr.push(i);
+          return arr;
+        }
       }
     }
+
     const num = Number(trimmed);
-    if (!isNaN(num) && num > 0) return [num];
+    if (!isNaN(num) && num > 0) return [Math.floor(num)];
   }
   return [];
 }
 
 /**
  * Normalize a periods value to a sorted, deduplicated comma-separated string.
- * e.g. "2,1" → "1,2", [2,1] → "1,2", "1-2" → "1,2"
+ * e.g. "2,1" → "1,2", [2,1] → "1,2", "1-2, 4" → "1,2,4"
  */
-function normalizePeriods(p: unknown): string {
+export function normalizePeriods(p: unknown): string {
   const nums = parsePeriods(p);
-  const unique = [...new Set(nums)].sort((a, b) => a - b);
-  return unique.join(',');
+  return nums.join(',');
 }
 
 /** Thrown when incoming periods overlap an existing submission with a different period grouping. */
@@ -182,7 +198,7 @@ router.get('/', async (req: Request, res: Response) => {
       };
     }
 
-    const submissions = await prisma.attendanceSubmission.findMany({
+    const submissions = await (prisma as any).attendanceSubmission.findMany({
       where: whereClause,
       include: {
         markedBy: {
@@ -237,11 +253,23 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
       });
     }
 
-    // ── Bug 2 Fix: Same-day validation (IST) ─────────────────────────────────
+    // ── H2 Fix: Date Validation & Multi-Date Submission Safety ───────────────
+    const targetDate = String(date).trim();
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(targetDate)) {
+      return res.status(400).json({ error: 'Invalid date format. Expected YYYY-MM-DD.' });
+    }
+
     const todayIST = getTodayIST();
-    if (date.trim() !== todayIST) {
+    if (targetDate > todayIST) {
       return res.status(403).json({
-        error: `Attendance can only be submitted for today (${todayIST}). Past or future dates are not allowed.`,
+        error: `Attendance cannot be submitted for future dates (${targetDate}).`,
+      });
+    }
+
+    if (targetDate < todayIST && user.role !== 'admin' && user.role !== 'hod') {
+      return res.status(403).json({
+        error: `Faculty members can only submit attendance for today (${todayIST}). Only HOD or Admin can modify past attendance records.`,
       });
     }
 
@@ -252,16 +280,22 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
     }
     const incomingPeriodNums = parsePeriods(normalizedPeriods);
 
-    // Normalize section (trim whitespace)
+    // Normalize section and year (trim whitespace)
     const normalizedSection = section.trim();
+    const normalizedYear = String(year || '3rd Year').trim();
 
-    // ── Bug 5 Fix: Atomic overlap check + upsert in a single transaction ─────
+    // ── Bug 5 & H3 Fix: Atomic year-scoped overlap check + save in a single transaction ─────
     let submission: { id: string };
     try {
-      submission = await prisma.$transaction(async (tx) => {
-        // 1. Lock-read existing submissions for this date+section inside the transaction
+      submission = await prisma.$transaction(async (txRaw) => {
+        const tx = txRaw as any;
+        // 1. Lock-read existing submissions for (targetDate + section + year) inside transaction
         const existingSubmissions = await tx.attendanceSubmission.findMany({
-          where: { date: todayIST, section: normalizedSection },
+          where: {
+            date: targetDate,
+            section: { equals: normalizedSection, mode: 'insensitive' },
+            year: { equals: normalizedYear, mode: 'insensitive' },
+          },
           include: {
             markedBy: {
               select: { userId: true, name: true, email: true },
@@ -269,7 +303,7 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
           },
         });
 
-        // 2. Enforce period overlap + ownership (C3: no duplicate overlapping period rows)
+        // 2. Enforce period overlap + ownership within the same academic year
         assertNoOverlappingPeriodConflict(
           existingSubmissions,
           incomingPeriodNums,
@@ -277,30 +311,38 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
           user,
         );
 
-        // 3. Upsert the AttendanceSubmission header
-        const result = await tx.attendanceSubmission.upsert({
+        // 3. Find existing submission header matching (targetDate, section, year, periods)
+        const existingHeader = await tx.attendanceSubmission.findFirst({
           where: {
-            date_section_periods: {
-              date: todayIST,
-              section: normalizedSection,
-              periods: normalizedPeriods,
-            },
-          },
-          update: {
-            periodLabel: periodLabel || `Periods ${normalizedPeriods}`,
-            year,
-            // Bug 1 Fix: Do NOT overwrite markedById on update.
-            // The original faculty remains the owner forever.
-          },
-          create: {
-            date: todayIST,
-            section: normalizedSection,
-            year,
+            date: targetDate,
+            section: { equals: normalizedSection, mode: 'insensitive' },
+            year: { equals: normalizedYear, mode: 'insensitive' },
             periods: normalizedPeriods,
-            periodLabel: periodLabel || `Periods ${normalizedPeriods}`,
-            markedById: user.id,
           },
         });
+
+        let result: { id: string };
+        if (existingHeader) {
+          result = await tx.attendanceSubmission.update({
+            where: { id: existingHeader.id },
+            data: {
+              periodLabel: periodLabel || `Periods ${normalizedPeriods}`,
+              year: normalizedYear,
+              // Bug 1 Fix: Do NOT overwrite markedById on update. Original faculty remains owner.
+            },
+          });
+        } else {
+          result = await tx.attendanceSubmission.create({
+            data: {
+              date: targetDate,
+              section: normalizedSection,
+              year: normalizedYear,
+              periods: normalizedPeriods,
+              periodLabel: periodLabel || `Periods ${normalizedPeriods}`,
+              markedById: user.id,
+            },
+          });
+        }
 
         // 4. Clear old records and insert new ones atomically
         await tx.attendanceRecord.deleteMany({
@@ -312,7 +354,7 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
             data: records.map((rec: { rollNumber: string; status: string }) => ({
               submissionId: result.id,
               rollNumber: String(rec.rollNumber).trim(),
-              status: rec.status === 'present' ? 'present' : 'absent',
+              status: String(rec.status || '').toLowerCase().trim() === 'present' ? 'present' : 'absent',
             })),
             skipDuplicates: true,
           });
@@ -358,7 +400,7 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
     }
 
     // ── Return the full updated submission ────────────────────────────────────
-    const fullSubmission = await prisma.attendanceSubmission.findUnique({
+    const fullSubmission = await (prisma as any).attendanceSubmission.findUnique({
       where: { id: submission.id },
       include: {
         markedBy: {

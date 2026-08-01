@@ -190,7 +190,7 @@ export default function HODAllRequests() {
                 </thead>
                 <motion.tbody variants={listVariants} initial="hidden" animate="visible">
                   {filtered.map(req => {
-                    const proofDocName = req.documentName || (req.reason !== 'other' ? `${req.reason}_Proof.pdf` : null);
+                    const proofDocName = req.documentName || null;
                     return (
                       <motion.tr
                         key={req.id}

@@ -3,9 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, Printer, Calendar, RefreshCw, Info,
-  AlertCircle, ChevronDown, ChevronUp, LayoutGrid, List, CheckCircle2, XCircle,
-  GraduationCap, Building2, Clock
+  Printer, Calendar, RefreshCw, Info,
+  ChevronDown, ChevronUp, LayoutGrid, List, CheckCircle2,
+  GraduationCap, Building2
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import * as api from '../lib/api';
@@ -413,7 +413,7 @@ export default function PermissionsPage() {
   const [searchParams] = useSearchParams();
 
   // Component State
-  const [search, setSearch] = useState('');
+  const [search] = useState('');
   const [selectedYear, setSelectedYear] = useState('3rd Year');
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
   const [sectionFilter, setSectionFilter] = useState('none');
@@ -425,7 +425,7 @@ export default function PermissionsPage() {
   const [selectedPass, setSelectedPass] = useState<AttendanceRequest | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, _isError?: boolean) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
   }, []);
@@ -535,7 +535,7 @@ export default function PermissionsPage() {
     filteredApproved.forEach(req => {
       const key = getStudentSectionKey(req);
       if (!map[key]) map[key] = [];
-      map[key].push(req);
+      map[key].push(req as ExtendedAttendanceRequest);
     });
 
     if (sectionFilter === 'none') {
@@ -1088,7 +1088,7 @@ export default function PermissionsPage() {
                   <div className="space-y-3 text-[12px] leading-relaxed text-slate-800">
                     <p className="font-bold text-slate-900">Respected Sir/Madam,</p>
                     <p>
-                      I am writing to formally request your approval for an official permission slip. I am <strong>{selectedPass.student?.name ?? selectedPass.studentId}</strong>, bearing Roll Number <strong className="font-mono">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</strong>, studying in 3rd Year, Department of <strong>{selectedPass.student?.department ?? 'CSD'}</strong> (Section <strong>{selectedPass.student?.section ?? 'A'}</strong>).
+                      I am writing to formally request your approval for an official permission slip. I am <strong>{selectedPass.student?.name ?? selectedPass.studentId}</strong>, bearing Roll Number <strong className="font-mono">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</strong>, studying in 3rd Year, Department of <strong>{selectedPass.student?.department ?? 'CSD'}</strong> (Section <strong>{selectedPass.student?.section ?? (selectedPass as unknown as ExtendedAttendanceRequest).sectionName ?? 'A'}</strong>).
                     </p>
                     <p>
                       I am requesting permission for <strong>{selectedPass.reasonLabel}</strong> on <strong>{selectedPass.date}</strong> for the time duration of <strong>{selectedPass.startTime} to {selectedPass.endTime}</strong>.
