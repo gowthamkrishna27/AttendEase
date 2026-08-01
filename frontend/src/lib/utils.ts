@@ -159,6 +159,24 @@ export const REASON_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
+export function extractRollSuffix(rawRoll: string): string {
+  if (!rawRoll) return '';
+  const str = rawRoll.trim().toUpperCase();
+  const leMatch = str.match(/LE0*([1-9]|1[0-2])$/i);
+  if (leMatch) {
+    return `LE${leMatch[1]}`;
+  }
+  const suffixMatch = str.match(/([A-D][0-9]|[0-9]{1,2})$/i);
+  if (suffixMatch) {
+    const val = suffixMatch[1];
+    if (/^\d+$/.test(val)) {
+      return String(parseInt(val, 10));
+    }
+    return val;
+  }
+  return str;
+}
+
 export const DEPARTMENTS = [
   'CSD',
   'CSIT',

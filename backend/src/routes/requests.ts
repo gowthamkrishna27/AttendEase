@@ -10,7 +10,7 @@ const router = Router();
 // Public endpoint for permissions page viewer & attendance pre-highlighting
 router.get('/public-approved', async (req: Request, res: Response) => {
   try {
-    const { date, department } = req.query;
+    const { date, department, section, year } = req.query;
 
     const where: Prisma.RequestWhereInput = {
       status: 'approved',
@@ -29,6 +29,43 @@ router.get('/public-approved', async (req: Request, res: Response) => {
     if (department && typeof department === 'string' && department.trim() && department !== 'all') {
       const depNorm = department.trim().toLowerCase();
       filtered = filtered.filter(r => (r.student?.department || '').toLowerCase() === depNorm);
+    }
+
+    // Filter by section if specified ('CSD-A', 'CSIT-A', 'CSIT-B', 'A', 'B', etc.)
+    if (section && typeof section === 'string' && section.trim() && section !== 'none' && section !== 'all') {
+      const secNorm = section.trim().toUpperCase();
+      const isSecB = secNorm.includes('B') || secNorm === 'CSIT-B';
+      filtered = filtered.filter(r => {
+        const studentSec = ((r.student as any)?.section || '').toUpperCase();
+        if (studentSec) {
+          return studentSec === secNorm || secNorm.includes(studentSec) || studentSec.includes(secNorm);
+        }
+        // Fallback: derive from roll number
+        const roll = (r.student?.rollNumber || r.studentId || '').toUpperCase();
+        const isRollB = /^(7[3-9]|[89]\d|A\d|B\d|C\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B');
+        return isSecB ? isRollB : !isRollB;
+      });
+    }
+
+    // Filter by year if specified ('1st Year', '2nd Year', '3rd Year', '4th Year', '1', '2', '3', '4', etc.)
+    if (year && typeof year === 'string' && year.trim() && year !== 'all') {
+      const yrNorm = year.trim().toLowerCase();
+      const yearDigitMatch = yrNorm.match(/([1-4])/);
+      const targetNum = yearDigitMatch ? yearDigitMatch[1] : '';
+
+      filtered = filtered.filter(r => {
+        const reqYear = ((r.student as any)?.year || '').toLowerCase();
+        if (reqYear) {
+          if (reqYear === yrNorm) return true;
+          if (targetNum && reqYear.includes(targetNum)) return true;
+        }
+        const sem = r.student?.semester;
+        if (sem && typeof sem === 'number' && targetNum) {
+          const derivedYear = String(Math.ceil(sem / 2));
+          return derivedYear === targetNum;
+        }
+        return !targetNum || targetNum === '3';
+      });
     }
 
     res.json({ requests: filtered });

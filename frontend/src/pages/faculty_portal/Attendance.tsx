@@ -9,7 +9,7 @@ import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import * as api from '../../lib/api';
 import type { AttendanceSubmissionItem } from '../../lib/api';
-import { getPeriodsFromRequest } from '../../lib/utils';
+import { getPeriodsFromRequest, extractRollSuffix } from '../../lib/utils';
 
 // Period Definition with 45-min slots and 12:00 - 1:30 PM Lunch Break
 export interface PeriodSlot {
@@ -120,13 +120,9 @@ export default function FacultyAttendance() {
           const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
           if (rollStr) {
             set.add(rollStr);
-            // Suffix match for roll numbers e.g. "24B91A0773" -> "73"
-            const match = rollStr.match(/(\d+)$/);
-            if (match) {
-              const num = parseInt(match[1], 10);
-              if (!isNaN(num)) {
-                set.add(String(num));
-              }
+            const suffix = extractRollSuffix(rollStr);
+            if (suffix) {
+              set.add(suffix);
             }
           }
         }

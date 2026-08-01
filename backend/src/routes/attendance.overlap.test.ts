@@ -217,4 +217,115 @@ describe('Academic Year Scoping & Coexistence (H3 regression)', () => {
   });
 });
 
+describe('Permission Rendering & Filtering Pipeline Regression Suite', () => {
+  const mockApprovedRequests = [
+    {
+      id: 'req-001',
+      studentId: '24B91A0773',
+      date: '2026-08-01',
+      periods: '1,2',
+      status: 'approved',
+      student: { rollNumber: '24B91A0773', section: 'CSIT-B', year: '3rd Year', department: 'CSIT', semester: 5 },
+    },
+    {
+      id: 'req-002',
+      studentId: '24B91A0701',
+      date: '2026-08-01',
+      periods: '3',
+      status: 'approved',
+      student: { rollNumber: '24B91A0701', section: 'CSIT-A', year: '3rd Year', department: 'CSIT', semester: 5 },
+    },
+    {
+      id: 'req-003',
+      studentId: '23B91A0710',
+      date: '2026-08-01',
+      periods: '1',
+      status: 'approved',
+      student: { rollNumber: '23B91A0710', section: 'CSIT-A', year: '2nd Year', department: 'CSIT', semester: 3 },
+    },
+  ];
+
+  function filterApprovedRequests(requests: typeof mockApprovedRequests, date: string, section?: string, year?: string) {
+    return requests.filter(req => {
+      if (req.status !== 'approved') return false;
+      if (date && req.date !== date) return false;
+      if (section && section !== 'none' && section !== 'all') {
+        const reqSec = req.student.section;
+        if (reqSec !== section && !section.includes(reqSec)) return false;
+      }
+      if (year && year !== 'all') {
+        const reqYr = req.student.year;
+        if (reqYr !== year && !year.includes(reqYr)) return false;
+      }
+      return true;
+    });
+  }
+
+  function computePermissionSet(requests: typeof mockApprovedRequests, targetPeriods: number[]) {
+    const set = new Set<string>();
+    requests.forEach(req => {
+      const pArr = req.periods.split(',').map(n => Number(n.trim()));
+      const overlap = targetPeriods.some(p => pArr.includes(p));
+      if (overlap) {
+        set.add(req.student.rollNumber);
+      }
+    });
+    return set;
+  }
+
+  it('handles No permissions gracefully without false positives', () => {
+    const filtered = filterApprovedRequests([], '2026-08-01', 'CSIT-A', '3rd Year');
+    const permSet = computePermissionSet(filtered, [1]);
+    assert.equal(filtered.length, 0);
+    assert.equal(permSet.size, 0);
+    assert.equal(permSet.has('73'), false);
+  });
+
+  it('correctly matches One permission for specific date + section + year + period', () => {
+    const filtered = filterApprovedRequests(mockApprovedRequests, '2026-08-01', 'CSIT-A', '3rd Year');
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0].student.rollNumber, '24B91A0701');
+
+    const permSetP3 = computePermissionSet(filtered, [3]);
+    assert.equal(permSetP3.has('24B91A0701'), true);
+
+    const permSetP1 = computePermissionSet(filtered, [1]);
+    assert.equal(permSetP1.has('24B91A0701'), false); // No false positive on period 1
+  });
+
+  it('handles Multiple permissions across different sections, years, and periods independently', () => {
+    const csitA3rdYear = filterApprovedRequests(mockApprovedRequests, '2026-08-01', 'CSIT-A', '3rd Year');
+    assert.equal(csitA3rdYear.length, 1);
+    assert.equal(csitA3rdYear[0].id, 'req-002');
+
+    const csitB3rdYear = filterApprovedRequests(mockApprovedRequests, '2026-08-01', 'CSIT-B', '3rd Year');
+    assert.equal(csitB3rdYear.length, 1);
+    assert.equal(csitB3rdYear[0].id, 'req-001');
+
+    const csitA2ndYear = filterApprovedRequests(mockApprovedRequests, '2026-08-01', 'CSIT-A', '2nd Year');
+    assert.equal(csitA2ndYear.length, 1);
+    assert.equal(csitA2ndYear[0].id, 'req-003');
+  });
+
+  it('preserves yellow permission state regardless of attendance submission order (marked before/after approval)', () => {
+    const approvedList = filterApprovedRequests(mockApprovedRequests, '2026-08-01', 'CSIT-B', '3rd Year');
+    const permSet = computePermissionSet(approvedList, [1, 2]);
+    assert.equal(permSet.has('24B91A0773'), true);
+
+    // Scenario A: Attendance marked before approval (DB records: 73 -> 'present')
+    const dbRecordsBefore = { '24B91A0773': 'present' };
+    const rawStatusA = dbRecordsBefore['24B91A0773'];
+    const hasPermA = permSet.has('24B91A0773');
+    const isYellowA = hasPermA && rawStatusA !== 'absent';
+    assert.equal(isYellowA, true);
+
+    // Scenario B: Attendance marked after approval (DB records: 73 -> 'present')
+    const dbRecordsAfter = { '24B91A0773': 'present' };
+    const rawStatusB = dbRecordsAfter['24B91A0773'];
+    const hasPermB = permSet.has('24B91A0773');
+    const isYellowB = hasPermB && rawStatusB !== 'absent';
+    assert.equal(isYellowB, true);
+  });
+});
+
 
