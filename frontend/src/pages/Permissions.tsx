@@ -122,9 +122,9 @@ interface RollButtonProps {
 }
 
 const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollButtonProps) => {
-  const isPermission = Boolean(request) && markedStatus !== 'absent';
-  const isPresent = markedStatus === 'present' && !Boolean(request);
-  const isAbsent = markedStatus === 'absent';
+  const isPermission = Boolean(request);
+  const isPresent = markedStatus === 'present' && !isPermission;
+  const isAbsent = markedStatus === 'absent' && !isPermission;
 
   // Priority: Permission Approved (Yellow) > Present (Green) > Absent (Red) > Unmarked (White)
   let bgColor = '#FFFFFF';
@@ -440,23 +440,14 @@ export default function PermissionsPage() {
 
   // Query Backend Requests from Database (Enabled only when section selected)
   const { data: apiRequests = [], isLoading } = useQuery({
-    queryKey: ['public-approved-requests'],
-    queryFn: async () => {
-      try {
-        const publicRequests = await api.getPublicApprovedRequests();
-        if (publicRequests.length > 0) return publicRequests;
-        return await api.getRequests();
-      } catch (err) {
-        console.warn('Public query error, falling back to getRequests:', err);
-        try {
-          return await api.getRequests();
-        } catch {
-          return [];
-        }
-      }
-    },
+    queryKey: ['public-approved-requests', todayStr, sectionFilter, selectedYear],
+    queryFn: () => api.getPublicApprovedRequests({
+      date: dateMode === 'today' ? todayStr : undefined,
+      section: sectionFilter !== 'none' ? sectionFilter : undefined,
+      year: selectedYear !== 'all' ? selectedYear : undefined,
+    }),
     enabled: sectionFilter !== 'none',
-    retry: false,
+    retry: 1,
   });
 
   // Query Faculty Attendance Submissions for TODAY ONLY (Enabled only when section selected)

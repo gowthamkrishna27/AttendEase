@@ -107,8 +107,8 @@ export default function FacultyAttendance() {
   });
   const approvedRequests = approvedRequestsRaw ?? STABLE_EMPTY;
 
-  // Map students who have approved permission passes for selectedDate AND matching selectedPeriodIds
-  const permissionStudentsSet = useMemo(() => {
+  // Set of unique full roll numbers of students with approved permissions for selectedDate AND matching selectedPeriodIds
+  const approvedStudentRollsSet = useMemo(() => {
     const set = new Set<string>();
     approvedRequests.forEach(req => {
       if (req.status === 'approved' && req.date === selectedDate) {
@@ -120,16 +120,28 @@ export default function FacultyAttendance() {
           const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
           if (rollStr) {
             set.add(rollStr);
-            const suffix = extractRollSuffix(rollStr);
-            if (suffix) {
-              set.add(suffix);
-            }
           }
         }
       }
     });
     return set;
   }, [approvedRequests, selectedDate, selectedPeriodIds]);
+
+  // Unique count of approved permission students (for banner)
+  const approvedStudentsCount = approvedStudentRollsSet.size;
+
+  // Map of roll strings and suffixes for grid button lookup
+  const permissionStudentsSet = useMemo(() => {
+    const set = new Set<string>();
+    approvedStudentRollsSet.forEach(rollStr => {
+      set.add(rollStr);
+      const suffix = extractRollSuffix(rollStr);
+      if (suffix) {
+        set.add(suffix);
+      }
+    });
+    return set;
+  }, [approvedStudentRollsSet]);
 
   // Derive a stable primitive string from the Set so useEffect can use it as a dep
   // without firing on every render due to Set object reference changes.
@@ -538,12 +550,12 @@ export default function FacultyAttendance() {
         ) : (
           <>
             {/* ── Approved Permission Notice Banner ── */}
-            {permissionStudentsSet.size > 0 && (
+            {approvedStudentsCount > 0 && (
               <div className="p-3 bg-amber-50 border border-amber-300/80 text-amber-900 rounded-xl text-[12px] font-bold flex items-center justify-between shadow-2xs">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
                   <span>
-                    {permissionStudentsSet.size} Student(s) have approved permissions for Period(s) {selectedPeriodIds.join(', ')} today (Pre-highlighted in 🟡 Yellow &amp; pre-set to Present).
+                    {approvedStudentsCount} Student(s) have approved permissions for Period(s) {selectedPeriodIds.join(', ')} today (Pre-highlighted in 🟡 Yellow).
                   </span>
                 </div>
                 <span className="text-[10.5px] bg-amber-200/80 px-2 py-0.5 rounded-md text-amber-950 font-black uppercase tracking-wider">
@@ -647,8 +659,8 @@ export default function FacultyAttendance() {
                     }
 
                     let btnStyle = 'bg-slate-100/90 text-slate-700 hover:bg-slate-200 border-slate-200/80';
-                    if (hasPermission && rawStatus !== 'absent') {
-                      // Yellow Approved Permission — ALWAYS marked Yellow for approved permission students (unless explicitly marked absent)
+                    if (hasPermission) {
+                      // Yellow Approved Permission — IMMUTABLY Yellow for approved permission students
                       btnStyle = 'bg-[#FDE047] text-slate-950 border-amber-400 shadow-xs ring-2 ring-amber-400/80 font-black scale-[1.02]';
                     } else if (effectiveStatus === 'present') {
                       btnStyle = 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20 scale-[1.02] font-extrabold';
