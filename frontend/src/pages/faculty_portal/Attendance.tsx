@@ -95,13 +95,15 @@ export default function FacultyAttendance() {
   const STABLE_EMPTY = useMemo<api.AttendanceRequest[]>(() => [], []);
 
   // Query approved permission passes for date pre-highlighting
+  // NOTE: Do NOT pass `department` here — section + year already scope correctly.
+  // Passing the faculty's own department would eliminate students from other departments
+  // who have approved permissions (e.g. CSD faculty marking CSIT section attendance).
   const { data: approvedRequestsRaw } = useQuery({
-    queryKey: ['public-approved-requests-for-attendance', selectedDate, sectionFilter, selectedYear, user?.department],
+    queryKey: ['public-approved-requests-for-attendance', selectedDate, sectionFilter, selectedYear],
     queryFn: () => api.getPublicApprovedRequests({
       date: selectedDate,
       section: sectionFilter,
       year: selectedYear,
-      department: user?.department,
     }),
     retry: 1,
   });
@@ -113,7 +115,7 @@ export default function FacultyAttendance() {
     if (selectedPeriodIds.length === 0) return set;
 
     approvedRequests.forEach(req => {
-      if (req.status === 'approved' && req.date === selectedDate) {
+      if (req.status === 'approved' && req.date?.slice(0, 10) === selectedDate) {
         // Period overlap check: req periods must overlap with currently selected faculty periods
         const reqPeriods = getPeriodsFromRequest(req);
         const hasOverlap = selectedPeriodIds.some(pId => reqPeriods.includes(pId));
