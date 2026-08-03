@@ -4,12 +4,12 @@ import { AnimatePresence } from 'framer-motion';
 
 // Context
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { NativeAppProvider } from './context/NativeAppProvider';
 import type { UserRole } from './context/AuthContext';
 
 // Pages — public & auth
 import LoginPortal from './pages/auth/LoginPortal';
 import AdminLogin from './pages/admin/Login';
+import ShareRedirectPage from './pages/ShareRedirectPage';
 
 // Pages — student
 import StudentHome from './pages/student/Home';
@@ -53,8 +53,6 @@ const queryClient = new QueryClient({
   },
 });
 
-import { LogoPulseSplash } from './components/mobile/LogoPulseSplash';
-
 // Protected route wrapper
 function ProtectedRoute({
   children,
@@ -67,56 +65,29 @@ function ProtectedRoute({
   const location = useLocation();
 
   if (isLoading) {
-    return <LogoPulseSplash />;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94A3B8' }}>
+        Loading...
+      </div>
+    );
   }
 
   if (!user) {
-    sessionStorage.setItem('attendease_redirect_after_login', location.pathname);
     return <Navigate to={role === 'admin' ? '/admin/login' : '/login'} state={{ from: location }} replace />;
   }
 
+  if (user.role !== role && user.role !== 'admin') {
+    const roleRedirectMap: Record<string, string> = {
+      student: '/student',
+      faculty: '/faculty',
+      hod:     '/hod',
+      admin:   '/admin',
+    };
+    const target = roleRedirectMap[user.role] || '/login';
+    return <Navigate to={target} replace />;
+  }
+
   return <>{children}</>;
-}
-
-import { useParams } from 'react-router-dom';
-
-function SmartFacultyRequestRoute() {
-  const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
-
-  if (user?.role === 'student') {
-    return <Navigate to={`/student/request/${id}`} replace />;
-  }
-  if (user?.role === 'hod') {
-    return <Navigate to={`/hod/request/${id}`} replace />;
-  }
-  return <FacultyRequestDetails />;
-}
-
-function SmartStudentRequestRoute() {
-  const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
-
-  if (user?.role === 'faculty') {
-    return <Navigate to={`/faculty/request/${id}`} replace />;
-  }
-  if (user?.role === 'hod') {
-    return <Navigate to={`/hod/request/${id}`} replace />;
-  }
-  return <StudentRequestDetails />;
-}
-
-function SmartHODRequestRoute() {
-  const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
-
-  if (user?.role === 'student') {
-    return <Navigate to={`/student/request/${id}`} replace />;
-  }
-  if (user?.role === 'faculty') {
-    return <Navigate to={`/faculty/request/${id}`} replace />;
-  }
-  return <HODRequestDetails />;
 }
 
 function AppRoutes() {
@@ -128,9 +99,7 @@ function AppRoutes() {
         {/* Public */}
         <Route path="/" element={<PermissionsPage />} />
         <Route path="/login" element={<LoginPortal />} />
-
-        {/* Universal Smart Request Route */}
-        <Route path="/request/:id" element={<SmartFacultyRequestRoute />} />
+        <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 
         {/* Approved Permissions page (all roles & URL aliases) */}
         <Route path="/permissions" element={<PermissionsPage />} />
@@ -151,7 +120,7 @@ function AppRoutes() {
         <Route path="/student/new-request" element={<ProtectedRoute role="student"><NewRequest /></ProtectedRoute>} />
         <Route path="/student/success" element={<ProtectedRoute role="student"><RequestSuccess /></ProtectedRoute>} />
         <Route path="/student/history" element={<ProtectedRoute role="student"><History /></ProtectedRoute>} />
-        <Route path="/student/request/:id" element={<ProtectedRoute role="student"><SmartStudentRequestRoute /></ProtectedRoute>} />
+        <Route path="/student/request/:id" element={<ProtectedRoute role="student"><StudentRequestDetails /></ProtectedRoute>} />
         <Route path="/student/profile" element={<ProtectedRoute role="student"><Profile /></ProtectedRoute>} />
         <Route path="/student/notifications" element={<ProtectedRoute role="student"><StudentNotifications /></ProtectedRoute>} />
 
@@ -159,14 +128,16 @@ function AppRoutes() {
         <Route path="/faculty" element={<ProtectedRoute role="faculty"><FacultyDashboard /></ProtectedRoute>} />
         <Route path="/faculty/attendance" element={<ProtectedRoute role="faculty"><FacultyAttendance /></ProtectedRoute>} />
         <Route path="/faculty/requests" element={<ProtectedRoute role="faculty"><FacultyRequests /></ProtectedRoute>} />
-        <Route path="/faculty/request/:id" element={<ProtectedRoute role="faculty"><SmartFacultyRequestRoute /></ProtectedRoute>} />
+        <Route path="/faculty/request/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
+        <Route path="/faculty/review/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
         <Route path="/faculty/students" element={<ProtectedRoute role="faculty"><FacultyStudents /></ProtectedRoute>} />
         <Route path="/faculty/reports" element={<ProtectedRoute role="faculty"><FacultyReports /></ProtectedRoute>} />
         <Route path="/faculty/settings" element={<ProtectedRoute role="faculty"><FacultySettings /></ProtectedRoute>} />
 
         {/* HOD (protected) */}
         <Route path="/hod" element={<ProtectedRoute role="hod"><HODDashboard /></ProtectedRoute>} />
-        <Route path="/hod/request/:id" element={<ProtectedRoute role="hod"><SmartHODRequestRoute /></ProtectedRoute>} />
+        <Route path="/hod/request/:id" element={<ProtectedRoute role="hod"><HODRequestDetails /></ProtectedRoute>} />
+        <Route path="/hod/review/:id" element={<ProtectedRoute role="hod"><HODRequestDetails /></ProtectedRoute>} />
         <Route path="/hod/requests" element={<ProtectedRoute role="hod"><HODAllRequests /></ProtectedRoute>} />
         <Route path="/hod/faculty" element={<ProtectedRoute role="hod"><HODFaculty /></ProtectedRoute>} />
         <Route path="/hod/reports" element={<ProtectedRoute role="hod"><HODReports /></ProtectedRoute>} />
@@ -191,11 +162,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <NativeAppProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </NativeAppProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>
   );

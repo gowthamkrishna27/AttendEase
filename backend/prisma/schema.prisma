@@ -49,9 +49,6 @@ model User {
   avatarUrl   String?
   designation String?
   phone       String?
-  dob         String?
-  gender      String?
-  address     String?
   fcmToken    String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -79,6 +76,7 @@ model User {
 model Request {
   id                  String        @id @default(cuid())
   requestId           String        @unique  // human-readable: "req-LK4F2J-A3BX"
+  publicId            String?       @unique  // secure public identifier: "rq_U2YQ7XkP9WmL3nA8"
   studentId           String                 // references User.userId
   primaryFacultyId    String?                // references User.userId (primary reviewer)
 
@@ -113,6 +111,7 @@ model Request {
   @@index([status])
   @@index([submittedAt(sort: Desc)])
   @@index([primaryFacultyId])
+  @@index([publicId])
 }
 
 /// Join table: which faculty members are assigned to review a request

@@ -2,7 +2,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock, FileText, Paperclip, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { StatusBadge } from './StatusBadge';
-import { ShareRequestButton } from './ShareRequestButton';
 import { formatDate, formatTime } from '../../lib/utils';
 import type { AttendanceRequest } from '../../types';
 
@@ -26,8 +25,6 @@ export function RequestOverviewModal({
   role = 'faculty',
 }: RequestOverviewModalProps) {
   if (!open || !request) return null;
-
-  const proofDocName = request.documentName || (request.reason !== 'other' ? `${request.reason}_Permission_Proof.pdf` : 'Attendance_Request_Proof.pdf');
 
   return (
     <AnimatePresence>
@@ -73,15 +70,6 @@ export function RequestOverviewModal({
 
           {/* Body content — scrollable */}
           <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
-
-            {/* Quick Share Banner */}
-            <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-bold text-emerald-950">📲 Share Request</p>
-                <p className="text-[11px] text-emerald-700 truncate">Send link via WhatsApp or copy URL</p>
-              </div>
-              <ShareRequestButton request={request} size="sm" />
-            </div>
 
             {/* Student Info Box */}
             <div className="flex items-center gap-3.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
@@ -134,38 +122,40 @@ export function RequestOverviewModal({
               </div>
             </div>
 
-            {/* Uploaded Student Proof Document */}
-            <div className="p-3.5 bg-orange-50/60 rounded-xl border border-orange-200/80">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <Paperclip size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <p className="text-[11px] font-extrabold text-orange-600 uppercase tracking-wider">Uploaded Student Proof</p>
-                    <span className="text-[10px] font-bold text-orange-700 bg-orange-200/70 px-2 py-0.5 rounded-full">Proof Document</span>
+            {/* Uploaded Student Proof Document (Only rendered if proof was uploaded) */}
+            {Boolean(request.documentName || request.documentUrl) && (
+              <div className="p-3.5 bg-orange-50/60 rounded-xl border border-orange-200/80">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <Paperclip size={16} />
                   </div>
-                  <p className="text-[13px] font-bold text-slate-900 truncate">{proofDocName}</p>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <button
-                      type="button"
-                      onClick={() => alert(`Previewing uploaded proof document: ${proofDocName}`)}
-                      className="text-[11px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 transition-colors cursor-pointer"
-                    >
-                      👁️ Preview Proof
-                    </button>
-                    <span className="text-slate-300">•</span>
-                    <button
-                      type="button"
-                      onClick={() => alert(`Downloading proof document: ${proofDocName}`)}
-                      className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 transition-colors cursor-pointer"
-                    >
-                      📥 Download
-                    </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <p className="text-[11px] font-extrabold text-orange-600 uppercase tracking-wider">Uploaded Student Proof</p>
+                      <span className="text-[10px] font-bold text-orange-700 bg-orange-200/70 px-2 py-0.5 rounded-full">Proof Document</span>
+                    </div>
+                    <p className="text-[13px] font-bold text-slate-900 truncate">{request.documentName || 'Uploaded_Proof_Document.pdf'}</p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => alert(`Previewing uploaded proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                        className="text-[11px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 transition-colors cursor-pointer"
+                      >
+                        👁️ Preview Proof
+                      </button>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        type="button"
+                        onClick={() => alert(`Downloading proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                        className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 transition-colors cursor-pointer"
+                      >
+                        📥 Download
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Reason Description */}
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">

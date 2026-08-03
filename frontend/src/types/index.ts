@@ -1,6 +1,6 @@
 // TypeScript type definitions for AttendEase
 
-export type RequestStatus = 'pending' | 'approved' | 'rejected';
+export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export type RequestReason =
   | 'internship'
@@ -17,6 +17,8 @@ export interface Student {
   department: string;
   semester: number;
   email: string;
+  section?: string;
+  year?: string;
   avatarUrl?: string;
 }
 
@@ -27,6 +29,7 @@ export interface Faculty {
   email: string;
   avatarUrl?: string;
   designation?: string;
+  role?: string;
 }
 
 export interface AttendanceRequest {
@@ -51,6 +54,8 @@ export interface AttendanceRequest {
   faculties?: Faculty[];
   reviewedAt?: string;
   rejectionReason?: string;
+  finalDecisionBy?: string;
+  finalDecisionName?: string;
 }
 
 export interface NewRequestFormData {

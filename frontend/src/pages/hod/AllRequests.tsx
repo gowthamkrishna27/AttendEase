@@ -62,6 +62,9 @@ export default function HODAllRequests() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
       void queryClient.invalidateQueries({ queryKey: ['public-approved-requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['public-approved-requests-for-attendance'] });
+      void queryClient.invalidateQueries({ queryKey: ['attendanceSubmissions'] });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 
@@ -190,7 +193,7 @@ export default function HODAllRequests() {
                 </thead>
                 <motion.tbody variants={listVariants} initial="hidden" animate="visible">
                   {filtered.map(req => {
-                    const proofDocName = req.documentName || (req.reason !== 'other' ? `${req.reason}_Proof.pdf` : null);
+                    const proofDocName = req.documentName || null;
                     return (
                       <motion.tr
                         key={req.id}

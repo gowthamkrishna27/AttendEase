@@ -1,35 +1,35 @@
-import { getSecureToken, saveSecureToken, clearSecureToken as clearNativeSecureToken } from './nativeAuth';
+/**
+ * Typed API client for AttendEase
+ * Reads VITE_API_URL (defaults to http://localhost:3000)
+ * Attaches JWT from localStorage to every authenticated request
+ */
 
-function getApiBaseUrl(): string {
-  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
-  if (envUrl) return envUrl.replace(/\/+$/, '');
-
-  const isCapacitorNative = (window as any).Capacitor?.isNativePlatform?.() || window.location.protocol === 'capacitor:';
-  if (isCapacitorNative) {
-    return 'https://attendease-apuw.onrender.com';
-  }
-
+const getApiBase = (): string => {
+  // If running in browser on localhost / 127.0.0.1, always target local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:3000';
   }
 
-  return 'https://attendease-apuw.onrender.com';
-}
+  // Otherwise (on Vercel production deployment), use VITE_API_URL or fallback to Render
+  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
+  if (envUrl) return envUrl.replace(/\/+$/, '');
 
-const BASE = getApiBaseUrl();
+  return 'https://attendease-apuw.onrender.com';
+};
+
+const BASE = getApiBase();
+
 const TOKEN_KEY = 'attendease_token';
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem('attendease_secure_jwt') || localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
 }
 
 export function setStoredToken(token: string, remember: boolean = true): void {
-  saveSecureToken(token).catch(e => console.warn('Keystore save async:', e));
+  sessionStorage.setItem(TOKEN_KEY, token);
   if (remember) {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem('attendease_remember_me', 'true');
-  } else {
-    sessionStorage.setItem(TOKEN_KEY, token);
   }
 }
 
@@ -48,6 +48,7 @@ export type UserRole = 'student' | 'faculty' | 'hod' | 'admin';
 
 export interface AuthUser {
   id: string;
+  userId?: string;
   name: string;
   email: string;
   role: UserRole;
@@ -65,6 +66,8 @@ export interface Student {
   department: string;
   semester: number;
   email: string;
+  section?: string;
+  year?: string;
   avatarUrl?: string;
 }
 
@@ -74,6 +77,7 @@ export interface Faculty {
   department: string;
   email: string;
   designation?: string;
+  role?: string;
   avatarUrl?: string;
 }
 
@@ -101,6 +105,7 @@ export interface NotificationItem {
 
 export interface AttendanceRequest {
   id: string;
+  publicId?: string;
   studentId: string;
   student?: Student;
   reason: RequestReason;
@@ -110,6 +115,7 @@ export interface AttendanceRequest {
   endTime: string;
   description: string;
   documentName?: string;
+  documentUrl?: string;
   status: RequestStatus;
   submittedAt: string;
   facultyId?: string;
@@ -140,25 +146,25 @@ async function apiFetch<T>(
   }
 
   const reqInit = { ...options, headers };
-  let res: Response;
+  let res: Response | null = null;
   try {
     res = await fetch(`${BASE}${path}`, reqInit);
   } catch {
-    // If primary port fetch fails (e.g. backend restarted on port 3001), try fallback port 3001
-    const fallbackBase = BASE.includes('3000') ? BASE.replace('3000', '3001') : 'http://localhost:3000';
-    try {
-      res = await fetch(`${fallbackBase}${path}`, reqInit);
-    } catch {
-      if (!BASE.includes('onrender.com')) {
-        try {
-          res = await fetch(`https://attendease-apuw.onrender.com${path}`, reqInit);
-        } catch {
-          throw new Error('Unable to connect to backend server. Please make sure the backend is running.');
-        }
-      } else {
-        throw new Error('Unable to connect to backend server. Please make sure the backend is running.');
+    // If primary port fetch fails, iterate through local backend fallback ports (3000, 3001, 3002)
+    const fallbackBases = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== BASE);
+    for (const fb of fallbackBases) {
+      try {
+        const fbRes = await fetch(`${fb}${path}`, reqInit);
+        res = fbRes;
+        break;
+      } catch {
+        // try next fallback port
       }
     }
+  }
+
+  if (!res) {
+    throw new Error('Unable to connect to backend server. Please make sure the backend is running.');
   }
 
   if (!res.ok) {
@@ -260,8 +266,20 @@ export async function getRequests(_params?: { department?: string }): Promise<At
   return res.requests;
 }
 
-export async function getPublicApprovedRequests(): Promise<AttendanceRequest[]> {
-  const res = await apiFetch<{ requests: AttendanceRequest[] }>('/api/requests/public-approved', {}, false);
+export async function getPublicApprovedRequests(params?: {
+  date?: string;
+  section?: string;
+  year?: string;
+  department?: string;
+}): Promise<AttendanceRequest[]> {
+  const queryParams = new URLSearchParams();
+  if (params?.date) queryParams.set('date', params.date);
+  if (params?.section) queryParams.set('section', params.section);
+  if (params?.year) queryParams.set('year', params.year);
+  if (params?.department) queryParams.set('department', params.department);
+
+  const url = `/api/requests/public-approved${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const res = await apiFetch<{ requests: AttendanceRequest[] }>(url, {}, false);
   return res.requests;
 }
 
@@ -339,13 +357,6 @@ export async function markNotificationRead(id: string): Promise<void> {
 
 export async function markAllNotificationsRead(): Promise<void> {
   await apiFetch('/api/notifications/read-all', { method: 'PATCH' });
-}
-
-export async function registerDeviceToken(fcmToken: string): Promise<{ success: boolean }> {
-  return apiFetch<{ success: boolean }>('/api/notifications/register-device', {
-    method: 'POST',
-    body: JSON.stringify({ fcmToken }),
-  });
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -522,6 +533,10 @@ export async function unassignCounselingStudent(studentId: string): Promise<{ su
     method: 'POST',
     body: JSON.stringify({ studentId }),
   });
+}
+
+export async function getShareRedirect(publicId: string): Promise<{ success: boolean; redirectTo?: string; status?: number; error?: string }> {
+  return apiFetch<{ success: boolean; redirectTo?: string; status?: number; error?: string }>(`/api/share/${encodeURIComponent(publicId)}`);
 }
 
 

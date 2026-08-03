@@ -91,28 +91,4 @@ router.patch('/:id/read', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/notifications/register-device — register FCM device token for push notifications
- */
-router.post('/register-device', async (req: Request, res: Response) => {
-  try {
-    const { fcmToken } = req.body;
-    if (!fcmToken) {
-      return res.status(400).json({ error: 'fcmToken is required' });
-    }
-
-    const user = req.user!;
-    await prisma.user.update({
-      where: { userId: user.userId },
-      data: { fcmToken },
-    });
-
-    console.log(`[FCM Backend] Saved FCM device token to PostgreSQL for user ${user.name} (${user.userId}): ${fcmToken.slice(0, 15)}...`);
-    res.json({ success: true, message: 'FCM Device token registered & stored in PostgreSQL successfully' });
-  } catch (err) {
-    console.error('POST /notifications/register-device error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 export default router;

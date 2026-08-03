@@ -1,16 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Home, Clock, User, LogOut,
+  Home, Clock, User, LogOut, LogIn,
   Bell, GraduationCap, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-<<<<<<< HEAD
-  FileCheck, Building2, Layers, Award, FileText, CheckSquare, UserCheck, LogIn
-=======
-  FileCheck, Building2, Layers, Award, FileText, Sun, Moon
->>>>>>> origin/pavan
+  FileCheck, Building2, Layers, Award, FileText, CheckSquare, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -74,10 +70,10 @@ const studentMobileBottomNav = [
 
 const facultyMobileBottomNav = [
   { id: 'home', to: '/faculty', label: 'Dashboard', icon: Home, type: 'link' },
-  { id: 'attendance', to: '/faculty/attendance', label: 'Attendance', icon: CheckSquare, type: 'link' },
   { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
   { id: 'students', to: '/faculty/students', label: 'Students', icon: Users, type: 'link' },
   { id: 'reports', to: '/faculty/reports', label: 'Reports', icon: BarChart2, type: 'link' },
+  { id: 'settings', to: '/faculty/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
 const hodMobileBottomNav = [
@@ -102,6 +98,7 @@ const pageVariants = {
 
 export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const { user, logout } = useAuth();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -188,35 +185,11 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
   const navLinks = role === 'viewer' ? viewerNav : role === 'student' ? studentNav : role === 'faculty' ? facultyNav : role === 'hod' ? hodNav : adminNav;
   const homeLink = role === 'viewer' ? '/permissions' : role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : role === 'hod' ? '/hod' : '/admin';
 
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const handleLogout = () => { logout(); navigate('/'); };
 
   const hour = new Date().getHours();
   const firstName = user?.name?.split(' ')[0] ?? 'User';
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-
-  const [darkMode, setDarkMode] = useState(() => {
-    return document.documentElement.classList.contains('dark') || localStorage.getItem('attendease_dark_mode') === 'true';
-  });
-
-  const toggleDarkMode = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    if (next) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('attendease_dark_mode', 'true');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('attendease_dark_mode', 'false');
-    }
-  };
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
 
   const [deviceTime, setDeviceTime] = useState(new Date());
 
@@ -279,74 +252,53 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             <span>{formatDeviceDateTime(deviceTime)}</span>
           </div>
 
-          {/* Dark Mode Toggle */}
-          <button
-            type="button"
-            onClick={toggleDarkMode}
-            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            style={{ width: 38, height: 38, borderRadius: 12, background: '#F8FAFC', border: '1px solid #E8EDF2', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: darkMode ? '#F97316' : '#64748B' }}
-          >
-            {darkMode ? <Sun size={17} /> : <Moon size={17} />}
-          </button>
-
-          <div ref={desktopBellRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              style={{ width: 38, height: 38, borderRadius: 12, background: '#F8FAFC', border: '1px solid #E8EDF2', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748B' }}
-            >
-              <Bell size={17} />
-            </button>
-            {unreadCount > 0 && (
-              <span style={{ position: 'absolute', top: 3, right: 3, width: 8, height: 8, borderRadius: '50%', background: '#F97316', border: '1.5px solid #fff' }} />
-            )}
-            {renderNotificationDropdown()}
-          </div>
-
-          {/* Top-Right Settings Icon Button */}
-          {user && (
-            <Link
-              to={user.role === 'student' ? '/student/profile' : user.role === 'faculty' ? '/faculty/settings' : user.role === 'hod' ? '/hod/settings' : '/admin/settings'}
-              style={{
-                width: 38, height: 38, borderRadius: 12, background: '#F8FAFC', border: '1px solid #E8EDF2',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', textDecoration: 'none',
-                transition: 'all 0.15s ease'
-              }}
-              title="Settings"
-            >
-              <Settings size={17} />
-            </Link>
-          )}
-
-          {/* Top-Right Login / Portal Action Button */}
-          {user ? (
-            <Link
-              to={user.role === 'student' ? '/student' : user.role === 'faculty' ? '/faculty' : user.role === 'hod' ? '/hod' : '/admin'}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '8px 18px', borderRadius: 10,
-                background: '#F97316', color: '#ffffff',
-                fontSize: 13, fontWeight: 700, textDecoration: 'none',
-                boxShadow: '0 2px 10px rgba(249,115,22,0.25)',
-                transition: 'all 0.2s',
-              }}
-            >
-              <span>{user.role.toUpperCase()} Portal</span>
-            </Link>
-          ) : (
+          {/* Show Login or User Profile/Dashboard button */}
+          {!user ? (
             <Link
               to="/login"
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '8px 20px', borderRadius: 10,
-                background: '#F97316', color: '#ffffff',
-                fontSize: 13, fontWeight: 700, textDecoration: 'none',
-                boxShadow: '0 2px 10px rgba(249,115,22,0.25)',
-                transition: 'all 0.2s',
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', fontSize: 13, fontWeight: 700,
+                color: '#ffffff', background: '#F97316',
+                borderRadius: 12, textDecoration: 'none',
+                boxShadow: '0 2px 8px rgba(249,115,22,0.25)',
+                transition: 'all 0.15s ease',
               }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#000000'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#F97316'; }}
             >
               <LogIn size={15} />
               <span>Login</span>
             </Link>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Link
+                to={`/${user.role}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 14px', fontSize: 13, fontWeight: 700,
+                  color: '#ffffff', background: '#0F172A',
+                  borderRadius: 12, textDecoration: 'none',
+                  boxShadow: '0 2px 8px rgba(15,23,42,0.15)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <User size={15} style={{ color: '#F97316' }} />
+                <span style={{ textTransform: 'capitalize' }}>{user.name?.split(' ')[0] || user.role}</span>
+              </Link>
+              <button
+                onClick={handleLogout}
+                title="Logout"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 34, height: 34, borderRadius: 10, background: '#FEF2F2',
+                  border: '1px solid #FECACA', color: '#DC2626', cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -360,66 +312,54 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         borderBottom: '1px solid #EEF2F7',
         boxShadow: '0 1px 8px rgba(0,0,0,0.04)',
         display: 'none', alignItems: 'center',
-        padding: '0 14px',
-        justifyContent: 'space-between',
+        padding: '0 16px',
       }}>
         {/* Left: logo + brand */}
-        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-          <img src={srkrEmblem} alt="SRKR" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+          <img src={srkrEmblem} alt="SRKR" style={{ width: 34, height: 34, objectFit: 'contain' }} />
           <div style={{ lineHeight: 1.15 }}>
-            <p style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>SRKR Engineering College</p>
-            <p style={{ fontSize: 10, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
+            <p style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>SRKR Engineering College</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
           </div>
         </Link>
 
-        {/* Right side: Login / Portal + Settings + Time */}
+        {/* Center/Right: Time + Login Button (mobile) */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
-            fontSize: 10, fontWeight: 700, color: '#475569',
-            background: '#F8FAFC', padding: '4px 8px', borderRadius: 8,
+            fontSize: 11, fontWeight: 700, color: '#475569',
+            background: '#F8FAFC', padding: '5px 8px', borderRadius: 8,
             border: '1px solid #EEF2F7', display: 'flex', alignItems: 'center'
           }}>
             <span>{formatDeviceDateTimeMobile(deviceTime)}</span>
           </div>
 
-          {user && (
-            <Link
-              to={user.role === 'student' ? '/student/profile' : user.role === 'faculty' ? '/faculty/settings' : user.role === 'hod' ? '/hod/settings' : '/admin/settings'}
-              style={{
-                width: 30, height: 30, borderRadius: 8,
-                background: '#F8FAFC', border: '1px solid #EEF2F7',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#64748B', textDecoration: 'none'
-              }}
-              title="Settings"
-            >
-              <Settings size={15} />
-            </Link>
-          )}
-
-          {user ? (
-            <Link
-              to={user.role === 'student' ? '/student' : user.role === 'faculty' ? '/faculty' : user.role === 'hod' ? '/hod' : '/admin'}
-              style={{
-                padding: '6px 12px', borderRadius: 8,
-                background: '#F97316', color: '#ffffff',
-                fontSize: 11, fontWeight: 700, textDecoration: 'none',
-              }}
-            >
-              Portal
-            </Link>
-          ) : (
+          {!user ? (
             <Link
               to="/login"
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '6px 12px', borderRadius: 8,
-                background: '#F97316', color: '#ffffff',
-                fontSize: 11, fontWeight: 700, textDecoration: 'none',
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '5px 10px', fontSize: 12, fontWeight: 700,
+                color: '#ffffff', background: '#F97316',
+                borderRadius: 8, textDecoration: 'none',
+                boxShadow: '0 1px 4px rgba(249,115,22,0.20)'
               }}
             >
               <LogIn size={13} />
               <span>Login</span>
+            </Link>
+          ) : (
+            <Link
+              to={`/${user.role}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '5px 10px', fontSize: 12, fontWeight: 700,
+                color: '#ffffff', background: '#0F172A',
+                borderRadius: 8, textDecoration: 'none',
+                boxShadow: '0 1px 4px rgba(15,23,42,0.20)'
+              }}
+            >
+              <User size={13} style={{ color: '#F97316' }} />
+              <span style={{ textTransform: 'capitalize' }}>{user.role}</span>
             </Link>
           )}
         </div>
@@ -524,7 +464,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           className="main-content"
         >
           {/* Greeting header — only on dashboard home pages */}
-          {(location.pathname === '/student' || location.pathname === '/student/' || location.pathname === '/faculty' || location.pathname === '/faculty/' || location.pathname === '/hod' || location.pathname === '/hod/' || location.pathname === '/admin' || location.pathname === '/admin/') && (
+          {(routerLocation.pathname === '/student' || routerLocation.pathname === '/student/' || routerLocation.pathname === '/faculty' || routerLocation.pathname === '/faculty/' || routerLocation.pathname === '/hod' || routerLocation.pathname === '/hod/' || routerLocation.pathname === '/admin' || routerLocation.pathname === '/admin/') && (
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
               <div>
                 <h1 style={{ fontSize: 24, fontWeight: 800, color: '#000000', margin: '0 0 4px' }}>
@@ -566,75 +506,52 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           boxShadow: '0 -4px 20px rgba(0,0,0,0.06)',
           alignItems: 'center', justifyContent: 'space-between',
           padding: '0 4px calc(env(safe-area-inset-bottom, 0px) + 2px)',
-          width: '100%',
-          boxSizing: 'border-box',
         }}>
           {(role === 'admin' ? adminMobileBottomNav : role === 'hod' ? hodMobileBottomNav : role === 'faculty' ? facultyMobileBottomNav : studentMobileBottomNav).map(item => {
             if (item.type === 'fab') {
               // Centre + FAB button -> Navigates to /student/new-request
               return (
-                <div key="fab" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                <div key="fab" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                   <button
-                    type="button"
-                    key="fab-btn"
                     onClick={() => navigate(item.to || '/student/new-request')}
-                    aria-label="New Request"
                     style={{
                       width: 48, height: 48, borderRadius: '50%',
                       background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
                       border: '3px solid #ffffff', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: '0 4px 14px rgba(249,115,22,0.40)',
-                      transform: 'translateY(-10px)',
-                      transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                      boxShadow: '0 4px 14px rgba(249,115,22,0.45)',
+                      transform: 'translateY(-12px)',
                     }}
                   >
-                    <Plus size={22} style={{ color: '#fff' }} />
+                    <Plus size={24} style={{ color: '#fff' }} />
                   </button>
                 </div>
               );
             }
 
             const Icon = item.icon!;
-            const active = location.pathname === item.to;
+            const active = item.to === '/student'
+              ? routerLocation.pathname === '/student' || routerLocation.pathname === '/student/'
+              : routerLocation.pathname.startsWith(item.to!);
             return (
-              <Link
-                key={item.id}
-                to={item.to!}
-                style={{
-                  flex: 1,
-                  height: '100%',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-                  textDecoration: 'none', position: 'relative',
-                  padding: '4px 0',
-                  color: active ? '#F97316' : '#94A3B8',
-                  transition: 'color 0.15s ease',
-                }}
-              >
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={20} style={{ strokeWidth: active ? 2.2 : 1.8 }} />
+              <div key={item.id} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <Link
+                  to={item.to!}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                    textDecoration: 'none', position: 'relative',
+                    padding: '6px 0', width: '100%',
+                    color: active ? '#F97316' : '#94A3B8',
+                    transition: 'color 0.15s ease',
+                  }}
+                >
+                  <Icon size={20} />
+                  <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{item.label}</span>
                   {item.hasBadge && unreadCount > 0 && (
-                    <span style={{
-                      position: 'absolute', top: -2, right: -4,
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: '#F97316', border: '1.5px solid #ffffff'
-                    }} />
+                    <span style={{ position: 'absolute', top: 4, right: 'calc(50% - 14px)', width: 7, height: 7, borderRadius: '50%', background: '#F97316', border: '1px solid #fff' }} />
                   )}
-                </div>
-                <span style={{
-                  fontSize: 10,
-                  lineHeight: '12px',
-                  fontWeight: active ? 600 : 500,
-                  letterSpacing: '-0.01em',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  maxWidth: '100%',
-                }}>
-                  {item.label}
-                </span>
-              </Link>
+                </Link>
+              </div>
             );
           })}
         </nav>
@@ -648,7 +565,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           .desktop-sidebar  { display: none !important; }
           .mobile-topbar    { display: flex !important; }
           .mobile-bottom-nav{ display: ${role === 'viewer' ? 'none' : 'flex'} !important; }
-          .main-content     { padding: ${role === 'viewer' ? '16px 16px 24px' : '16px 16px calc(76px + env(safe-area-inset-bottom, 0px))'} !important; }
+          .main-content     { padding: ${role === 'viewer' ? '16px 16px 24px' : '16px 16px 88px'} !important; }
           .student-portal-badge { display: none !important; }
         }
         /* ── Screen Desktop ── */

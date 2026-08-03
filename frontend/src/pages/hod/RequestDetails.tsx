@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, Clock, FileText,
-  Check, X, ShieldAlert, RotateCcw
+  Check, X, ShieldAlert
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
@@ -71,7 +71,10 @@ export default function HODRequestDetails() {
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
       void queryClient.invalidateQueries({ queryKey: ['public-approved-requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['public-approved-requests-for-attendance'] });
+      void queryClient.invalidateQueries({ queryKey: ['attendanceSubmissions'] });
       void queryClient.invalidateQueries({ queryKey: ['request', id] });
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
       setConfirmModal(null);
       setRejectionReason('');
       setToastMsg(`✅ HOD Executive Override Applied: Request is now ${variables.action === 'approve' ? 'APPROVED' : 'REJECTED'}`);
@@ -232,39 +235,36 @@ export default function HODRequestDetails() {
                 </p>
               </div>
             </div>
-            {/* Uploaded Student Proof Document Section */}
-            {(() => {
-              const docName = request.documentName || (request.reason !== 'other' ? `${request.reason}_Permission_Proof.pdf` : 'Attendance_Request_Proof.pdf');
-              return (
-                <div className="flex items-start gap-3 sm:col-span-2 bg-orange-50/60 p-3.5 rounded-xl border border-orange-200/80">
-                  <div className="w-9 h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                    <FileText size={18} />
+            {/* Uploaded Student Proof Document Section (Only shown if student actually attached a file) */}
+            {Boolean(request.documentName || request.documentUrl) && (
+              <div className="flex items-start gap-3 sm:col-span-2 bg-orange-50/60 p-3.5 rounded-xl border border-orange-200/80">
+                <div className="w-9 h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <FileText size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-[12px] font-bold text-orange-600 uppercase tracking-wider">Uploaded Student Proof Document</p>
+                    <span className="text-[10px] font-bold text-orange-700 bg-orange-200/70 px-2 py-0.5 rounded-full">Proof Attached</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-[12px] font-bold text-orange-600 uppercase tracking-wider">Uploaded Student Proof Document</p>
-                      <span className="text-[10px] font-bold text-orange-700 bg-orange-200/70 px-2 py-0.5 rounded-full">Proof Attached</span>
-                    </div>
-                    <p className="text-[14px] font-semibold text-slate-900 truncate">{docName}</p>
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <button
-                        onClick={() => alert(`Previewing uploaded proof document: ${docName}`)}
-                        className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors"
-                      >
-                        👁️ Preview Proof
-                      </button>
-                      <span className="text-slate-300">•</span>
-                      <button
-                        onClick={() => alert(`Downloading proof document: ${docName}`)}
-                        className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors"
-                      >
-                        📥 Download File
-                      </button>
-                    </div>
+                  <p className="text-[14px] font-semibold text-slate-900 truncate">{request.documentName || 'Uploaded_Proof_Document.pdf'}</p>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <button
+                      onClick={() => alert(`Previewing uploaded proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                      className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      👁️ Preview Proof
+                    </button>
+                    <span className="text-slate-300">•</span>
+                    <button
+                      onClick={() => alert(`Downloading proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                      className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      📥 Download File
+                    </button>
                   </div>
                 </div>
-              );
-            })()}
+              </div>
+            )}
           </div>
         </div>
 
@@ -275,10 +275,10 @@ export default function HODRequestDetails() {
         </div>
 
         {/* Rejection reason */}
-        {request.status === 'rejected' && request.rejectionReason && (
+        {request.status === 'rejected' && Boolean((request as any).rejectionReason) && (
           <div className="bg-danger/5 border border-danger/20 rounded-xl px-5 py-4 mb-4">
             <p className="text-[13px] font-medium text-danger mb-1">Rejection Reason</p>
-            <p className="text-[14px] text-[#111111]">{request.rejectionReason}</p>
+            <p className="text-[14px] text-[#111111]">{(request as any).rejectionReason}</p>
           </div>
         )}
 
@@ -328,7 +328,7 @@ export default function HODRequestDetails() {
 
       {/* Confirmation / Rejection Modal */}
       <Modal
-        isOpen={Boolean(confirmModal)}
+        open={Boolean(confirmModal)}
         onClose={() => { setConfirmModal(null); setRejectionReason(''); }}
         title={
           confirmModal === 'approve'

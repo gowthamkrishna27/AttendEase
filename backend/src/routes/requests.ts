@@ -1,22 +1,75 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import crypto from 'crypto';
 import { verifyToken } from '../middleware/auth.js';
 import { prisma } from '../db/prisma.js';
 import type { RequestReason } from '../types.js';
 import type { Prisma, RequestStatus } from '@prisma/client';
-import { sendFcmNotification } from '../services/fcm.service.js';
 
 const router = Router();
 
-// Public endpoint for permissions page viewer (no JWT required)
-router.get('/public-approved', async (_req: Request, res: Response) => {
+// Public endpoint for permissions page viewer & attendance pre-highlighting
+router.get('/public-approved', async (req: Request, res: Response) => {
   try {
+    const { date, department, section, year } = req.query;
+
+    const where: Prisma.RequestWhereInput = {
+      status: 'approved',
+      ...(date && { date: String(date).trim() }),
+    };
+
     const requests = await prisma.request.findMany({
-      where: { status: 'approved' },
+      where,
       include: REQUEST_INCLUDE,
       orderBy: { date: 'desc' },
     });
-    res.json({ requests: requests.map(toApi) });
+
+    let filtered = requests.map(toApi);
+
+    // Filter by department if specified
+    if (department && typeof department === 'string' && department.trim() && department !== 'all') {
+      const depNorm = department.trim().toLowerCase();
+      filtered = filtered.filter(r => (r.student?.department || '').toLowerCase() === depNorm);
+    }
+
+    // Filter by section if specified ('CSD-A', 'CSIT-A', 'CSIT-B', 'A', 'B', etc.)
+    if (section && typeof section === 'string' && section.trim() && section !== 'none' && section !== 'all') {
+      const secNorm = section.trim().toUpperCase();
+      const isSecB = secNorm.includes('B') || secNorm === 'CSIT-B';
+      filtered = filtered.filter(r => {
+        const studentSec = ((r.student as any)?.section || '').toUpperCase();
+        if (studentSec) {
+          return studentSec === secNorm || secNorm.includes(studentSec) || studentSec.includes(secNorm);
+        }
+        // Fallback: derive from roll number
+        const roll = (r.student?.rollNumber || r.studentId || '').toUpperCase();
+        const isRollB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B') || roll.includes('95A') || roll.includes('LE');
+        return isSecB ? isRollB : !isRollB;
+      });
+    }
+
+    // Filter by year if specified ('1st Year', '2nd Year', '3rd Year', '4th Year', '1', '2', '3', '4', etc.)
+    if (year && typeof year === 'string' && year.trim() && year !== 'all') {
+      const yrNorm = year.trim().toLowerCase();
+      const yearDigitMatch = yrNorm.match(/([1-4])/);
+      const targetNum = yearDigitMatch ? yearDigitMatch[1] : '';
+
+      filtered = filtered.filter(r => {
+        const reqYear = ((r.student as any)?.year || '').toLowerCase();
+        if (reqYear) {
+          if (reqYear === yrNorm) return true;
+          if (targetNum && reqYear.includes(targetNum)) return true;
+        }
+        const sem = r.student?.semester;
+        if (sem && typeof sem === 'number' && targetNum) {
+          const derivedYear = String(Math.ceil(sem / 2));
+          return derivedYear === targetNum;
+        }
+        return !targetNum || targetNum === '3';
+      });
+    }
+
+    res.json({ requests: filtered });
   } catch (error) {
     console.error('Error fetching public approved requests:', error);
     res.status(500).json({ error: 'Failed to fetch public approved requests' });
@@ -84,6 +137,7 @@ function toApi(r: any) {
 
   const base = {
     id:                  r.requestId,
+    publicId:            r.publicId ?? r.requestId,
     studentId:           r.studentId,
     student:             studentObj,
     reason:              r.reason,
@@ -218,6 +272,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         OR: [
           { id:        { equals: idParam, mode: 'insensitive' } },
           { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
         ],
       },
       include: REQUEST_INCLUDE,
@@ -368,10 +423,19 @@ router.post('/', async (req: Request, res: Response) => {
       if (fallback) facultyDocs = [fallback];
     }
 
-    // Collision-safe requestId
-    const tsHex   = Date.now().toString(36).toUpperCase();
-    const randHex = Math.random().toString(36).slice(2, 6).toUpperCase();
+    // Collision-safe requestId and non-sequential publicId
+    const tsHex    = Date.now().toString(36).toUpperCase();
+    const randHex  = Math.random().toString(36).slice(2, 6).toUpperCase();
     const requestId = `req-${tsHex}-${randHex}`;
+
+    // Non-sequential cryptographically secure publicId (e.g. rq_U2YQ7XkP9WmL3nA8)
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz';
+    const bytes = crypto.randomBytes(16);
+    let publicIdStr = 'rq_';
+    for (let i = 0; i < 16; i++) {
+      publicIdStr += chars[bytes[i] % chars.length];
+    }
+    const publicId = publicIdStr;
 
     const primaryFaculty = facultyDocs[0] ?? null;
 
@@ -380,6 +444,7 @@ router.post('/', async (req: Request, res: Response) => {
       const created = await tx.request.create({
         data: {
           requestId,
+          publicId,
           studentId:        studentUser.userId,
           primaryFacultyId: primaryFaculty?.userId ?? null,
           reason:           safeReason,
@@ -435,25 +500,6 @@ router.post('/', async (req: Request, res: Response) => {
       });
     });
 
-    // FCM Dispatch #1: Send push notification to assigned Faculty
-    if (newDoc && facultyDocs.length > 0) {
-      for (const fac of facultyDocs) {
-        if (fac.fcmToken) {
-          sendFcmNotification(
-            fac.fcmToken,
-            'New Attendance Request',
-            `${studentUser.name} submitted a new attendance request requiring your approval.`,
-            {
-              requestId: newDoc.id,
-              role: 'faculty',
-              notificationType: 'new_request',
-            },
-            fac.userId
-          ).catch(e => console.error('[FCM] Error sending faculty push notification:', e));
-        }
-      }
-    }
-
     res.status(201).json({ request: toApi(newDoc!) });
   } catch (err) {
     console.error('POST /requests error:', err);
@@ -470,17 +516,14 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
   // Role override from HOD executive control panel
   const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  if (roleOverride === 'hod' || (user.role as string) === 'viewer') {
+  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod' || (user.role as string) === 'viewer';
+
+  if (isHodOrAdmin) {
     user = { ...user, role: 'hod' };
   }
 
   if (user.role === 'student') {
     res.status(403).json({ error: 'Students cannot review requests' });
-    return;
-  }
-
-  if (user.role === 'admin') {
-    res.status(403).json({ error: 'System Admins manage users only; attendance requests are reviewed by HOD and Faculty.' });
     return;
   }
 
@@ -495,15 +538,15 @@ router.patch('/:id', async (req: Request, res: Response) => {
     return;
   }
 
-  const effectiveRemarks = remarks?.trim() || rejectionReason?.trim() || (action === 'reject' ? `Rejected by ${user.role.toUpperCase()}` : `Approved by ${user.role.toUpperCase()}`);
+  const effectiveRemarks = remarks?.trim() || rejectionReason?.trim() || (action === 'reject' ? `Rejected by ${user.role.toUpperCase()} Override` : `Approved by ${user.role.toUpperCase()} Override`);
 
   try {
-    const idParam = req.params['id'];
+    const idParam = (req.params['id'] || '').trim();
     const existing = await prisma.request.findFirst({
       where: {
         OR: [
-          { id:        idParam },
-          { requestId: idParam },
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
         ],
       },
       include: REQUEST_INCLUDE,
@@ -564,7 +607,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
         where: { id: existing.id },
         data: {
           status:              newStatus,
-          rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || null) : null,
+          rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || 'Rejected by HOD Executive Override') : null,
           reviewedAt:          new Date().toISOString(),
           finalDecisionBy:     decisionRole,
           finalDecisionUserId: performingUserId,
@@ -572,13 +615,21 @@ router.patch('/:id', async (req: Request, res: Response) => {
         include: REQUEST_INCLUDE,
       });
 
+      const previousDecisionText = existing.finalDecisionBy
+        ? `${existing.status.toUpperCase()} by ${existing.finalDecisionBy}`
+        : existing.status.toUpperCase();
+      const newDecisionText = `${newStatus.toUpperCase()} by ${decisionRole}`;
+      const logTimestamp = new Date().toISOString();
+
+      const auditRemarks = `[Override Log] Previous: ${previousDecisionText} -> New: ${newDecisionText} | PerformedBy: ${performingUserId} | At: ${logTimestamp}. ${effectiveRemarks}`;
+
       // Record audit action (performedById references User.userId)
       await tx.requestAction.create({
         data: {
           requestId:     existing.id,
           performedById: performingUserId,
           action:        actionName,
-          remarks:       effectiveRemarks,
+          remarks:       auditRemarks,
         },
       });
 
@@ -620,44 +671,6 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
       return result;
     });
-
-    // FCM Dispatch #2: Send push notification to Student regarding approval/rejection
-    if (updated && existing.student) {
-      const studentToken = existing.student.fcmToken;
-      if (studentToken) {
-        sendFcmNotification(
-          studentToken,
-          `Attendance Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-          `Your request for ${existing.reasonLabel} has been ${newStatus} by ${user.name} (${decisionRole}).`,
-          {
-            requestId: updated.id,
-            role: 'student',
-            notificationType: newStatus === 'approved' ? 'approved' : 'rejected',
-          },
-          existing.studentId
-        ).catch(e => console.error('[FCM] Error sending student push notification:', e));
-      }
-    }
-
-    // FCM Dispatch #3: If Faculty approves/forwards, send push notification to HOD
-    if (user.role === 'faculty' && updated) {
-      const hodUser = await prisma.user.findFirst({
-        where: { role: 'hod', department: user.department },
-      });
-      if (hodUser?.fcmToken) {
-        sendFcmNotification(
-          hodUser.fcmToken,
-          'Request Forwarded for HOD Review',
-          `Attendance request from ${existing.student?.name || 'Student'} has been forwarded for HOD approval.`,
-          {
-            requestId: updated.id,
-            role: 'hod',
-            notificationType: 'forwarded_request',
-          },
-          hodUser.userId
-        ).catch(e => console.error('[FCM] Error sending HOD push notification:', e));
-      }
-    }
 
     res.json({ request: toApi(updated) });
   } catch (err) {

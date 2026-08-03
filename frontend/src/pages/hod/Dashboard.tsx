@@ -55,7 +55,7 @@ export default function HODDashboard() {
         >
           <div className="flex flex-col sm:flex-row items-stretch">
             {/* Photo */}
-            <div className="sm:w-48 w-full h-[350px] sm:h-auto flex-shrink-0 bg-slate-100 overflow-hidden relative">
+            <div className="sm:w-48 w-full h-64 sm:h-auto flex-shrink-0 bg-slate-100 overflow-hidden relative">
               <img
                 src={
                   user?.avatarUrl ??

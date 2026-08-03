@@ -71,6 +71,7 @@ export default function StudentHome() {
         @media (min-width: 769px) {
           .stat-item        { border-right: 1px solid #EEF2F7; }
           .stat-item:last-child { border-right: none !important; }
+          .mobile-quick     { display: none !important; }
           .mobile-requests  { display: none !important; }
           .student-id-avatar { width: 84px !important; height: 105px !important; }
         }
@@ -101,7 +102,7 @@ export default function StudentHome() {
           }}
         >
           {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+            <img src={user.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <img src={srkrEmblem} alt="SRKR" style={{ width: 44, height: 44, objectFit: 'contain' }} />
           )}
@@ -119,6 +120,8 @@ export default function StudentHome() {
           </div>
         </div>
       </motion.div>
+
+
 
       {/* ── Attendance Permission Banner (desktop) ── */}
       <motion.div

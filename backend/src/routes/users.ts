@@ -34,7 +34,7 @@ function formatUserResponse(user: {
 router.get('/counselees', verifyToken, async (req: Request, res: Response) => {
   try {
     const facultyUserId = req.user!.id;
-    const counselees = await prisma.user.findMany({
+    const counselees = await (prisma.user as any).findMany({
       where: {
         role: 'student',
         counselorId: facultyUserId,
@@ -48,16 +48,16 @@ router.get('/counselees', verifyToken, async (req: Request, res: Response) => {
     }
 
     // Collect all roll numbers and user IDs for batch querying
-    const studentUserIds = counselees.map(s => s.userId);
-    const rollNumbers = counselees.map(s => s.rollNumber || s.userId).filter(Boolean) as string[];
+    const studentUserIds = counselees.map((s: any) => s.userId);
+    const rollNumbers = counselees.map((s: any) => s.rollNumber || s.userId).filter(Boolean) as string[];
     const rollSuffixes = rollNumbers.map(r => r.length > 2 ? r.slice(-2) : r);
     const allRollTargets = Array.from(new Set([...rollNumbers, ...rollSuffixes]));
 
     // Batch fetch attendance records and approved permissions
     const [allRecords, approvedRequests] = await Promise.all([
-      prisma.attendanceRecord.findMany({
+      (prisma as any).attendanceRecord ? (prisma as any).attendanceRecord.findMany({
         where: { rollNumber: { in: allRollTargets } },
-      }),
+      }) : Promise.resolve([]),
       prisma.request.findMany({
         where: {
           studentId: { in: studentUserIds },
@@ -69,18 +69,18 @@ router.get('/counselees', verifyToken, async (req: Request, res: Response) => {
 
     // Group records by roll number and approved requests by studentId
     const recordsByRoll = new Map<string, typeof allRecords>();
-    allRecords.forEach(r => {
+    (allRecords as any[]).forEach((r: any) => {
       const existing = recordsByRoll.get(r.rollNumber) || [];
       recordsByRoll.set(r.rollNumber, [...existing, r]);
     });
 
     const approvedCountByStudent = new Map<string, number>();
-    approvedRequests.forEach(reqItem => {
+    (approvedRequests as any[]).forEach((reqItem: any) => {
       approvedCountByStudent.set(reqItem.studentId, (approvedCountByStudent.get(reqItem.studentId) || 0) + 1);
     });
 
     // Compute stats for each counselee in-memory
-    const counseleesWithStats = counselees.map(student => {
+    const counseleesWithStats = counselees.map((student: any) => {
       const roll = student.rollNumber || student.userId;
       const suffix = roll.length > 2 ? roll.slice(-2) : roll;
 
@@ -140,7 +140,7 @@ router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
  */
 router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) => {
   try {
-    const facultyList = await prisma.user.findMany({
+    const facultyList = await (prisma.user as any).findMany({
       where: { role: 'faculty' },
       include: {
         counselees: {
@@ -159,7 +159,7 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
       orderBy: { name: 'asc' },
     });
 
-    const unassignedStudents = await prisma.user.findMany({
+    const unassignedStudents = await (prisma.user as any).findMany({
       where: {
         role: 'student',
         counselorId: null,
@@ -178,9 +178,9 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
     });
 
     res.json({
-      facultyCounselors: facultyList.map(f => ({
+      facultyCounselors: facultyList.map((f: any) => ({
         ...formatUserResponse(f),
-        counselees: f.counselees.map(s => ({
+        counselees: (f.counselees || []).map((s: any) => ({
           id: s.userId,
           name: s.name,
           email: s.email,
@@ -190,7 +190,7 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
           avatarUrl: s.avatarUrl ?? undefined,
         })),
       })),
-      unassignedStudents: unassignedStudents.map(s => ({
+      unassignedStudents: unassignedStudents.map((s: any) => ({
         id: s.userId,
         name: s.name,
         email: s.email,
@@ -230,7 +230,7 @@ router.post('/counseling/assign', verifyToken, async (req: Request, res: Respons
     }
 
     // Assign counselorId to students
-    const updated = await prisma.user.updateMany({
+    const updated = await (prisma.user as any).updateMany({
       where: {
         OR: [
           { userId: { in: studentIds } },
@@ -265,7 +265,7 @@ router.post('/counseling/unassign', verifyToken, async (req: Request, res: Respo
       return;
     }
 
-    await prisma.user.updateMany({
+    await (prisma.user as any).updateMany({
       where: {
         OR: [
           { userId: studentId },
