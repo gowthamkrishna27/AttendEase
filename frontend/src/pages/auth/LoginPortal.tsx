@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, BookOpen, ShieldCheck,
@@ -65,6 +67,19 @@ export default function LoginPortal() {
 
   const [rememberedUser, setRememberedUser] = useState(() => getRememberedAccount());
   const [showRememberedCard, setShowRememberedCard] = useState(() => !!getRememberedAccount());
+  const location = useLocation();
+  const { login, setUser } = useAuth();
+
+  const handlePostLoginRedirect = (role: UserRole) => {
+    const redirectTarget = sessionStorage.getItem('attendease_redirect_after_login') || (location.state as any)?.from?.pathname;
+    if (redirectTarget) {
+      sessionStorage.removeItem('attendease_redirect_after_login');
+      navigate(redirectTarget, { replace: true });
+    } else {
+      navigate(role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod');
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<Tab>('student');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -165,6 +180,37 @@ export default function LoginPortal() {
         } catch (e) {
           // Token expired or invalid
         }
+      });
+
+      // 3. Trigger native WebAuthn get prompt with explicit allowCredentials filter
+      const credential = (await navigator.credentials.get({
+        publicKey: {
+          challenge: challengeBytes,
+          rpId: window.location.hostname,
+          allowCredentials,
+          timeout: 30000,
+          userVerification: 'preferred',
+        },
+      })) as PublicKeyCredential | null;
+
+      // 4. Send verified assertion to backend to authenticate against PostgreSQL UserPasskey records
+      const { token, user: u } = await api.verifyPasskeyLogin(targetIdentifier, credential?.id);
+      api.setStoredToken(token, rememberMe);
+      setUser(u);
+
+      setPin(['1', '2', '3', '4']);
+      setPassword('1234');
+      setError('');
+
+      localStorage.setItem('attendease_last_login_' + activeTab, targetIdentifier);
+      handlePostLoginRedirect(activeTab);
+    } catch (err: unknown) {
+      console.warn('Passkey login error:', err);
+      const msg = err instanceof Error ? err.message : 'Passkey authentication failed.';
+      if (msg.includes('cancel') || (err as any)?.name === 'AbortError') {
+        setError('Passkey authentication was cancelled by user.');
+      } else {
+        setError('No passkey registered for this account on this device yet. Please enter your 4-digit PIN (1234) to log in.');
       }
 
       setError('Fingerprint verified! Enter your 4-digit PIN (1234) once to establish secure session.');
@@ -213,6 +259,14 @@ export default function LoginPortal() {
       // Enable biometrics by default for Faculty & HOD after first PIN login
       if (role === 'faculty' || role === 'hod') {
         saveRememberedAccount(res.user);
+      const devicePasskeyRegistered = localStorage.getItem(`attendease_device_passkey_${res.user.email}`);
+
+      // If user logged in via PIN and has no registered device passkey, prompt to register device passkey
+      if ((role === 'faculty' || role === 'hod') && !res.hasPasskey && !devicePasskeyRegistered && window.PublicKeyCredential) {
+        setPendingLoginUser({ email: res.user.email, name: res.user.name, role });
+        setShowRegisterPasskeyModal(true);
+      } else {
+        handlePostLoginRedirect(role);
       }
 
       navigate(role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod');
@@ -823,8 +877,7 @@ export default function LoginPortal() {
           onClose={() => {
             setShowRegisterPasskeyModal(false);
             if (pendingLoginUser) {
-              const r = pendingLoginUser.role;
-              navigate(r === 'student' ? '/student' : r === 'faculty' ? '/faculty' : '/hod');
+              handlePostLoginRedirect(pendingLoginUser.role);
             }
           }}
           userEmail={pendingLoginUser?.email || ''}
@@ -832,8 +885,7 @@ export default function LoginPortal() {
           onSuccess={() => {
             setShowRegisterPasskeyModal(false);
             if (pendingLoginUser) {
-              const r = pendingLoginUser.role;
-              navigate(r === 'student' ? '/student' : r === 'faculty' ? '/faculty' : '/hod');
+              handlePostLoginRedirect(pendingLoginUser.role);
             }
           }}
         />
