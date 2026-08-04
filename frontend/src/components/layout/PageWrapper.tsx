@@ -61,7 +61,7 @@ const studentMobileBottomNav = [
 
 const facultyMobileBottomNav = [
   { id: 'home', to: '/faculty', label: 'Dashboard', icon: Home, type: 'link' },
-  { id: 'attendance', to: '/faculty/attendance', label: 'Mark Attendance', icon: CheckSquare, type: 'link' },
+  { id: 'attendance', to: '/faculty/attendance', label: 'Attendance', icon: CheckSquare, type: 'link' },
   { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
   { id: 'students', to: '/faculty/students', label: 'Students', icon: Users, type: 'link' },
   { id: 'reports', to: '/faculty/reports', label: 'Reports', icon: BarChart2, type: 'link' },
@@ -171,7 +171,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           </div>
 
           {/* Settings or Plus button in top navbar */}
-          {user && (
+          {user && user.role !== 'student' && (
             <Link
               to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
               title={user.role === 'admin' ? 'Add User' : 'Settings'}
@@ -268,7 +268,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           </div>
 
           {/* Settings or Plus button in mobile top bar */}
-          {user && (
+          {user && user.role !== 'student' && user.role !== 'hod' && (
             <Link
               to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
               title={user.role === 'admin' ? 'Add User' : 'Settings'}
@@ -484,7 +484,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               ? (routerLocation.pathname === item.to || routerLocation.pathname === `${item.to}/`)
               : routerLocation.pathname.startsWith(item.to!);
             return (
-              <div key={item.id} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div key={item.id} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minWidth: 0 }}>
                 <Link
                   to={item.to!}
                   style={{
@@ -496,7 +496,18 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                   }}
                 >
                   <Icon size={20} />
-                  <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{item.label}</span>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: active ? 700 : 500,
+                    whiteSpace: 'nowrap',
+                    textAlign: 'center',
+                    lineHeight: 1.1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '100%',
+                  }}>
+                    {item.label}
+                  </span>
                   {item.hasBadge && unreadCount > 0 && (
                     <span style={{ position: 'absolute', top: 4, right: 'calc(50% - 14px)', width: 7, height: 7, borderRadius: '50%', background: '#F97316', border: '1px solid #fff' }} />
                   )}
