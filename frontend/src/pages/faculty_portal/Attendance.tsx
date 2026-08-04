@@ -337,7 +337,7 @@ export default function FacultyAttendance() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-white text-[13px] font-bold ${
-                toastMsg.isError ? 'bg-rose-600' : 'bg-emerald-600'
+                toastMsg.isError ? 'bg-rose-600' : 'bg-orange-500'
               }`}
             >
               {toastMsg.isError ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
@@ -572,11 +572,11 @@ export default function FacultyAttendance() {
             {currentSubmission && (
               <div className={`p-3 rounded-xl border flex items-center justify-between text-[12px] font-bold ${
                 isOwner
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  ? 'bg-orange-50 border-orange-200 text-orange-800'
                   : 'bg-amber-50 border-amber-200 text-amber-900'
               }`}>
                 <div className="flex items-center gap-2">
-                  {isOwner ? <CheckCircle2 size={16} className="text-emerald-600" /> : <Lock size={16} className="text-amber-600" />}
+                  {isOwner ? <CheckCircle2 size={16} className="text-orange-600" /> : <Lock size={16} className="text-amber-600" />}
                   <span>
                     {isOwner
                       ? `Previously marked by you (${currentSubmission.markedBy?.name})`

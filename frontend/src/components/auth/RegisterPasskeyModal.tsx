@@ -132,7 +132,7 @@ export function RegisterPasskeyModal({
               </div>
             )}
             {successMsg && (
-              <div className="mt-3 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-600 text-xs font-semibold rounded-xl w-full flex items-center justify-center gap-1.5">
+              <div className="mt-3 px-3 py-2 bg-orange-50 border border-orange-200 text-orange-600 text-xs font-semibold rounded-xl w-full flex items-center justify-center gap-1.5">
                 <CheckCircle2 size={16} />
                 <span>{successMsg}</span>
               </div>

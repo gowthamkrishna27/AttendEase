@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Printer, Calendar, RefreshCw, Info,
   ChevronDown, ChevronUp, LayoutGrid, List, CheckCircle2,
-  GraduationCap, Building2, LogIn, UserCheck
+  GraduationCap, Building2
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
-import { useAuth } from '../context/AuthContext';
 import * as api from '../lib/api';
 import type { AttendanceRequest } from '../types';
 import { formatTime, getPeriodsFromRequest } from '../lib/utils';
@@ -152,9 +151,9 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
     textColor = 'text-slate-900';
     badgeStyle = 'bg-[#FDE047] border-amber-400 text-slate-900 shadow-amber-200/50 hover:bg-[#FACC15] ring-2 ring-amber-300/40 font-black';
   } else if (isPresent) {
-    bgColor = '#10B981'; // Emerald Green
+    bgColor = '#0F172A'; // Black / Slate Present
     textColor = 'text-white';
-    badgeStyle = 'bg-emerald-500 border-emerald-600 text-white shadow-emerald-200/50 hover:bg-emerald-600 ring-2 ring-emerald-300/40';
+    badgeStyle = 'bg-slate-900 border-slate-800 text-white shadow-slate-900/30 hover:bg-slate-800 ring-2 ring-slate-700/40';
   } else if (isAbsent) {
     bgColor = '#EF4444'; // Rose Red
     textColor = 'text-white';
@@ -309,7 +308,7 @@ const PermissionGrid = React.memo(({
               {permissionCount} Permission{permissionCount !== 1 ? 's' : ''}
             </span>
             {presentCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+              <span className="px-2 py-0.5 rounded-full bg-slate-900 text-orange-400 border border-slate-800">
                 {presentCount} Present
               </span>
             )}
@@ -333,7 +332,7 @@ const PermissionGrid = React.memo(({
                 <span>Permission ({permissionCount})</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded bg-emerald-500 border border-emerald-600 inline-block shadow-2xs"></span>
+                <span className="w-3.5 h-3.5 rounded bg-slate-900 border border-slate-700 inline-block shadow-2xs"></span>
                 <span>Present ({presentCount})</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -427,7 +426,6 @@ PermissionGrid.displayName = 'PermissionGrid';
 // ── Main Permissions Page ──────────────────────────────────────────────────────
 export default function PermissionsPage() {
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
 
   // Component State
   const [search] = useState('');
@@ -622,27 +620,8 @@ export default function PermissionsPage() {
               </p>
             </div>
 
-            {/* Controls: Login Button, View Mode & Date Filter Pills */}
+            {/* Controls: View Mode & Date Filter Pills */}
             <div className="flex flex-wrap items-center gap-2">
-              {!user ? (
-                <Link
-                  to="/login"
-                  className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-extrabold text-[12px] rounded-lg shadow-xs hover:shadow transition-all flex items-center gap-1.5 border border-orange-600 cursor-pointer"
-                  title="Log in to AttendEase Portal"
-                >
-                  <LogIn size={14} />
-                  <span>Login</span>
-                </Link>
-              ) : (
-                <Link
-                  to={`/${user.role}`}
-                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-extrabold text-[12px] rounded-lg shadow-xs hover:shadow transition-all flex items-center gap-1.5 border border-slate-800 cursor-pointer"
-                  title={`Go to ${user.role} Portal`}
-                >
-                  <UserCheck size={14} className="text-orange-400" />
-                  <span className="capitalize">{user.role} Portal</span>
-                </Link>
-              )}
               <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
                 <button
                   onClick={() => setViewMode('grid')}
@@ -835,7 +814,7 @@ export default function PermissionsPage() {
                               : isLiveNow
                               ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-400/60 shadow-xs'
                               : isSubmitted
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
                               : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
                           }
                         `}
@@ -895,7 +874,7 @@ export default function PermissionsPage() {
                               : isLiveNow
                               ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-400/60 shadow-xs'
                               : isSubmitted
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
                               : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
                           }
                         `}
@@ -1153,7 +1132,7 @@ export default function PermissionsPage() {
                   <div className="text-center">
                     <p className="font-bold text-slate-900 mb-4">Forwarded &amp; Approved by:</p>
                     <div className="h-7 border-b border-slate-400 w-44 mb-1 mx-auto flex items-end justify-center pb-0.5">
-                      <span className="text-[10px] font-bold text-emerald-700 font-serif italic">Verified &amp; Approved</span>
+                      <span className="text-[10px] font-bold text-orange-600 font-serif italic">Verified &amp; Approved</span>
                     </div>
                     <p className="font-bold text-slate-900">{selectedPass.faculty?.name ?? 'Faculty Advisor'}</p>
                   </div>

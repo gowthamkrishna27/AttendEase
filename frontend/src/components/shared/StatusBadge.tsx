@@ -42,12 +42,12 @@ export function StatusBadge({ status, finalDecisionBy, finalDecisionName, classN
         className={cn(
           'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-bold tracking-wide',
           isHOD
-            ? 'bg-purple-50 text-purple-700 border border-purple-200/80 shadow-2xs'
+            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs'
             : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 shadow-2xs',
           className
         )}
       >
-        <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', isHOD ? 'bg-purple-600 animate-pulse' : 'bg-emerald-600')} />
+        <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', isHOD ? 'bg-emerald-600 animate-pulse' : 'bg-emerald-600')} />
         Approved ({approverLabel})
       </span>
     );

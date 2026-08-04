@@ -168,8 +168,8 @@ export default function FacultyStudents() {
 
                   const pct = stats.percentage;
 
-                  let badgeBg = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                  let barBg = 'bg-emerald-500';
+                  let badgeBg = 'bg-orange-50 text-orange-700 border-orange-200';
+                  let barBg = 'bg-orange-500';
                   let statusText = 'Good Standing (85%+ Good)';
 
                   if (pct < 75) {
@@ -191,7 +191,7 @@ export default function FacultyStudents() {
                       {/* ── LEFT SIDE ATTENDANCE METER (User explicit requirement) ── */}
                       <div className={`sm:w-28 flex flex-col items-center justify-center p-3 rounded-xl border shrink-0 text-center ${
                         pct >= 85
-                          ? 'bg-emerald-50/90 border-emerald-200 text-emerald-800'
+                          ? 'bg-orange-50/90 border-orange-200 text-orange-800'
                           : pct >= 75
                           ? 'bg-amber-50/90 border-amber-200 text-amber-800'
                           : 'bg-rose-50/90 border-rose-200 text-rose-800'
@@ -244,7 +244,7 @@ export default function FacultyStudents() {
                         {/* Breakdown Row */}
                         <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex flex-wrap items-center justify-between text-[11px] font-medium text-slate-600 gap-2">
                           <span>Conducted: <strong>{stats.conductedCount}</strong></span>
-                          <span className="text-emerald-700">Present: <strong>{stats.presentCount}</strong></span>
+                          <span className="text-orange-700">Present: <strong>{stats.presentCount}</strong></span>
                           <span className="text-amber-700">Approved Permits: <strong>{stats.approvedPermissionsCount}</strong></span>
                           <span className="text-rose-700">Absent: <strong>{stats.absentCount}</strong></span>
                         </div>
@@ -293,7 +293,7 @@ export default function FacultyStudents() {
                       {[
                         { label: 'Total',    value: s.total,    color: 'text-slate-700'   },
                         { label: 'Pending',  value: s.pending,  color: 'text-amber-600'   },
-                        { label: 'Approved', value: s.approved, color: 'text-emerald-600' },
+                        { label: 'Approved', value: s.approved, color: 'text-orange-600' },
                         { label: 'Rejected', value: s.rejected, color: 'text-rose-500'    },
                       ].map(stat => (
                         <div key={stat.label} className="text-center bg-slate-50 rounded-xl py-2">

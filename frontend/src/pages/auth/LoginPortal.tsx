@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, BookOpen, ShieldCheck,
   Eye, EyeOff, Lock, User, Fingerprint, KeyRound,
-  ArrowRight, Info, Shield, Clock, Users, Sun,
+  ArrowRight, Info, Shield, Clock, Users, Sun, Moon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../context/AuthContext';
@@ -623,6 +623,27 @@ export default function LoginPortal() {
               : <><span>Sign In</span><ArrowRight size={16} /></>
             }
           </motion.button>
+
+          {/* View Approved Permissions Link */}
+          <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid #F1F5F9', textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => navigate('/permissions')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                width: '100%', padding: '10px 14px', borderRadius: 12,
+                background: '#FFF7ED', border: '1.5px solid #FED7AA',
+                color: '#EA580C', fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#F97316'; e.currentTarget.style.color = '#ffffff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#FFF7ED'; e.currentTarget.style.color = '#EA580C'; }}
+            >
+              <Shield size={15} />
+              <span>View Approved Permissions Page</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
         </motion.form>
       </AnimatePresence>
     </>
@@ -737,18 +758,6 @@ export default function LoginPortal() {
 
           {/* ══ RIGHT PANEL / MOBILE CARD ══ */}
           <div className="login-right">
-            {/* Desktop: Light Mode button */}
-            <div className="login-lightmode">
-              <button style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '6px 12px', fontSize: 12, fontWeight: 500,
-                color: '#475569', background: '#fff', border: '1px solid #E2E8F0',
-                borderRadius: 12, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-              }}>
-                <Sun size={13} style={{ color: '#F59E0B' }} />
-                Light Mode
-              </button>
-            </div>
 
             {/* Mobile: form inside a rounded card */}
             <div className="login-form-card" style={{ flex: 1 }}>

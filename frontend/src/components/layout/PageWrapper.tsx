@@ -70,10 +70,10 @@ const studentMobileBottomNav = [
 
 const facultyMobileBottomNav = [
   { id: 'home', to: '/faculty', label: 'Dashboard', icon: Home, type: 'link' },
+  { id: 'attendance', to: '/faculty/attendance', label: 'Mark Attendance', icon: CheckSquare, type: 'link' },
   { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
   { id: 'students', to: '/faculty/students', label: 'Students', icon: Users, type: 'link' },
   { id: 'reports', to: '/faculty/reports', label: 'Reports', icon: BarChart2, type: 'link' },
-  { id: 'settings', to: '/faculty/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
 const hodMobileBottomNav = [
@@ -87,6 +87,7 @@ const hodMobileBottomNav = [
 const adminMobileBottomNav = [
   { id: 'home', to: '/admin', label: 'Dashboard', icon: Home, type: 'link' },
   { id: 'users', to: '/admin/users', label: 'Users', icon: Users, type: 'link' },
+  { id: 'counseling', to: '/admin/counseling', label: 'Counseling', icon: UserCheck, type: 'link' },
   { id: 'settings', to: '/admin/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
@@ -100,6 +101,11 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    localStorage.removeItem('attendease_theme');
+    document.documentElement.classList.remove('dark');
+  }, []);
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -154,7 +160,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           ) : (
             notifications.map(n => {
               const borderStyles: Record<string, string> = {
-                approved: '3px solid #10B981',
+                approved: '3px solid #F97316',
                 rejected: '3px solid #EF4444',
                 pending: '3px solid #F59E0B',
               };
@@ -252,6 +258,22 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             <span>{formatDeviceDateTime(deviceTime)}</span>
           </div>
 
+          {/* Settings or Plus button in top navbar */}
+          {user && (
+            <Link
+              to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
+              title={user.role === 'admin' ? 'Add User' : 'Settings'}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: 12, background: '#F8FAFC',
+                border: '1px solid #EEF2F7', color: '#475569', textDecoration: 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {user.role === 'admin' ? <Plus size={18} style={{ color: '#F97316' }} /> : <Settings size={17} />}
+            </Link>
+          )}
+
           {/* Show Login or User Profile/Dashboard button */}
           {!user ? (
             <Link
@@ -323,8 +345,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           </div>
         </Link>
 
-        {/* Center/Right: Time + Login Button (mobile) */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Center/Right: Time + Settings + Login Button (mobile) */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{
             fontSize: 11, fontWeight: 700, color: '#475569',
             background: '#F8FAFC', padding: '5px 8px', borderRadius: 8,
@@ -332,6 +354,21 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           }}>
             <span>{formatDeviceDateTimeMobile(deviceTime)}</span>
           </div>
+
+          {/* Settings or Plus button in mobile top bar */}
+          {user && (
+            <Link
+              to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
+              title={user.role === 'admin' ? 'Add User' : 'Settings'}
+              style={{
+                width: 30, height: 30, borderRadius: 8, background: '#F8FAFC',
+                border: '1px solid #EEF2F7', color: '#475569', textDecoration: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
+              {user.role === 'admin' ? <Plus size={16} style={{ color: '#F97316' }} /> : <Settings size={15} />}
+            </Link>
+          )}
 
           {!user ? (
             <Link
@@ -530,8 +567,9 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             }
 
             const Icon = item.icon!;
-            const active = item.to === '/student'
-              ? routerLocation.pathname === '/student' || routerLocation.pathname === '/student/'
+            const isRootPage = item.to === '/student' || item.to === '/faculty' || item.to === '/hod' || item.to === '/admin';
+            const active = isRootPage
+              ? (routerLocation.pathname === item.to || routerLocation.pathname === `${item.to}/`)
               : routerLocation.pathname.startsWith(item.to!);
             return (
               <div key={item.id} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>

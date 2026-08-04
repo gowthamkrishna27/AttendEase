@@ -139,7 +139,7 @@ export default function HODFaculty() {
 
                     <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 sm:gap-4 text-[11px] sm:text-[12px]">
                       <span className="text-slate-600 font-medium">Total: <strong>{total}</strong></span>
-                      <span className="text-emerald-600 font-medium">Approved: <strong>{approved}</strong></span>
+                      <span className="text-orange-600 font-medium">Approved: <strong>{approved}</strong></span>
                       <span className="text-rose-500 font-medium">Rejected: <strong>{rejected}</strong></span>
                     </div>
                   </div>

@@ -55,8 +55,11 @@ export interface AuthUser {
   department: string;
   rollNumber?: string;
   semester?: number;
+  year?: string;
+  section?: string;
   avatarUrl?: string;
   phone?: string;
+  counselorId?: string;
 }
 
 export interface Student {
@@ -392,6 +395,7 @@ export async function updateMe(data: UpdateProfilePayload): Promise<AuthUser> {
 // ─── Admin Users API ──────────────────────────────────────────────────────────
 
 export interface CreateUserPayload {
+  userId: string;
   name: string;
   email: string;
   role: UserRole;
@@ -399,6 +403,8 @@ export interface CreateUserPayload {
   password?: string;
   rollNumber?: string;
   semester?: number;
+  year?: string;
+  section?: string;
   designation?: string;
   phone?: string;
   counselorId?: string;
