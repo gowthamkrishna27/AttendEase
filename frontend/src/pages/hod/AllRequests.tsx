@@ -34,7 +34,6 @@ const tabActiveClass: Record<TabValue, string> = {
   approved: 'bg-emerald-600 text-white',
   rejected: 'bg-rose-500 text-white',
 };
-const TAB_COLORS = tabActiveClass;
 
 export default function HODAllRequests() {
   const navigate = useNavigate();

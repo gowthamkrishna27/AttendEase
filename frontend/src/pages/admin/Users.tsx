@@ -167,7 +167,7 @@ export default function AdminUsers() {
           department: effectiveDept,
           ...(formPass && { password: formPass }),
           ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem, year: formYear, section: formSection, counselorId: formCounselorId || undefined }),
-          avatarUrl: effectiveAvatar,
+          ...(effectiveAvatar && { avatarUrl: effectiveAvatar }),
         }
       });
     }
@@ -175,9 +175,10 @@ export default function AdminUsers() {
 
   const filtered = usersList.filter(u => {
     const matchesSearch =
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.rollNumber ?? '').toLowerCase().includes(search.toLowerCase());
+      (u.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.rollNumber ?? u.userId ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.department ?? '').toLowerCase().includes(search.toLowerCase());
     const matchesTab = activeTab === 'all' ? true : u.role === activeTab;
     return matchesSearch && matchesTab;
   });

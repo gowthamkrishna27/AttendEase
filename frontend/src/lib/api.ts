@@ -123,6 +123,8 @@ export interface AttendanceRequest {
   submittedAt: string;
   facultyId?: string;
   faculty?: Faculty;
+  primaryFacultyId?: string;
+  primaryFaculty?: Faculty;
   faculties?: Faculty[];
   reviewedAt?: string;
   finalDecisionBy?: 'Faculty' | 'HOD' | string;

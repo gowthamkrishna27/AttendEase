@@ -50,6 +50,8 @@ export interface AttendanceRequest {
   submittedAt: string; // ISO datetime string
   facultyId?: string;
   faculty?: Faculty;
+  primaryFacultyId?: string;
+  primaryFaculty?: Faculty;
   facultyIds?: string[];
   faculties?: Faculty[];
   reviewedAt?: string;

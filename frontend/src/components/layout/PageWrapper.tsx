@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -6,7 +6,7 @@ import {
   Home, Clock, User, LogOut, LogIn,
   Bell, GraduationCap, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-  FileCheck, Building2, Layers, Award, FileText, CheckSquare, UserCheck
+  CheckSquare, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -48,15 +48,6 @@ const adminNav = [
   { to: '/admin/users',      label: 'User & Students', icon: Users     },
   { to: '/admin/counseling', label: 'Counseling Assign', icon: UserCheck },
   { to: '/admin/settings',   label: 'Settings',        icon: Settings  },
-];
-
-/* Bottom tab bar items (mobile) */
-const viewerMobileBottomNav = [
-  { id: 'permissions', to: '/permissions',            label: 'Passes', icon: FileCheck, type: 'link' },
-  { id: 'csd-a',       to: '/permissions?sec=CSD-A',  label: 'CSD-A',  icon: Building2, type: 'link' },
-  { id: 'csd-b',       to: '/permissions?sec=CSD-B',  label: 'CSD-B',  icon: Building2, type: 'link' },
-  { id: 'csit-a',      to: '/permissions?sec=CSIT-A', label: 'CSIT-A', icon: Layers,    type: 'link' },
-  { id: 'csit-b',      to: '/permissions?sec=CSIT-B', label: 'CSIT-B', icon: Layers,    type: 'link' },
 ];
 
 /* Bottom tab bar items (mobile) */
@@ -107,86 +98,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
     document.documentElement.classList.remove('dark');
   }, []);
 
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
-
-  const desktopBellRef = useRef<HTMLDivElement>(null);
-  const mobileBellRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const isDesktopBellClick = desktopBellRef.current && desktopBellRef.current.contains(e.target as Node);
-      const isMobileBellClick = mobileBellRef.current && mobileBellRef.current.contains(e.target as Node);
-      if (!isDesktopBellClick && !isMobileBellClick) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const unreadCount = notifications.filter(n => n.unread).length;
-  const markAllRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, unread: false })));
-  };
-
-  const renderNotificationDropdown = (isMobile = false) => {
-    if (!showNotifications) return null;
-    return (
-      <div style={{
-        position: 'absolute',
-        right: isMobile ? 'auto' : 0,
-        left: isMobile ? -60 : 'auto',
-        top: isMobile ? 'auto' : 46,
-        bottom: isMobile ? 64 : 'auto',
-        width: 310, maxWidth: '88vw',
-        background: '#ffffff', border: '1px solid #EEF2F7',
-        borderRadius: 16, boxShadow: '0 10px 30px rgba(13,27,42,0.18)',
-        zIndex: 100, overflow: 'hidden',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #EEF2F7' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#000000' }}>Notifications</span>
-          {unreadCount > 0 && (
-            <button onClick={markAllRead} style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-              Mark all read
-            </button>
-          )}
-        </div>
-        <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-          {notifications.length === 0 ? (
-            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 12 }}>
-              No notifications yet
-            </div>
-          ) : (
-            notifications.map(n => {
-              const borderStyles: Record<string, string> = {
-                approved: '3px solid #F97316',
-                rejected: '3px solid #EF4444',
-                pending: '3px solid #F59E0B',
-              };
-              return (
-                <div
-                  key={n.id}
-                  style={{
-                    padding: '12px 16px', borderBottom: '1px solid #F8FAFC',
-                    borderLeft: borderStyles[n.type] ?? 'none',
-                    background: n.unread ? 'rgba(37,99,235,0.02)' : '#ffffff',
-                    transition: 'background 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#000000' }}>{n.title}</span>
-                    <span style={{ fontSize: 10, color: '#94A3B8' }}>{n.time}</span>
-                  </div>
-                  <p style={{ fontSize: 11, color: '#64748B', margin: 0, lineHeight: 1.45 }}>{n.message}</p>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-    );
-  };
+  const unreadCount = 0;
 
   const navLinks = role === 'viewer' ? viewerNav : role === 'student' ? studentNav : role === 'faculty' ? facultyNav : role === 'hod' ? hodNav : adminNav;
   const homeLink = role === 'viewer' ? '/permissions' : role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : role === 'hod' ? '/hod' : '/admin';

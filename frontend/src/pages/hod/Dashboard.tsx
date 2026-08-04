@@ -168,7 +168,12 @@ export default function HODDashboard() {
                   {recentRequests.map(req => {
                     const studentName = req.student?.name || (req as any).studentName || req.studentId || 'Student';
                     const studentRoll = req.student?.rollNumber || (req as any).rollNumber || (req.studentId?.startsWith('stu-') ? req.studentId.replace('stu-', '').toUpperCase() : req.studentId);
-                    const facultyName = req.faculty?.name || req.primaryFaculty?.name || (req as any).facultyName || 'Department Faculty';
+                    const facultyName =
+                      req.faculty?.name ||
+                      req.primaryFaculty?.name ||
+                      (req.faculties && req.faculties.length > 0 ? req.faculties[0].name : undefined) ||
+                      (req as any).facultyName ||
+                      'Department Faculty';
                     const reasonLabel = req.reasonLabel || req.reason || 'Permission Request';
 
                     return (

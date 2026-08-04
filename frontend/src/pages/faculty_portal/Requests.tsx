@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, FileText, Paperclip } from 'lucide-react';
+import { Search, SlidersHorizontal, Paperclip } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -33,7 +33,6 @@ const tabActiveClass: Record<TabValue, string> = {
   approved: 'bg-emerald-600 text-white',
   rejected: 'bg-rose-500 text-white',
 };
-const TAB_COLORS = tabActiveClass;
 
 export default function FacultyRequests() {
   const navigate = useNavigate();
