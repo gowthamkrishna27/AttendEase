@@ -590,9 +590,11 @@ router.patch('/:id', async (req: Request, res: Response) => {
     if (user.role === 'faculty') {
       actionName = action === 'approve' ? 'Approved by Faculty' : 'Rejected by Faculty';
     } else {
-      // HOD action: check if overriding a faculty decision
-      if (existing.finalDecisionBy === 'Faculty' || (existing.status !== 'pending' && existing.status !== 'cancelled')) {
-        actionName = 'Overridden by HOD';
+      // HOD action: check if force rejecting an already approved request or overriding faculty
+      if (existing.status === 'approved' && action === 'reject') {
+        actionName = 'Force Rejected by HOD';
+      } else if (existing.finalDecisionBy === 'Faculty' || (existing.status !== 'pending' && existing.status !== 'cancelled')) {
+        actionName = action === 'approve' ? 'Force Approved by HOD' : 'Overridden by HOD';
       } else {
         actionName = action === 'approve' ? 'Approved by HOD' : 'Rejected by HOD';
       }
@@ -607,7 +609,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
         where: { id: existing.id },
         data: {
           status:              newStatus,
-          rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || 'Rejected by HOD Executive Override') : null,
+          rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || 'Force Rejected by HOD Override') : null,
           reviewedAt:          new Date().toISOString(),
           finalDecisionBy:     decisionRole,
           finalDecisionUserId: performingUserId,

@@ -275,16 +275,14 @@ export default function HODAllRequests() {
                               <Check size={12} />
                               <span>{req.status === 'approved' ? 'Approved' : 'Approve'}</span>
                             </button>
-                            {req.status !== 'approved' && (
-                              <button
-                                onClick={() => reviewMutation.mutate({ id: req.id, action: 'reject' })}
-                                className="h-7 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
-                                title="Reject Request"
-                              >
-                                <X size={12} />
-                                <span>Reject</span>
-                              </button>
-                            )}
+                            <button
+                              onClick={() => reviewMutation.mutate({ id: req.id, action: 'reject' })}
+                              className="h-7 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
+                              title={req.status === 'approved' ? 'Force Reject Approved Request' : 'Reject Request'}
+                            >
+                              <X size={12} />
+                              <span>{req.status === 'approved' ? 'Force Reject' : 'Reject'}</span>
+                            </button>
                           </div>
                         </td>
                       </motion.tr>

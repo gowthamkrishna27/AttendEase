@@ -308,18 +308,16 @@ export default function HODRequestDetails() {
               {currentStatus === 'approved' ? '✓ Approved' : currentStatus === 'pending' ? 'Approve Request' : 'Force Approve (Override)'}
             </Button>
 
-            {currentStatus !== 'approved' && (
-              <Button
-                variant="secondary"
-                size="md"
-                disabled={reviewMutation.isPending}
-                className="w-full sm:flex-1 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold cursor-pointer"
-                onClick={() => setConfirmModal('reject')}
-              >
-                <X size={16} className="mr-1" />
-                {currentStatus === 'rejected' ? '✗ Rejected (Force Re-Reject)' : 'Reject Request'}
-              </Button>
-            )}
+            <Button
+              variant="secondary"
+              size="md"
+              disabled={reviewMutation.isPending}
+              className="w-full sm:flex-1 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold cursor-pointer"
+              onClick={() => setConfirmModal('reject')}
+            >
+              <X size={16} className="mr-1" />
+              {currentStatus === 'approved' ? 'Force Reject (Override)' : currentStatus === 'rejected' ? '✗ Rejected (Force Re-Reject)' : 'Reject Request'}
+            </Button>
           </div>
         </div>
 
