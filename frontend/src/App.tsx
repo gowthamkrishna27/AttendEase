@@ -7,9 +7,9 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import type { UserRole } from './context/AuthContext';
 
 // Pages — public & auth
-import Landing from './pages/Landing';
 import LoginPortal from './pages/auth/LoginPortal';
 import AdminLogin from './pages/admin/Login';
+import ShareRedirectPage from './pages/ShareRedirectPage';
 
 // Pages — student
 import StudentHome from './pages/student/Home';
@@ -97,8 +97,9 @@ function AppRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         {/* Public */}
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<PermissionsPage />} />
         <Route path="/login" element={<LoginPortal />} />
+        <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 
         {/* Approved Permissions page (all roles & URL aliases) */}
         <Route path="/permissions" element={<PermissionsPage />} />
@@ -128,6 +129,7 @@ function AppRoutes() {
         <Route path="/faculty/attendance" element={<ProtectedRoute role="faculty"><FacultyAttendance /></ProtectedRoute>} />
         <Route path="/faculty/requests" element={<ProtectedRoute role="faculty"><FacultyRequests /></ProtectedRoute>} />
         <Route path="/faculty/request/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
+        <Route path="/faculty/review/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
         <Route path="/faculty/students" element={<ProtectedRoute role="faculty"><FacultyStudents /></ProtectedRoute>} />
         <Route path="/faculty/reports" element={<ProtectedRoute role="faculty"><FacultyReports /></ProtectedRoute>} />
         <Route path="/faculty/settings" element={<ProtectedRoute role="faculty"><FacultySettings /></ProtectedRoute>} />
@@ -135,6 +137,7 @@ function AppRoutes() {
         {/* HOD (protected) */}
         <Route path="/hod" element={<ProtectedRoute role="hod"><HODDashboard /></ProtectedRoute>} />
         <Route path="/hod/request/:id" element={<ProtectedRoute role="hod"><HODRequestDetails /></ProtectedRoute>} />
+        <Route path="/hod/review/:id" element={<ProtectedRoute role="hod"><HODRequestDetails /></ProtectedRoute>} />
         <Route path="/hod/requests" element={<ProtectedRoute role="hod"><HODAllRequests /></ProtectedRoute>} />
         <Route path="/hod/faculty" element={<ProtectedRoute role="hod"><HODFaculty /></ProtectedRoute>} />
         <Route path="/hod/reports" element={<ProtectedRoute role="hod"><HODReports /></ProtectedRoute>} />

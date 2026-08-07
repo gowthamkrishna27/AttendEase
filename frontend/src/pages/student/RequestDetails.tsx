@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, FileText, User } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
+import { WhatsAppShareButton } from '../../components/shared/WhatsAppShareButton';
 import { Button } from '../../components/ui/Button';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
@@ -79,7 +80,10 @@ export default function RequestDetails() {
               Submitted to {request.faculty?.name || '—'}
             </p>
           </div>
-          <StatusBadge status={request.status} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
+          <div className="flex items-center gap-2">
+            <WhatsAppShareButton request={request} variant="secondary" />
+            <StatusBadge status={request.status} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
+          </div>
         </div>
 
         {/* HOD Decision Banner */}

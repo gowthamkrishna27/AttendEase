@@ -19,9 +19,9 @@ const sizeMap = {
 
 const roleGradientMap: Record<string, string> = {
   student: 'from-orange-500 to-amber-500',
-  faculty: 'from-blue-600 to-indigo-600',
-  hod: 'from-purple-600 to-indigo-600',
-  admin: 'from-slate-700 to-slate-900',
+  faculty: 'from-slate-800 to-slate-900',
+  hod: 'from-orange-600 to-orange-700',
+  admin: 'from-slate-900 to-black',
 };
 
 function getInitials(name: string): string {
@@ -38,9 +38,9 @@ function getInitials(name: string): string {
 function getGradient(name: string): string {
   const gradients = [
     'from-orange-500 to-amber-500',
-    'from-blue-600 to-indigo-600',
-    'from-emerald-500 to-teal-600',
-    'from-purple-600 to-indigo-600',
+    'from-slate-800 to-slate-950',
+    'from-orange-600 to-orange-700',
+    'from-slate-900 to-black',
   ];
   const index = (name || 'S').charCodeAt(0) % gradients.length;
   return gradients[index];

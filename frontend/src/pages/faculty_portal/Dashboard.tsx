@@ -1,8 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+
 import {
   CheckSquare, ArrowRight, Bell, Clock, CheckCircle2, XCircle, AlertCircle, ChevronRight
 } from 'lucide-react';
+
+import { CheckSquare, ArrowRight } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { FaceAlignedImage } from '../../components/shared/FaceAlignedImage';
 import { useAuth } from '../../context/AuthContext';
@@ -19,7 +22,14 @@ export default function FacultyDashboard() {
     queryFn: () => api.getRequests(),
   });
 
+
   const recentRequests = requestsList.slice(0, 5);
+
+  const total = requestsList.length;
+  const pending = requestsList.filter((r: AttendanceRequest) => r.status === 'pending').length;
+  const approved = requestsList.filter((r: AttendanceRequest) => r.status === 'approved').length;
+  const rejected = requestsList.filter((r: AttendanceRequest) => r.status === 'rejected').length;
+
 
   return (
     <PageWrapper role="faculty">
@@ -67,7 +77,51 @@ export default function FacultyDashboard() {
           </div>
         </motion.div>
 
+
         {/* ── Prominent Full-Width "Take Attendance" Action Card ── */}
+
+        {/* ── Take Attendance Primary Action Card (Between Overview & Stats) ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.05 }}
+          className="mb-6 sm:mb-8"
+        >
+          <div
+            className="p-4 sm:p-5 rounded-2xl sm:rounded-[22px] flex items-center justify-between gap-3 shadow-lg shadow-orange-500/20"
+            style={{
+              background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+            }}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/25">
+                <CheckSquare size={22} className="text-white" />
+              </div>
+              <div className="min-w-0">
+                <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white font-extrabold text-[10px] uppercase tracking-wider inline-block mb-1 border border-white/20">
+                  PRIMARY ACTION
+                </span>
+                <h3 className="text-[17px] sm:text-[19px] font-extrabold text-white leading-tight truncate">
+                  Take Attendance
+                </h3>
+                <p className="text-[12px] text-orange-100 font-medium truncate">
+                  Select section, period block, and...
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate('/faculty/attendance')}
+              className="px-4 sm:px-5 py-2 bg-white hover:bg-orange-50 text-orange-600 font-extrabold text-[13px] rounded-full shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <span>Open Roster</span>
+              <ArrowRight size={15} />
+            </button>
+          </div>
+        </motion.div>
+
+        {/* ── Summary Stats ── */}
+
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -206,6 +260,7 @@ export default function FacultyDashboard() {
             </div>
           )}
         </motion.div>
+
 
       </div>
     </PageWrapper>

@@ -118,7 +118,7 @@ export default function HODRequestDetails() {
     <PageWrapper role="hod">
       <div className="max-w-xl mx-auto space-y-4">
         {toastMsg && (
-          <div className="p-3 bg-emerald-600 text-white font-bold text-[13px] rounded-xl shadow-md flex items-center justify-between">
+          <div className="p-3 bg-orange-500 text-white font-bold text-[13px] rounded-xl shadow-md flex items-center justify-between">
             <span>{toastMsg}</span>
             <button onClick={() => setToastMsg(null)} className="text-white text-xs underline">Dismiss</button>
           </div>
@@ -305,19 +305,21 @@ export default function HODRequestDetails() {
               }}
             >
               <Check size={16} className="mr-1" />
-              {currentStatus === 'approved' ? '✓ Approved (Force Re-Approve)' : currentStatus === 'pending' ? 'Approve Request' : 'Force Approve (Override)'}
+              {currentStatus === 'approved' ? '✓ Approved' : currentStatus === 'pending' ? 'Approve Request' : 'Force Approve (Override)'}
             </Button>
 
-            <Button
-              variant="secondary"
-              size="md"
-              disabled={reviewMutation.isPending}
-              className="w-full sm:flex-1 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold cursor-pointer"
-              onClick={() => setConfirmModal('reject')}
-            >
-              <X size={16} className="mr-1" />
-              {currentStatus === 'rejected' ? '✗ Rejected (Force Re-Reject)' : currentStatus === 'pending' ? 'Reject Request' : 'Force Reject (Override)'}
-            </Button>
+            {currentStatus !== 'approved' && (
+              <Button
+                variant="secondary"
+                size="md"
+                disabled={reviewMutation.isPending}
+                className="w-full sm:flex-1 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold cursor-pointer"
+                onClick={() => setConfirmModal('reject')}
+              >
+                <X size={16} className="mr-1" />
+                {currentStatus === 'rejected' ? '✗ Rejected (Force Re-Reject)' : 'Reject Request'}
+              </Button>
+            )}
           </div>
         </div>
 

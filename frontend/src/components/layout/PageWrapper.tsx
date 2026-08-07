@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Home, Clock, User, LogOut,
+  Home, Clock, User, LogOut, LogIn,
   Bell, GraduationCap, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-  FileCheck, Building2, Layers, Award, FileText, CheckSquare, UserCheck
+  CheckSquare, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -51,15 +51,6 @@ const adminNav = [
 ];
 
 /* Bottom tab bar items (mobile) */
-const viewerMobileBottomNav = [
-  { id: 'permissions', to: '/permissions',            label: 'Passes', icon: FileCheck, type: 'link' },
-  { id: 'csd-a',       to: '/permissions?sec=CSD-A',  label: 'CSD-A',  icon: Building2, type: 'link' },
-  { id: 'csd-b',       to: '/permissions?sec=CSD-B',  label: 'CSD-B',  icon: Building2, type: 'link' },
-  { id: 'csit-a',      to: '/permissions?sec=CSIT-A', label: 'CSIT-A', icon: Layers,    type: 'link' },
-  { id: 'csit-b',      to: '/permissions?sec=CSIT-B', label: 'CSIT-B', icon: Layers,    type: 'link' },
-];
-
-/* Bottom tab bar items (mobile) */
 const studentMobileBottomNav = [
   { id: 'home', to: '/student', label: 'Home', icon: Home, type: 'link' },
   { id: 'notifications', to: '/student/notifications', label: 'Notifications', icon: Bell, type: 'link', hasBadge: true },
@@ -70,10 +61,10 @@ const studentMobileBottomNav = [
 
 const facultyMobileBottomNav = [
   { id: 'home', to: '/faculty', label: 'Dashboard', icon: Home, type: 'link' },
+  { id: 'attendance', to: '/faculty/attendance', label: 'Attendance', icon: CheckSquare, type: 'link' },
   { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
   { id: 'students', to: '/faculty/students', label: 'Students', icon: Users, type: 'link' },
   { id: 'reports', to: '/faculty/reports', label: 'Reports', icon: BarChart2, type: 'link' },
-  { id: 'settings', to: '/faculty/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
 const hodMobileBottomNav = [
@@ -87,6 +78,7 @@ const hodMobileBottomNav = [
 const adminMobileBottomNav = [
   { id: 'home', to: '/admin', label: 'Dashboard', icon: Home, type: 'link' },
   { id: 'users', to: '/admin/users', label: 'Users', icon: Users, type: 'link' },
+  { id: 'counseling', to: '/admin/counseling', label: 'Counseling', icon: UserCheck, type: 'link' },
   { id: 'settings', to: '/admin/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
@@ -98,88 +90,15 @@ const pageVariants = {
 
 export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const { user, logout } = useAuth();
 
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
-
-  const desktopBellRef = useRef<HTMLDivElement>(null);
-  const mobileBellRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const isDesktopBellClick = desktopBellRef.current && desktopBellRef.current.contains(e.target as Node);
-      const isMobileBellClick = mobileBellRef.current && mobileBellRef.current.contains(e.target as Node);
-      if (!isDesktopBellClick && !isMobileBellClick) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    localStorage.removeItem('attendease_theme');
+    document.documentElement.classList.remove('dark');
   }, []);
 
-  const unreadCount = notifications.filter(n => n.unread).length;
-  const markAllRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, unread: false })));
-  };
-
-  const renderNotificationDropdown = (isMobile = false) => {
-    if (!showNotifications) return null;
-    return (
-      <div style={{
-        position: 'absolute',
-        right: isMobile ? 'auto' : 0,
-        left: isMobile ? -60 : 'auto',
-        top: isMobile ? 'auto' : 46,
-        bottom: isMobile ? 64 : 'auto',
-        width: 310, maxWidth: '88vw',
-        background: '#ffffff', border: '1px solid #EEF2F7',
-        borderRadius: 16, boxShadow: '0 10px 30px rgba(13,27,42,0.18)',
-        zIndex: 100, overflow: 'hidden',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #EEF2F7' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#000000' }}>Notifications</span>
-          {unreadCount > 0 && (
-            <button onClick={markAllRead} style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-              Mark all read
-            </button>
-          )}
-        </div>
-        <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-          {notifications.length === 0 ? (
-            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 12 }}>
-              No notifications yet
-            </div>
-          ) : (
-            notifications.map(n => {
-              const borderStyles: Record<string, string> = {
-                approved: '3px solid #10B981',
-                rejected: '3px solid #EF4444',
-                pending: '3px solid #F59E0B',
-              };
-              return (
-                <div
-                  key={n.id}
-                  style={{
-                    padding: '12px 16px', borderBottom: '1px solid #F8FAFC',
-                    borderLeft: borderStyles[n.type] ?? 'none',
-                    background: n.unread ? 'rgba(37,99,235,0.02)' : '#ffffff',
-                    transition: 'background 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#000000' }}>{n.title}</span>
-                    <span style={{ fontSize: 10, color: '#94A3B8' }}>{n.time}</span>
-                  </div>
-                  <p style={{ fontSize: 11, color: '#64748B', margin: 0, lineHeight: 1.45 }}>{n.message}</p>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-    );
-  };
+  const unreadCount = 0;
 
   const navLinks = role === 'viewer' ? viewerNav : role === 'student' ? studentNav : role === 'faculty' ? facultyNav : role === 'hod' ? hodNav : adminNav;
   const homeLink = role === 'viewer' ? '/permissions' : role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : role === 'hod' ? '/hod' : '/admin';
@@ -251,18 +170,70 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             <span>{formatDeviceDateTime(deviceTime)}</span>
           </div>
 
-          <div ref={desktopBellRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              style={{ width: 38, height: 38, borderRadius: 12, background: '#F8FAFC', border: '1px solid #E8EDF2', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748B' }}
+          {/* Settings or Plus button in top navbar */}
+          {user && user.role !== 'student' && (
+            <Link
+              to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
+              title={user.role === 'admin' ? 'Add User' : 'Settings'}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: 12, background: '#F8FAFC',
+                border: '1px solid #EEF2F7', color: '#475569', textDecoration: 'none',
+                transition: 'all 0.15s ease',
+              }}
             >
-              <Bell size={17} />
-            </button>
-            {unreadCount > 0 && (
-              <span style={{ position: 'absolute', top: 3, right: 3, width: 8, height: 8, borderRadius: '50%', background: '#F97316', border: '1.5px solid #fff' }} />
-            )}
-            {renderNotificationDropdown()}
-          </div>
+              {user.role === 'admin' ? <Plus size={18} style={{ color: '#F97316' }} /> : <Settings size={17} />}
+            </Link>
+          )}
+
+          {/* Show Login or User Profile/Dashboard button */}
+          {!user ? (
+            <Link
+              to="/login"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', fontSize: 13, fontWeight: 700,
+                color: '#ffffff', background: '#F97316',
+                borderRadius: 12, textDecoration: 'none',
+                boxShadow: '0 2px 8px rgba(249,115,22,0.25)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#000000'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#F97316'; }}
+            >
+              <LogIn size={15} />
+              <span>Login</span>
+            </Link>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Link
+                to={`/${user.role}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 14px', fontSize: 13, fontWeight: 700,
+                  color: '#ffffff', background: '#0F172A',
+                  borderRadius: 12, textDecoration: 'none',
+                  boxShadow: '0 2px 8px rgba(15,23,42,0.15)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <User size={15} style={{ color: '#F97316' }} />
+                <span style={{ textTransform: 'capitalize' }}>{user.name?.split(' ')[0] || user.role}</span>
+              </Link>
+              <button
+                onClick={handleLogout}
+                title="Logout"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 34, height: 34, borderRadius: 10, background: '#FEF2F2',
+                  border: '1px solid #FECACA', color: '#DC2626', cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -286,14 +257,60 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           </div>
         </Link>
 
-        {/* Center/Time (mobile) */}
-        <div style={{
-          marginLeft: 'auto',
-          fontSize: 11, fontWeight: 700, color: '#475569',
-          background: '#F8FAFC', padding: '5px 10px', borderRadius: 8,
-          border: '1px solid #EEF2F7', display: 'flex', alignItems: 'center'
-        }}>
-          <span>{formatDeviceDateTimeMobile(deviceTime)}</span>
+        {/* Center/Right: Time + Settings + Login Button (mobile) */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: '#475569',
+            background: '#F8FAFC', padding: '5px 8px', borderRadius: 8,
+            border: '1px solid #EEF2F7', display: 'flex', alignItems: 'center'
+          }}>
+            <span>{formatDeviceDateTimeMobile(deviceTime)}</span>
+          </div>
+
+          {/* Settings or Plus button in mobile top bar */}
+          {user && user.role !== 'student' && user.role !== 'hod' && (
+            <Link
+              to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
+              title={user.role === 'admin' ? 'Add User' : 'Settings'}
+              style={{
+                width: 30, height: 30, borderRadius: 8, background: '#F8FAFC',
+                border: '1px solid #EEF2F7', color: '#475569', textDecoration: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
+              {user.role === 'admin' ? <Plus size={16} style={{ color: '#F97316' }} /> : <Settings size={15} />}
+            </Link>
+          )}
+
+          {!user ? (
+            <Link
+              to="/login"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '5px 10px', fontSize: 12, fontWeight: 700,
+                color: '#ffffff', background: '#F97316',
+                borderRadius: 8, textDecoration: 'none',
+                boxShadow: '0 1px 4px rgba(249,115,22,0.20)'
+              }}
+            >
+              <LogIn size={13} />
+              <span>Login</span>
+            </Link>
+          ) : (
+            <Link
+              to={`/${user.role}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '5px 10px', fontSize: 12, fontWeight: 700,
+                color: '#ffffff', background: '#0F172A',
+                borderRadius: 8, textDecoration: 'none',
+                boxShadow: '0 1px 4px rgba(15,23,42,0.20)'
+              }}
+            >
+              <User size={13} style={{ color: '#F97316' }} />
+              <span style={{ textTransform: 'capitalize' }}>{user.role}</span>
+            </Link>
+          )}
         </div>
       </header>
 
@@ -396,7 +413,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           className="main-content"
         >
           {/* Greeting header — only on dashboard home pages */}
-          {(location.pathname === '/student' || location.pathname === '/student/' || location.pathname === '/faculty' || location.pathname === '/faculty/' || location.pathname === '/hod' || location.pathname === '/hod/' || location.pathname === '/admin' || location.pathname === '/admin/') && (
+          {(routerLocation.pathname === '/student' || routerLocation.pathname === '/student/' || routerLocation.pathname === '/faculty' || routerLocation.pathname === '/faculty/' || routerLocation.pathname === '/hod' || routerLocation.pathname === '/hod/' || routerLocation.pathname === '/admin' || routerLocation.pathname === '/admin/') && (
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
               <div>
                 <h1 style={{ fontSize: 24, fontWeight: 800, color: '#000000', margin: '0 0 4px' }}>
@@ -433,53 +450,69 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         <nav className="mobile-bottom-nav print:hidden" style={{
           display: 'none',
           position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-          height: 68, background: '#ffffff',
+          height: 64, background: '#ffffff',
           borderTop: '1px solid #EEF2F7',
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
-          alignItems: 'center', justifyContent: 'space-around',
-          padding: '0 8px 4px',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.06)',
+          alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 4px calc(env(safe-area-inset-bottom, 0px) + 2px)',
         }}>
           {(role === 'admin' ? adminMobileBottomNav : role === 'hod' ? hodMobileBottomNav : role === 'faculty' ? facultyMobileBottomNav : studentMobileBottomNav).map(item => {
             if (item.type === 'fab') {
               // Centre + FAB button -> Navigates to /student/new-request
               return (
-                <button
-                  key="fab"
-                  onClick={() => navigate(item.to || '/student/new-request')}
-                  style={{
-                    width: 52, height: 52, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                    border: 'none', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 4px 18px rgba(249,115,22,0.40)',
-                    marginBottom: 10,
-                  }}
-                >
-                  <Plus size={24} style={{ color: '#fff' }} />
-                </button>
+                <div key="fab" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <button
+                    onClick={() => navigate(item.to || '/student/new-request')}
+                    style={{
+                      width: 48, height: 48, borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+                      border: '3px solid #ffffff', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 4px 14px rgba(249,115,22,0.45)',
+                      transform: 'translateY(-12px)',
+                    }}
+                  >
+                    <Plus size={24} style={{ color: '#fff' }} />
+                  </button>
+                </div>
               );
             }
 
             const Icon = item.icon!;
-            const active = location.pathname === item.to;
+            const isRootPage = item.to === '/student' || item.to === '/faculty' || item.to === '/hod' || item.to === '/admin';
+            const active = isRootPage
+              ? (routerLocation.pathname === item.to || routerLocation.pathname === `${item.to}/`)
+              : routerLocation.pathname.startsWith(item.to!);
             return (
-              <Link
-                key={item.id}
-                to={item.to!}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                  textDecoration: 'none', position: 'relative',
-                  padding: '6px 12px', borderRadius: 12,
-                  color: active ? '#F97316' : '#94A3B8',
-                  transition: 'color 0.15s ease',
-                }}
-              >
-                <Icon size={20} />
-                <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{item.label}</span>
-                {item.hasBadge && unreadCount > 0 && (
-                  <span style={{ position: 'absolute', top: 4, right: 12, width: 7, height: 7, borderRadius: '50%', background: '#F97316', border: '1px solid #fff' }} />
-                )}
-              </Link>
+              <div key={item.id} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minWidth: 0 }}>
+                <Link
+                  to={item.to!}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                    textDecoration: 'none', position: 'relative',
+                    padding: '6px 0', width: '100%',
+                    color: active ? '#F97316' : '#94A3B8',
+                    transition: 'color 0.15s ease',
+                  }}
+                >
+                  <Icon size={20} />
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: active ? 700 : 500,
+                    whiteSpace: 'nowrap',
+                    textAlign: 'center',
+                    lineHeight: 1.1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '100%',
+                  }}>
+                    {item.label}
+                  </span>
+                  {item.hasBadge && unreadCount > 0 && (
+                    <span style={{ position: 'absolute', top: 4, right: 'calc(50% - 14px)', width: 7, height: 7, borderRadius: '50%', background: '#F97316', border: '1px solid #fff' }} />
+                  )}
+                </Link>
+              </div>
             );
           })}
         </nav>

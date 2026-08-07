@@ -27,6 +27,8 @@ export default function AdminUsers() {
   const [formPass, setFormPass]     = useState('');
   const [formRoll, setFormRoll]     = useState('');
   const [formSem, setFormSem]       = useState(6);
+  const [formYear, setFormYear]     = useState('3rd Year');
+  const [formSection, setFormSection] = useState('CSIT-A');
   const [formAvatar, setFormAvatar] = useState('');
   const [formCounselorId, setFormCounselorId] = useState('');
   const [formError, setFormError]   = useState('');
@@ -79,6 +81,8 @@ export default function AdminUsers() {
     setFormPass('');
     setFormRoll('');
     setFormSem(6);
+    setFormYear('3rd Year');
+    setFormSection('CSIT-A');
     setFormAvatar('');
     setFormCounselorId('');
     setFormError('');
@@ -99,6 +103,8 @@ export default function AdminUsers() {
     setFormPass(''); // don't fill password
     setFormRoll(u.rollNumber || '');
     setFormSem(u.semester || 6);
+    setFormYear(u.year || '3rd Year');
+    setFormSection(u.section || 'CSIT-A');
     setFormAvatar(u.avatarUrl || '');
     setFormCounselorId(u.counselorId || '');
     setFormError('');
@@ -148,7 +154,7 @@ export default function AdminUsers() {
         role: formRole,
         department: effectiveDept,
         password: effectivePass,
-        ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem || 6, counselorId: formCounselorId || undefined }),
+        ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem || 6, year: formYear, section: formSection, counselorId: formCounselorId || undefined }),
         ...(effectiveAvatar && { avatarUrl: effectiveAvatar }),
       });
     } else {
@@ -160,8 +166,8 @@ export default function AdminUsers() {
           role: formRole,
           department: effectiveDept,
           ...(formPass && { password: formPass }),
-          ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem, counselorId: formCounselorId || undefined }),
-          avatarUrl: effectiveAvatar,
+          ...(formRole === 'student' && { rollNumber: cleanRoll, semester: formSem, year: formYear, section: formSection, counselorId: formCounselorId || undefined }),
+          ...(effectiveAvatar && { avatarUrl: effectiveAvatar }),
         }
       });
     }
@@ -169,9 +175,10 @@ export default function AdminUsers() {
 
   const filtered = usersList.filter(u => {
     const matchesSearch =
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.rollNumber ?? '').toLowerCase().includes(search.toLowerCase());
+      (u.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.rollNumber ?? u.userId ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.department ?? '').toLowerCase().includes(search.toLowerCase());
     const matchesTab = activeTab === 'all' ? true : u.role === activeTab;
     return matchesSearch && matchesTab;
   });
@@ -471,10 +478,10 @@ export default function AdminUsers() {
               </div>
             )}
 
-            {/* Department & Semester / User ID */}
+            {/* Department / Branch & Year / User ID */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Department</label>
+                <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Branch / Department</label>
                 <select
                   value={formDept}
                   onChange={e => setFormDept(e.target.value)}
@@ -482,18 +489,27 @@ export default function AdminUsers() {
                 >
                   <option value="CSD">CSD</option>
                   <option value="CSIT">CSIT</option>
+                  <option value="CSE">CSE</option>
+                  <option value="IT">IT</option>
+                  <option value="ECE">ECE</option>
+                  <option value="EEE">EEE</option>
+                  <option value="MECH">MECH</option>
+                  <option value="CIVIL">CIVIL</option>
                 </select>
               </div>
 
               {formRole === 'student' ? (
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Semester</label>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Year</label>
                   <select
-                    value={formSem}
-                    onChange={e => setFormSem(Number(e.target.value))}
+                    value={formYear}
+                    onChange={e => setFormYear(e.target.value)}
                     className="w-full h-[40px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 font-medium text-slate-700 text-[13px]"
                   >
-                    {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Semester {s}</option>)}
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
                   </select>
                 </div>
               ) : !editingUser ? (
@@ -507,6 +523,38 @@ export default function AdminUsers() {
                 </div>
               ) : null}
             </div>
+
+            {/* Semester & Section for Student */}
+            {formRole === 'student' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Semester</label>
+                  <select
+                    value={formSem}
+                    onChange={e => setFormSem(Number(e.target.value))}
+                    className="w-full h-[40px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 font-medium text-slate-700 text-[13px]"
+                  >
+                    {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Semester {s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Section</label>
+                  <select
+                    value={formSection}
+                    onChange={e => setFormSection(e.target.value)}
+                    className="w-full h-[40px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 font-medium text-slate-700 text-[13px]"
+                  >
+                    <option value="CSD-A">CSD-A</option>
+                    <option value="CSD-B">CSD-B</option>
+                    <option value="CSIT-A">CSIT-A</option>
+                    <option value="CSIT-B">CSIT-B</option>
+                    <option value="Section A">Section A</option>
+                    <option value="Section B">Section B</option>
+                    <option value="Section C">Section C</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             {/* Student optional details: Email & User ID */}
             {formRole === 'student' && (

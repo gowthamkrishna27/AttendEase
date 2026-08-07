@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import crypto from 'crypto';
 import { verifyToken } from '../middleware/auth.js';
 import { prisma } from '../db/prisma.js';
 import type { RequestReason } from '../types.js';
@@ -136,6 +137,7 @@ function toApi(r: any) {
 
   const base = {
     id:                  r.requestId,
+    publicId:            r.publicId ?? r.requestId,
     studentId:           r.studentId,
     student:             studentObj,
     reason:              r.reason,
@@ -270,6 +272,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         OR: [
           { id:        { equals: idParam, mode: 'insensitive' } },
           { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
         ],
       },
       include: REQUEST_INCLUDE,
@@ -420,10 +423,19 @@ router.post('/', async (req: Request, res: Response) => {
       if (fallback) facultyDocs = [fallback];
     }
 
-    // Collision-safe requestId
-    const tsHex   = Date.now().toString(36).toUpperCase();
-    const randHex = Math.random().toString(36).slice(2, 6).toUpperCase();
+    // Collision-safe requestId and non-sequential publicId
+    const tsHex    = Date.now().toString(36).toUpperCase();
+    const randHex  = Math.random().toString(36).slice(2, 6).toUpperCase();
     const requestId = `req-${tsHex}-${randHex}`;
+
+    // Non-sequential cryptographically secure publicId (e.g. rq_U2YQ7XkP9WmL3nA8)
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz';
+    const bytes = crypto.randomBytes(16);
+    let publicIdStr = 'rq_';
+    for (let i = 0; i < 16; i++) {
+      publicIdStr += chars[bytes[i] % chars.length];
+    }
+    const publicId = publicIdStr;
 
     const primaryFaculty = facultyDocs[0] ?? null;
 
@@ -432,6 +444,7 @@ router.post('/', async (req: Request, res: Response) => {
       const created = await tx.request.create({
         data: {
           requestId,
+          publicId,
           studentId:        studentUser.userId,
           primaryFacultyId: primaryFaculty?.userId ?? null,
           reason:           safeReason,

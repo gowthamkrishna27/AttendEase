@@ -55,8 +55,11 @@ export interface AuthUser {
   department: string;
   rollNumber?: string;
   semester?: number;
+  year?: string;
+  section?: string;
   avatarUrl?: string;
   phone?: string;
+  counselorId?: string;
 }
 
 export interface Student {
@@ -105,6 +108,7 @@ export interface NotificationItem {
 
 export interface AttendanceRequest {
   id: string;
+  publicId?: string;
   studentId: string;
   student?: Student;
   reason: RequestReason;
@@ -119,6 +123,8 @@ export interface AttendanceRequest {
   submittedAt: string;
   facultyId?: string;
   faculty?: Faculty;
+  primaryFacultyId?: string;
+  primaryFaculty?: Faculty;
   faculties?: Faculty[];
   reviewedAt?: string;
   finalDecisionBy?: 'Faculty' | 'HOD' | string;
@@ -391,6 +397,7 @@ export async function updateMe(data: UpdateProfilePayload): Promise<AuthUser> {
 // ─── Admin Users API ──────────────────────────────────────────────────────────
 
 export interface CreateUserPayload {
+  userId: string;
   name: string;
   email: string;
   role: UserRole;
@@ -398,6 +405,8 @@ export interface CreateUserPayload {
   password?: string;
   rollNumber?: string;
   semester?: number;
+  year?: string;
+  section?: string;
   designation?: string;
   phone?: string;
   counselorId?: string;
@@ -532,6 +541,10 @@ export async function unassignCounselingStudent(studentId: string): Promise<{ su
     method: 'POST',
     body: JSON.stringify({ studentId }),
   });
+}
+
+export async function getShareRedirect(publicId: string): Promise<{ success: boolean; redirectTo?: string; status?: number; error?: string }> {
+  return apiFetch<{ success: boolean; redirectTo?: string; status?: number; error?: string }>(`/api/share/${encodeURIComponent(publicId)}`);
 }
 
 

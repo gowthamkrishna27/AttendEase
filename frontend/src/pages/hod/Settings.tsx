@@ -18,7 +18,6 @@ const TOGGLES: Toggle[] = [
   { id: 'email_notif',   label: 'Email Notifications',    description: 'Receive email alerts for new & updated requests', icon: Bell,    defaultOn: true  },
   { id: 'auto_approve',  label: 'Auto-approve Faculty',   description: 'Automatically approve faculty-recommended requests', icon: Shield,  defaultOn: false },
   { id: 'show_details',  label: 'Detailed Request View',  description: 'Show extended student info in request listings',   icon: Eye,     defaultOn: true  },
-  { id: 'dark_mode',     label: 'Dark Mode',              description: 'Switch to dark theme (coming soon)',               icon: Moon,    defaultOn: false },
   { id: 'lang_english',  label: 'Language: English',      description: 'Portal language setting',                          icon: Globe,   defaultOn: true  },
 ];
 

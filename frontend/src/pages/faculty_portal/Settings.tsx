@@ -17,7 +17,6 @@ const TOGGLES: Toggle[] = [
   { id: 'email_notif',   label: 'Email Notifications',   description: 'Receive email alerts for new & updated requests', icon: Bell,   defaultOn: true  },
   { id: 'auto_flag',     label: 'Flag Suspicious Requests', description: 'Auto-flag duplicate or back-dated requests',     icon: Shield, defaultOn: false },
   { id: 'show_details',  label: 'Detailed Request View',  description: 'Show extended student info in request listings',  icon: Eye,    defaultOn: true  },
-  { id: 'dark_mode',     label: 'Dark Mode',              description: 'Switch to dark theme (coming soon)',              icon: Moon,   defaultOn: false },
   { id: 'conflict_alert', label: 'Conflict Alerting',     description: 'Warn when a student has overlapping date requests', icon: AlertTriangle, defaultOn: true },
 ];
 

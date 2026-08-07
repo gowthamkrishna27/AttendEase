@@ -95,7 +95,7 @@ export default function HODReports() {
     return { name: f.name, total: reqs.length, pending: reqs.filter((r: AttendanceRequest) => r.status === 'pending').length };
   });
 
-  const barColors = ['bg-orange-500', 'bg-amber-500', 'bg-emerald-500', 'bg-blue-500', 'bg-purple-500'];
+  const barColors = ['bg-orange-500', 'bg-amber-500', 'bg-slate-900', 'bg-slate-700', 'bg-orange-600'];
 
   return (
     <PageWrapper role="hod">
@@ -155,9 +155,9 @@ export default function HODReports() {
             <span className="text-slate-400 font-semibold flex items-center mr-1">Quick Exports:</span>
             <button
               onClick={() => downloadExcel('approved')}
-              className="px-3.5 py-1.5 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-semibold rounded-lg border border-slate-200 hover:border-emerald-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-subtle"
+              className="px-3.5 py-1.5 bg-white hover:bg-orange-50 text-slate-700 hover:text-orange-700 font-semibold rounded-lg border border-slate-200 hover:border-orange-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-subtle"
             >
-              <CheckCircle2 size={13} className="text-emerald-500" />
+              <CheckCircle2 size={13} className="text-orange-500" />
               <span>Approved Requests Excel</span>
             </button>
             <button
@@ -192,7 +192,7 @@ export default function HODReports() {
             </div>
             <div className="space-y-3">
               {[
-                { label: 'Approved', count: approved, pct: approvalRate, color: 'bg-emerald-500', text: 'text-emerald-600' },
+                { label: 'Approved', count: approved, pct: approvalRate, color: 'bg-orange-500', text: 'text-orange-600' },
                 { label: 'Pending',  count: pending,  pct: pendingRate,  color: 'bg-amber-500',   text: 'text-amber-600'   },
                 { label: 'Rejected', count: rejected, pct: rejectedRate, color: 'bg-rose-500',    text: 'text-rose-500'    },
               ].map(item => (

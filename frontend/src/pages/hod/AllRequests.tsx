@@ -29,9 +29,9 @@ const STATUS_TABS = [
 type TabValue = 'all' | 'pending' | 'approved' | 'rejected';
 
 const tabActiveClass: Record<TabValue, string> = {
-  all:      'bg-orange-500 text-white',
+  all:      'bg-slate-900 text-white',
   pending:  'bg-amber-500 text-white',
-  approved: 'bg-emerald-500 text-white',
+  approved: 'bg-emerald-600 text-white',
   rejected: 'bg-rose-500 text-white',
 };
 
@@ -40,6 +40,7 @@ export default function HODAllRequests() {
   const queryClient = useQueryClient();
   const [search, setSearch]     = useState('');
   const [department, setDept]   = useState('');
+  const [yearFilter, setYearFilter] = useState('');
   const [tab, setTab]           = useState<TabValue>('all');
 
   const { data: requestsList = [] } = useQuery({
@@ -71,11 +72,13 @@ export default function HODAllRequests() {
   const filtered = requestsList.filter((req: AttendanceRequest) => {
     const matchesTab    = tab === 'all' || req.status === tab;
     const matchesSearch =
-      req.student?.name.toLowerCase().includes(search.toLowerCase()) ||
-      req.reasonLabel.toLowerCase().includes(search.toLowerCase()) ||
-      (req.student?.rollNumber ?? '').toLowerCase().includes(search.toLowerCase());
+      (req.student?.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (req.reasonLabel ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (req.student?.rollNumber ?? req.studentId ?? '').toLowerCase().includes(search.toLowerCase());
     const matchesDept = !department || req.student?.department === department;
-    return matchesTab && matchesSearch && matchesDept;
+    const studentYear = req.student?.year || (req.student?.semester ? `${Math.ceil(req.student.semester / 2)}${Math.ceil(req.student.semester / 2) === 1 ? 'st' : Math.ceil(req.student.semester / 2) === 2 ? 'nd' : Math.ceil(req.student.semester / 2) === 3 ? 'rd' : 'th'} Year` : '');
+    const matchesYear = !yearFilter || studentYear === yearFilter;
+    return matchesTab && matchesSearch && matchesDept && matchesYear;
   });
 
   const getDays = (_req: AttendanceRequest) => 1;
@@ -123,14 +126,32 @@ export default function HODAllRequests() {
                   onChange={e => setDept(e.target.value)}
                   className="w-full sm:w-auto h-[42px] pl-9 pr-8 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 appearance-none cursor-pointer text-slate-700 min-w-[150px] shadow-subtle font-medium"
                 >
-                  <option value="">All Departments</option>
+                  <option value="">All Branches</option>
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  <option value="CSE">CSE</option>
+                  <option value="IT">IT</option>
+                  <option value="ECE">ECE</option>
+                  <option value="EEE">EEE</option>
+                  <option value="MECH">MECH</option>
+                  <option value="CIVIL">CIVIL</option>
                 </select>
               </div>
 
-              {(search || department || tab !== 'all') && (
+              <select
+                value={yearFilter}
+                onChange={e => setYearFilter(e.target.value)}
+                className="w-full sm:w-auto h-[42px] px-3 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
+              >
+                <option value="">All Years</option>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+              </select>
+
+              {(search || department || yearFilter || tab !== 'all') && (
                 <button
-                  onClick={() => { setSearch(''); setDept(''); setTab('all'); }}
+                  onClick={() => { setSearch(''); setDept(''); setYearFilter(''); setTab('all'); }}
                   className="h-[42px] px-3.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 border border-rose-200 rounded-xl text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-subtle cursor-pointer whitespace-nowrap flex-shrink-0"
                   title="Reset all filters"
                 >
@@ -183,6 +204,7 @@ export default function HODAllRequests() {
                   <tr className="border-b border-slate-100 bg-slate-50/60">
                     <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Student</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">ID / Roll No.</th>
+                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Branch / Year</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Proof Document</th>
                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Assigned Faculty</th>
@@ -208,6 +230,16 @@ export default function HODAllRequests() {
                         </td>
                         <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
                           <span className="text-[13px] font-mono text-slate-500">{req.student?.rollNumber}</span>
+                        </td>
+                        <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-orange-50 text-orange-700 border border-orange-200">
+                              {req.student?.department || 'CSD'}
+                            </span>
+                            <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                              {req.student?.year || (req.student?.semester ? `${Math.ceil(req.student.semester / 2)}${Math.ceil(req.student.semester / 2) === 1 ? 'st' : Math.ceil(req.student.semester / 2) === 2 ? 'nd' : Math.ceil(req.student.semester / 2) === 3 ? 'rd' : 'th'} Yr` : '3rd Yr')}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3.5 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
                           <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>
@@ -238,19 +270,21 @@ export default function HODAllRequests() {
                             <button
                               onClick={() => reviewMutation.mutate({ id: req.id, action: 'approve' })}
                               className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                              title="Approve / Force Approve Request"
+                              title="Approve Request"
                             >
                               <Check size={12} />
-                              <span>Approve</span>
+                              <span>{req.status === 'approved' ? 'Approved' : 'Approve'}</span>
                             </button>
-                            <button
-                              onClick={() => reviewMutation.mutate({ id: req.id, action: 'reject' })}
-                              className="h-7 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
-                              title="Reject / Force Reject Request"
-                            >
-                              <X size={12} />
-                              <span>Reject</span>
-                            </button>
+                            {req.status !== 'approved' && (
+                              <button
+                                onClick={() => reviewMutation.mutate({ id: req.id, action: 'reject' })}
+                                className="h-7 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
+                                title="Reject Request"
+                              >
+                                <X size={12} />
+                                <span>Reject</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </motion.tr>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, FileText, Paperclip } from 'lucide-react';
+import { Search, SlidersHorizontal, Paperclip } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -28,18 +28,19 @@ const STATUS_TABS = [
 type TabValue = 'all' | 'pending' | 'approved' | 'rejected';
 
 const tabActiveClass: Record<TabValue, string> = {
-  all:      'bg-orange-500 text-white',
+  all:      'bg-slate-900 text-white',
   pending:  'bg-amber-500 text-white',
-  approved: 'bg-emerald-500 text-white',
+  approved: 'bg-emerald-600 text-white',
   rejected: 'bg-rose-500 text-white',
 };
 
 export default function FacultyRequests() {
   const navigate = useNavigate();
 
-  const [search, setSearch]   = useState('');
-  const [department, setDept] = useState('');
-  const [tab, setTab]         = useState<TabValue>('all');
+  const [search, setSearch]     = useState('');
+  const [department, setDept]   = useState('');
+  const [yearFilter, setYearFilter] = useState('');
+  const [tab, setTab]           = useState<TabValue>('all');
 
   const { data: requestsList = [] } = useQuery({
     queryKey: ['requests'],
@@ -50,11 +51,13 @@ export default function FacultyRequests() {
   const filtered = requestsList.filter((req: AttendanceRequest) => {
     const matchesTab    = tab === 'all' || req.status === tab;
     const matchesSearch =
-      req.student?.name.toLowerCase().includes(search.toLowerCase()) ||
-      req.reasonLabel.toLowerCase().includes(search.toLowerCase()) ||
-      (req.student?.rollNumber ?? '').toLowerCase().includes(search.toLowerCase());
+      (req.student?.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (req.reasonLabel ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (req.student?.rollNumber ?? req.studentId ?? '').toLowerCase().includes(search.toLowerCase());
     const matchesDept = !department || req.student?.department === department;
-    return matchesTab && matchesSearch && matchesDept;
+    const studentYear = req.student?.year || (req.student?.semester ? `${Math.ceil(req.student.semester / 2)}${Math.ceil(req.student.semester / 2) === 1 ? 'st' : Math.ceil(req.student.semester / 2) === 2 ? 'nd' : Math.ceil(req.student.semester / 2) === 3 ? 'rd' : 'th'} Year` : '');
+    const matchesYear = !yearFilter || studentYear === yearFilter;
+    return matchesTab && matchesSearch && matchesDept && matchesYear;
   });
 
   const getDays = (_req: AttendanceRequest) => 1;
@@ -94,15 +97,35 @@ export default function FacultyRequests() {
                 className="w-full pl-9 pr-4 py-2.5 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/12 transition-all shadow-subtle"
               />
             </div>
-            <div className="relative w-full sm:w-auto">
-              <SlidersHorizontal size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-initial">
+                <SlidersHorizontal size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
+                <select
+                  value={department}
+                  onChange={e => setDept(e.target.value)}
+                  className="w-full sm:w-auto h-[42px] pl-9 pr-4 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 appearance-none cursor-pointer text-slate-700 min-w-[140px] shadow-subtle font-medium"
+                >
+                  <option value="">All Branches</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  <option value="CSE">CSE</option>
+                  <option value="IT">IT</option>
+                  <option value="ECE">ECE</option>
+                  <option value="EEE">EEE</option>
+                  <option value="MECH">MECH</option>
+                  <option value="CIVIL">CIVIL</option>
+                </select>
+              </div>
+
               <select
-                value={department}
-                onChange={e => setDept(e.target.value)}
-                className="w-full sm:w-auto pl-9 pr-4 py-2.5 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 appearance-none cursor-pointer text-slate-700 min-w-[160px] shadow-subtle"
+                value={yearFilter}
+                onChange={e => setYearFilter(e.target.value)}
+                className="w-full sm:w-auto h-[42px] px-3 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
               >
-                <option value="">All Departments</option>
-                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                <option value="">All Years</option>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
               </select>
             </div>
           </div>
@@ -151,6 +174,7 @@ export default function FacultyRequests() {
                     <tr className="border-b border-slate-100 bg-slate-50/60">
                       <th className="text-left px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Student</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Roll No.</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Branch / Year</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Proof Attached</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Requested On</th>
@@ -176,6 +200,16 @@ export default function FacultyRequests() {
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="text-[13px] font-mono text-slate-500">{req.student?.rollNumber}</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-orange-50 text-orange-700 border border-orange-200">
+                                {req.student?.department || 'CSD'}
+                              </span>
+                              <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                                {req.student?.year || (req.student?.semester ? `${Math.ceil(req.student.semester / 2)}${Math.ceil(req.student.semester / 2) === 1 ? 'st' : Math.ceil(req.student.semester / 2) === 2 ? 'nd' : Math.ceil(req.student.semester / 2) === 3 ? 'rd' : 'th'} Yr` : '3rd Yr')}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>

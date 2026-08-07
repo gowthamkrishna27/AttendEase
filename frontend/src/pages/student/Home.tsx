@@ -64,7 +64,6 @@ export default function StudentHome() {
           .stat-item:nth-child(n+3) { border-bottom: none !important; }
           .desktop-form     { display: none !important; }
           .desktop-requests { display: none !important; }
-          .mobile-quick     { display: grid !important; }
           .mobile-requests  { display: block !important; }
           .student-id-card  { padding: 20px 16px !important; gap: 16px !important; }
           .student-id-avatar { width: 96px !important; height: 120px !important; }
@@ -122,28 +121,7 @@ export default function StudentHome() {
         </div>
       </motion.div>
 
-      {/* ── MOBILE: Quick Actions 2×2 ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.26, delay: 0.05 }}
-        className="mobile-quick"
-        style={{ gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24, display: 'none' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gridColumn: '1/-1' }}>
-          <p style={{ fontSize: 16, fontWeight: 800, color: '#000000', margin: 0 }}>Quick Actions</p>
-          <button onClick={() => navigate('/student/history')} style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', background: 'none', border: 'none', cursor: 'pointer' }}>View All</button>
-        </div>
-        {quickActions.map(({ label, icon: Icon, color, bg, to, state }) => (
-          <button key={label} onClick={() => navigate(to, state ? { state } : undefined)} style={{ ...card({ padding: '16px' }), display: 'flex', alignItems: 'center', gap: 12, border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-            <div style={{ width: 42, height: 42, borderRadius: 13, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon size={20} style={{ color }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#000000', margin: '0 0 2px' }}>{label}</p>
-              <p style={{ fontSize: 11, color: '#94A3B8', margin: 0 }}>→</p>
-            </div>
-          </button>
-        ))}
-      </motion.div>
+
 
       {/* ── Attendance Permission Banner (desktop) ── */}
       <motion.div

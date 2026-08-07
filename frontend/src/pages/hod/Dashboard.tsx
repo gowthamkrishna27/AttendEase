@@ -29,8 +29,8 @@ export default function HODDashboard() {
 
   const quickLinks = [
     { label: 'All Requests', description: 'Review & manage student permission requests', icon: ClipboardList, to: '/hod/requests', color: '#F97316', bg: 'rgba(249,115,22,0.08)' },
-    { label: 'Faculty Directory', description: 'View department faculty members & workloads', icon: Users, to: '/hod/faculty', color: '#10B981', bg: 'rgba(16,185,129,0.08)' },
-    { label: 'Analytics Reports', description: 'Department-wide attendance permission metrics', icon: BarChart2, to: '/hod/reports', color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)' },
+    { label: 'Faculty Directory', description: 'View department faculty members & workloads', icon: Users, to: '/hod/faculty', color: '#F97316', bg: 'rgba(249,115,22,0.08)' },
+    { label: 'Analytics Reports', description: 'Department-wide attendance permission metrics', icon: BarChart2, to: '/hod/reports', color: '#0F172A', bg: 'rgba(15,23,42,0.08)' },
     { label: 'Portal Settings', description: 'Manage department preferences & settings', icon: Settings, to: '/hod/settings', color: '#3B82F6', bg: 'rgba(59,130,246,0.08)' },
   ];
 
@@ -113,9 +113,9 @@ export default function HODDashboard() {
           <div className="card p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[12px] font-semibold text-slate-400">Approved</span>
-              <CheckCircle size={16} className="text-emerald-500" />
+              <CheckCircle size={16} className="text-orange-500" />
             </div>
-            <p className="text-[22px] font-bold text-emerald-600">{approvedCount}</p>
+            <p className="text-[22px] font-bold text-orange-600">{approvedCount}</p>
           </div>
 
           <div className="card p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
@@ -168,7 +168,12 @@ export default function HODDashboard() {
                   {recentRequests.map(req => {
                     const studentName = req.student?.name || (req as any).studentName || req.studentId || 'Student';
                     const studentRoll = req.student?.rollNumber || (req as any).rollNumber || (req.studentId?.startsWith('stu-') ? req.studentId.replace('stu-', '').toUpperCase() : req.studentId);
-                    const facultyName = req.faculty?.name || req.primaryFaculty?.name || (req as any).facultyName || 'Department Faculty';
+                    const facultyName =
+                      req.faculty?.name ||
+                      req.primaryFaculty?.name ||
+                      (req.faculties && req.faculties.length > 0 ? req.faculties[0].name : undefined) ||
+                      (req as any).facultyName ||
+                      'Department Faculty';
                     const reasonLabel = req.reasonLabel || req.reason || 'Permission Request';
 
                     return (

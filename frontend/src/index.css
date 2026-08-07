@@ -181,7 +181,7 @@
 
   /* ── Status left borders ── */
   .border-l-status-pending  { border-left: 3px solid #F59E0B; }
-  .border-l-status-approved { border-left: 3px solid #10B981; }
+  .border-l-status-approved { border-left: 3px solid #F97316; }
   .border-l-status-rejected { border-left: 3px solid #EF4444; }
 
   /* ── Typography ── */

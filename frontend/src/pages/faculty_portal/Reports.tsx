@@ -60,7 +60,7 @@ export default function FacultyReports() {
     .sort((a, b) => b.total - a.total)
     .slice(0, 8); // Top 8 students
 
-  const barColors = ['bg-orange-500', 'bg-amber-500', 'bg-emerald-500', 'bg-blue-500', 'bg-purple-500'];
+  const barColors = ['bg-orange-500', 'bg-amber-500', 'bg-slate-900', 'bg-slate-700', 'bg-orange-600'];
 
   return (
     <PageWrapper role="faculty" showGreeting={false}>
@@ -88,7 +88,7 @@ export default function FacultyReports() {
           {[
             { icon: ClipboardList, label: 'Total Requests', value: total,    sub: 'All time',        grad: 'from-orange-500 to-orange-600', text: 'text-orange-600' },
             { icon: Clock,         label: 'Pending',         value: pending,  sub: `${pendingRate}% of total`,  grad: 'from-amber-500 to-amber-600',   text: 'text-amber-600'  },
-            { icon: CheckCircle2,  label: 'Approved',        value: approved, sub: `${approvalRate}% approval`, grad: 'from-emerald-500 to-emerald-600',text: 'text-emerald-600'},
+            { icon: CheckCircle2,  label: 'Approved',        value: approved, sub: `${approvalRate}% approval`, grad: 'from-orange-500 to-orange-600',text: 'text-orange-600'},
             { icon: XCircle,       label: 'Rejected',        value: rejected, sub: `${rejectedRate}% of total`, grad: 'from-rose-500 to-rose-600',     text: 'text-rose-500'  },
           ].map(s => {
             const Icon = s.icon;
@@ -122,7 +122,7 @@ export default function FacultyReports() {
             </div>
             <div className="space-y-3">
               {[
-                { label: 'Approved', count: approved, pct: approvalRate, color: 'bg-emerald-500', text: 'text-emerald-600' },
+                { label: 'Approved', count: approved, pct: approvalRate, color: 'bg-orange-500', text: 'text-orange-600' },
                 { label: 'Pending',  count: pending,  pct: pendingRate,  color: 'bg-amber-500',   text: 'text-amber-600'   },
                 { label: 'Rejected', count: rejected, pct: rejectedRate, color: 'bg-rose-500',    text: 'text-rose-500'    },
               ].map(item => (
