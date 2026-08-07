@@ -7,13 +7,15 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/shared/Modal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
-import { formatDate, formatTime } from '../../lib/utils';
+import { formatDate, formatTime, formatSubmittedAt } from '../../lib/utils';
+import { ProofPreviewModal } from '../../components/shared/ProofPreviewModal';
 
 
 export default function FacultyRequestDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState<'approve' | 'reject' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
@@ -190,12 +192,31 @@ export default function FacultyRequestDetails() {
                 <Clock size={15} className="text-[#6B7280]" />
               </div>
               <div>
-                <p className="text-[13px] text-[#6B7280] mb-0.5">Time</p>
+                <p className="text-[13px] text-[#6B7280] mb-0.5">Time & Periods</p>
                 <p className="text-[14px] font-medium text-[#111111]">
                   {formatTime(request.startTime)} – {formatTime(request.endTime)}
                 </p>
+                {request.periods && (
+                  <p className="text-[11px] font-semibold text-orange-600 mt-0.5">
+                    Periods: {request.periods}
+                  </p>
+                )}
               </div>
             </div>
+
+            {request.submittedAt && (
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#F3F4F6] flex items-center justify-center flex-shrink-0">
+                  <Clock size={15} className="text-[#6B7280]" />
+                </div>
+                <div>
+                  <p className="text-[13px] text-[#6B7280] mb-0.5">Submitted On</p>
+                  <p className="text-[14px] font-bold text-slate-900 font-mono">
+                    {formatSubmittedAt(request.submittedAt)}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Uploaded Student Proof Document Section (Only shown if student actually attached a file) */}
             {Boolean(request.documentName || request.documentUrl) && (
@@ -210,21 +231,13 @@ export default function FacultyRequestDetails() {
                   </div>
                   <p className="text-[14px] font-semibold text-slate-900 truncate">{request.documentName || 'Uploaded_Proof_Document.pdf'}</p>
                   <div className="flex items-center gap-3 mt-1.5">
-                    <a
-                      href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
-                        if (!targetUrl) {
-                          e.preventDefault();
-                          alert(`Attached proof document: ${request.documentName || 'Proof Document'}`);
-                        }
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => setIsPreviewOpen(true)}
                       className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       👁️ Preview Proof
-                    </a>
+                    </button>
                     <span className="text-slate-300">•</span>
                     <a
                       href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
@@ -235,7 +248,7 @@ export default function FacultyRequestDetails() {
                         const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
                         if (!targetUrl) {
                           e.preventDefault();
-                          alert(`Attached proof document: ${request.documentName || 'Proof Document'}`);
+                          setIsPreviewOpen(true);
                         }
                       }}
                       className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
@@ -246,6 +259,13 @@ export default function FacultyRequestDetails() {
                 </div>
               </div>
             )}
+
+            <ProofPreviewModal
+              isOpen={isPreviewOpen}
+              onClose={() => setIsPreviewOpen(false)}
+              documentUrl={request.documentUrl}
+              documentName={request.documentName}
+            />
           </div>
         </div>
 

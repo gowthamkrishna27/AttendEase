@@ -6,11 +6,16 @@ import { WhatsAppShareButton } from '../../components/shared/WhatsAppShareButton
 import { Button } from '../../components/ui/Button';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
-import { formatDate, formatTime } from '../../lib/utils';
+import { formatDate, formatTime, formatSubmittedAt } from '../../lib/utils';
+import { ProofPreviewModal } from '../../components/shared/ProofPreviewModal';
+import { EditRequestModal } from '../../components/shared/EditRequestModal';
+import { useState } from 'react';
 
 export default function RequestDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const { data: request, isLoading, isError } = useQuery({
     queryKey: ['request', id],
@@ -151,6 +156,20 @@ export default function RequestDetails() {
               </div>
             </div>
 
+            {request.submittedAt && (
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 text-slate-500">
+                  <Clock size={15} />
+                </div>
+                <div>
+                  <p className="text-[13px] text-[#6B7280] mb-0.5">Submitted On</p>
+                  <p className="text-[13px] font-bold text-slate-900 font-mono">
+                    {formatSubmittedAt(request.submittedAt)}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {Boolean(request.documentName || request.documentUrl) && (
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center flex-shrink-0">
@@ -158,24 +177,23 @@ export default function RequestDetails() {
                 </div>
                 <div>
                   <p className="text-[13px] text-[#6B7280] mb-0.5">Proof Document</p>
-                  <a
-                    href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
-                      if (!targetUrl) {
-                        e.preventDefault();
-                        alert(`Attached file: ${request.documentName}`);
-                      }
-                    }}
-                    className="text-[13px] font-bold text-orange-600 hover:underline truncate max-w-[200px] block"
+                  <button
+                    type="button"
+                    onClick={() => setIsPreviewOpen(true)}
+                    className="text-[13px] font-bold text-orange-600 hover:underline truncate max-w-[200px] block cursor-pointer"
                   >
-                    👁️ {request.documentName || 'View Proof Link'}
-                  </a>
+                    👁️ {request.documentName || 'View Proof Document'}
+                  </button>
                 </div>
               </div>
             )}
+
+            <ProofPreviewModal
+              isOpen={isPreviewOpen}
+              onClose={() => setIsPreviewOpen(false)}
+              documentUrl={request.documentUrl}
+              documentName={request.documentName}
+            />
           </div>
         </div>
 
@@ -226,30 +244,46 @@ export default function RequestDetails() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 mt-6">
           {request.status === 'pending' && (
-            <Button
-              variant="danger"
-              size="lg"
-              className="flex-1"
-              onClick={async () => {
-                if (window.confirm('Are you sure you want to cancel and delete this request?')) {
-                  try {
-                    await api.deleteRequest(request.id);
-                    navigate('/student/history');
-                  } catch (err) {
-                    alert('Failed to delete request.');
+            <>
+              <button
+                onClick={() => setIsEditOpen(true)}
+                className="flex-1 h-11 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-[14px] transition-colors cursor-pointer border-none shadow-sm"
+              >
+                ✏️ Edit Request
+              </button>
+              <button
+                onClick={async () => {
+                  if (window.confirm('Are you sure you want to cancel and delete this request?')) {
+                    try {
+                      await api.deleteRequest(request.id);
+                      navigate('/student/history');
+                    } catch (err) {
+                      alert('Failed to delete request.');
+                    }
                   }
-                }
-              }}
-            >
-              Cancel / Delete Request
-            </Button>
+                }}
+                className="flex-1 h-11 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[14px] transition-colors cursor-pointer border border-red-200"
+              >
+                🗑️ Cancel Request
+              </button>
+            </>
           )}
-          <Button variant="secondary" size="lg" className="flex-1" onClick={() => navigate('/student/history')}>
+          <button
+            onClick={() => navigate('/student/history')}
+            className="flex-1 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[14px] transition-colors cursor-pointer border-none"
+          >
             Back to History
-          </Button>
+          </button>
         </div>
+
+        {/* Inline Edit Request Modal Overlay */}
+        <EditRequestModal
+          request={request}
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+        />
       </div>
     </PageWrapper>
   );

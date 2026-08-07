@@ -30,6 +30,17 @@ export function formatTimeAgo(dateStr: string): string {
   }
 }
 
+export function formatSubmittedAt(dateStr: string | undefined | null): string {
+  if (!dateStr) return '';
+  try {
+    const d = parseISO(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return format(d, "dd MMM yyyy, hh:mm a");
+  } catch {
+    return dateStr || '';
+  }
+}
+
 export function formatTime(time: string | undefined | null): string {
   if (!time || typeof time !== 'string') return '';
   const str = time.trim();

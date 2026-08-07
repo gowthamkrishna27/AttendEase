@@ -12,11 +12,14 @@ import { Modal } from '../../components/shared/Modal';
 import { formatDate, formatTime } from '../../lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
+import { ProofPreviewModal } from '../../components/shared/ProofPreviewModal';
 
 export default function HODRequestDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const [confirmModal, setConfirmModal] = useState<'approve' | 'reject' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -248,21 +251,13 @@ export default function HODRequestDetails() {
                   </div>
                   <p className="text-[14px] font-semibold text-slate-900 truncate">{request.documentName || 'Uploaded_Proof_Document.pdf'}</p>
                   <div className="flex items-center gap-3 mt-1.5">
-                    <a
-                      href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
-                        if (!targetUrl) {
-                          e.preventDefault();
-                          alert(`Attached proof document: ${request.documentName || 'Proof Document'}`);
-                        }
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => setIsPreviewOpen(true)}
                       className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       👁️ Preview Proof
-                    </a>
+                    </button>
                     <span className="text-slate-300">•</span>
                     <a
                       href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
@@ -273,7 +268,7 @@ export default function HODRequestDetails() {
                         const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
                         if (!targetUrl) {
                           e.preventDefault();
-                          alert(`Attached proof document: ${request.documentName || 'Proof Document'}`);
+                          setIsPreviewOpen(true);
                         }
                       }}
                       className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
@@ -284,6 +279,13 @@ export default function HODRequestDetails() {
                 </div>
               </div>
             )}
+
+            <ProofPreviewModal
+              isOpen={isPreviewOpen}
+              onClose={() => setIsPreviewOpen(false)}
+              documentUrl={request.documentUrl}
+              documentName={request.documentName}
+            />
           </div>
         </div>
 

@@ -5,7 +5,7 @@ import { Search, MoreVertical, Filter, ClipboardList, Clock, CheckCircle2, XCirc
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
-import { formatDate, formatTimeAgo } from '../../lib/utils';
+import { formatDate, formatTimeAgo, formatSubmittedAt } from '../../lib/utils';
 import type { RequestStatus } from '../../types';
 
 type FilterValue = RequestStatus | 'all';
@@ -190,8 +190,8 @@ export default function History() {
                     <td style={{ padding: '14px 12px' }}>
                       <StatusBadge status={req.status} />
                     </td>
-                    <td style={{ padding: '14px 12px', fontSize: 13, color: '#94A3B8', whiteSpace: 'nowrap' }}>
-                      {formatTimeAgo(req.submittedAt)}
+                    <td style={{ padding: '14px 12px', fontSize: 13, color: '#64748B', whiteSpace: 'nowrap' }}>
+                      {formatSubmittedAt(req.submittedAt) || formatTimeAgo(req.submittedAt)}
                     </td>
                     <td style={{ padding: '14px 12px' }}>
                       <button

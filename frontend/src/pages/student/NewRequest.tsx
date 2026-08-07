@@ -166,7 +166,7 @@ export default function NewRequest() {
             : {}),
         ...(file ? {
           documentName: uploadedDoc.name || file.name,
-          ...(uploadedDoc.url ? { documentUrl: uploadedDoc.url } : {}),
+          documentUrl: uploadedDoc.url || undefined,
         } : {}),
       });
     },

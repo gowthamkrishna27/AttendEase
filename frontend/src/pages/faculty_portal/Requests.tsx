@@ -7,7 +7,7 @@ import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Button } from '../../components/ui/Button';
-import { formatDate, DEPARTMENTS } from '../../lib/utils';
+import { formatDate, formatSubmittedAt, DEPARTMENTS } from '../../lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
@@ -226,6 +226,11 @@ export default function FacultyRequests() {
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
+                            {req.submittedAt && (
+                              <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                Sub: {formatSubmittedAt(req.submittedAt)}
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="text-[13px] font-medium text-slate-700">{getDays(req)}</span>
@@ -275,10 +280,13 @@ export default function FacultyRequests() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-slate-400">
-                            <span>{formatDate(req.date)}</span>
-                            <span>•</span>
-                            <span>{getDays(req)} day</span>
+                          <div className="flex flex-col items-end text-slate-400">
+                            <span>{formatDate(req.date)} • {getDays(req)} day</span>
+                            {req.submittedAt && (
+                              <span className="text-[10px] text-orange-600/90 font-mono font-medium">
+                                Sub: {formatSubmittedAt(req.submittedAt)}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </motion.div>

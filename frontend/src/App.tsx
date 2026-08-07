@@ -17,6 +17,7 @@ import NewRequest from './pages/student/NewRequest';
 import RequestSuccess from './pages/student/RequestSuccess';
 import History from './pages/student/History';
 import StudentRequestDetails from './pages/student/RequestDetails';
+import EditRequest from './pages/student/EditRequest';
 import Profile from './pages/student/Profile';
 import StudentNotifications from './pages/student/Notifications';
 
@@ -120,6 +121,7 @@ function AppRoutes() {
         <Route path="/student/new-request" element={<ProtectedRoute role="student"><NewRequest /></ProtectedRoute>} />
         <Route path="/student/success" element={<ProtectedRoute role="student"><RequestSuccess /></ProtectedRoute>} />
         <Route path="/student/history" element={<ProtectedRoute role="student"><History /></ProtectedRoute>} />
+        <Route path="/student/request/:id/edit" element={<ProtectedRoute role="student"><EditRequest /></ProtectedRoute>} />
         <Route path="/student/request/:id" element={<ProtectedRoute role="student"><StudentRequestDetails /></ProtectedRoute>} />
         <Route path="/student/profile" element={<ProtectedRoute role="student"><Profile /></ProtectedRoute>} />
         <Route path="/student/notifications" element={<ProtectedRoute role="student"><StudentNotifications /></ProtectedRoute>} />

@@ -512,6 +512,19 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
+    // Enforce daily request limit: maximum 3 requests per student for the same date
+    const dailyCount = await prisma.request.count({
+      where: {
+        studentId: studentUser.userId,
+        date: date,
+      },
+    });
+
+    if (dailyCount >= 3) {
+      res.status(400).json({ error: 'Daily request limit reached. You can submit a maximum of 3 requests for the same date.' });
+      return;
+    }
+
     // Resolve list of faculty IDs
     const targetIds = Array.isArray(facultyIds) && facultyIds.length > 0
       ? facultyIds
@@ -552,6 +565,8 @@ router.post('/', async (req: Request, res: Response) => {
     const publicId = publicIdStr;
 
     const primaryFaculty = facultyDocs[0] ?? null;
+    const finalDocName = documentName || (documentUrl ? 'Uploaded_Proof_Document' : undefined);
+    const finalDocUrl = documentUrl || (documentName?.startsWith('http') || documentName?.startsWith('data:') ? documentName : undefined);
 
     // Create request + audit action + notifications in a single transaction
     const newDoc = await prisma.$transaction(async tx => {
@@ -571,8 +586,8 @@ router.post('/', async (req: Request, res: Response) => {
           description,
           status:           'pending',
           submittedAt:      new Date().toISOString(),
-          ...(documentName && { documentName }),
-          ...(documentUrl && { documentUrl }),
+          ...(finalDocName && { documentName: finalDocName }),
+          ...(finalDocUrl && { documentUrl: finalDocUrl }),
         },
       });
 
@@ -619,6 +634,152 @@ router.post('/', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('POST /requests error:', err);
     res.status(500).json({ error: err instanceof Error ? err.message : 'Server error creating request' });
+  }
+});
+
+/**
+ * PUT /api/requests/:id — student updates an existing pending request
+ * Rules:
+ * 1. Can only update pending requests.
+ * 2. If approved (or rejected/cancelled), student CANNOT edit it.
+ */
+router.put('/:id', async (req: Request, res: Response) => {
+  const user = req.user!;
+  const idParam = (req.params['id'] || '').trim();
+
+  try {
+    const existing = await prisma.request.findFirst({
+      where: {
+        OR: [
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
+        ],
+      },
+      include: REQUEST_INCLUDE,
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    // Ownership check for student
+    if (user.role === 'student') {
+      const stuUserId = (existing.studentId || existing.student?.userId || '').toLowerCase().trim();
+      const stuRoll = (existing.student?.rollNumber || '').toLowerCase().trim();
+      const stuEmail = (existing.student?.email || '').toLowerCase().trim();
+
+      const userId = (user.id || '').toLowerCase().trim();
+      const userRoll = (user.rollNumber || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+
+      const isOwner =
+        !stuUserId ||
+        stuUserId === userId ||
+        stuUserId.includes(userId) ||
+        userId.includes(stuUserId) ||
+        (userRoll && stuRoll === userRoll) ||
+        (userEmail && stuEmail === userEmail);
+
+      if (!isOwner) {
+        res.status(403).json({ error: 'You are not authorized to edit this request' });
+        return;
+      }
+
+      // Rule: Approved requests CANNOT be edited by student
+      if (existing.status === 'approved') {
+        res.status(403).json({ error: 'Approved requests cannot be edited by student' });
+        return;
+      }
+
+      // Only pending requests can be updated by student
+      if (existing.status !== 'pending') {
+        res.status(400).json({ error: `Requests in ${existing.status} status cannot be edited` });
+        return;
+      }
+    }
+
+    const { reason, date, endDate, periods, startTime, endTime, description, documentName, documentUrl, facultyId, facultyIds } = req.body;
+
+    const rawReason = reason ? String(reason).trim().toLowerCase().replace(/\s+/g, '_') : existing.reason;
+    const validReasons: RequestReason[] = ['internship', 'medical', 'sports', 'family_emergency', 'competition', 'other'];
+    const safeReason: RequestReason = validReasons.includes(rawReason as RequestReason)
+      ? (rawReason as RequestReason)
+      : existing.reason;
+
+    // Resolve faculty assignments if provided
+    let primaryFacultyId = existing.primaryFacultyId;
+    const targetFacultyInput = Array.isArray(facultyIds) && facultyIds.length > 0
+      ? facultyIds
+      : facultyId ? [facultyId] : [];
+
+    let newFacultyDocs: { userId: string }[] = [];
+    if (targetFacultyInput.length > 0) {
+      newFacultyDocs = await prisma.user.findMany({
+        where: {
+          OR: [
+            { userId: { in: targetFacultyInput } },
+            { email:  { in: targetFacultyInput } },
+            { id:     { in: targetFacultyInput } },
+          ],
+        },
+      });
+    }
+
+    if (newFacultyDocs.length > 0) {
+      primaryFacultyId = newFacultyDocs[0].userId;
+    }
+
+    const updated = await prisma.$transaction(async tx => {
+      const result = await tx.request.update({
+        where: { id: existing.id },
+        data: {
+          ...(reason && { reason: safeReason, reasonLabel: REASON_LABELS[safeReason] ?? String(reason) }),
+          ...(date && { date }),
+          ...(endDate !== undefined && { endDate }),
+          ...(periods !== undefined && { periods }),
+          ...(startTime && { startTime }),
+          ...(endTime && { endTime }),
+          ...(description && { description }),
+          ...(documentName !== undefined && { documentName }),
+          ...(documentUrl !== undefined && { documentUrl }),
+          ...(primaryFacultyId && { primaryFacultyId }),
+        },
+        include: REQUEST_INCLUDE,
+      });
+
+      // Update RequestFaculty junction table so new assigned faculty see the request in their dashboard
+      if (newFacultyDocs.length > 0) {
+        await tx.requestFaculty.deleteMany({
+          where: { requestId: existing.id },
+        });
+
+        await tx.requestFaculty.createMany({
+          data: newFacultyDocs.map(f => ({
+            requestId: existing.id,
+            facultyId: f.userId,
+          })),
+        });
+      }
+
+      // Log audit action
+      await tx.requestAction.create({
+        data: {
+          requestId:     existing.id,
+          performedById: user.id,
+          action:        'Updated',
+          remarks:       'Request details and assigned faculty updated by student',
+        },
+      });
+
+      return result;
+    });
+
+    res.json({ request: toApi(updated) });
+  } catch (err: any) {
+    console.error('PUT /requests/:id error:', err);
+    res.status(500).json({ error: err.message || 'Failed to update request' });
   }
 });
 

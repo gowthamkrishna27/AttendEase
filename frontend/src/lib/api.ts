@@ -320,6 +320,7 @@ export interface CreateRequestPayload {
 }
 
 export async function uploadProofDocument(file: File): Promise<{ url: string; name: string }> {
+  // 1. Try uploading via Backend Cloudinary upload route
   try {
     const reader = new FileReader();
     const base64Promise = new Promise<string>((resolve, reject) => {
@@ -335,10 +336,37 @@ export async function uploadProofDocument(file: File): Promise<{ url: string; na
     });
 
     if (res && res.url) {
+      console.log('Proof uploaded via backend Cloudinary endpoint:', res.url);
       return { url: res.url, name: res.documentName || file.name };
     }
   } catch (err) {
-    console.warn('Error uploading proof document to Cloudinary via backend:', err);
+    console.warn('Backend upload-proof endpoint error, trying direct Cloudinary upload:', err);
+  }
+
+  // 2. Direct Cloudinary upload fallback
+  try {
+    const cloudName = import.meta.env['VITE_CLOUDINARY_CLOUD_NAME'] || 'yp5l3jrg';
+    const uploadPreset = import.meta.env['VITE_CLOUDINARY_UPLOAD_PRESET'] || 'attendease_proofs';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const directUrl = data.secure_url || data.url;
+      if (directUrl) {
+        console.log('Proof uploaded directly to Cloudinary:', directUrl);
+        return { url: directUrl, name: file.name };
+      }
+    }
+  } catch (err) {
+    console.warn('Direct Cloudinary upload error:', err);
   }
 
   return { url: '', name: file.name };
@@ -348,6 +376,14 @@ export async function createRequest(data: CreateRequestPayload): Promise<Attenda
   const res = await apiFetch<{ request: AttendanceRequest }>(
     '/api/requests',
     { method: 'POST', body: JSON.stringify(data) },
+  );
+  return res.request;
+}
+
+export async function updateRequest(id: string, data: Partial<CreateRequestPayload>): Promise<AttendanceRequest> {
+  const res = await apiFetch<{ request: AttendanceRequest }>(
+    `/api/requests/${id}`,
+    { method: 'PUT', body: JSON.stringify(data) },
   );
   return res.request;
 }

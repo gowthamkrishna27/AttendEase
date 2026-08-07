@@ -151,9 +151,9 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
     textColor = 'text-slate-900';
     badgeStyle = 'bg-[#FDE047] border-amber-400 text-slate-900 shadow-amber-200/50 hover:bg-[#FACC15] ring-2 ring-amber-300/40 font-black';
   } else if (isPresent) {
-    bgColor = '#0F172A'; // Black / Slate Present
-    textColor = 'text-white';
-    badgeStyle = 'bg-slate-900 border-slate-800 text-white shadow-slate-900/30 hover:bg-slate-800 ring-2 ring-slate-700/40';
+    bgColor = '#86EFAC'; // Light Green
+    textColor = 'text-emerald-950 font-black';
+    badgeStyle = 'bg-emerald-300 border-emerald-400 text-emerald-950 shadow-emerald-200/60 hover:bg-emerald-400 ring-2 ring-emerald-300/40 font-black';
   } else if (isAbsent) {
     bgColor = '#EF4444'; // Rose Red
     textColor = 'text-white';
@@ -206,6 +206,7 @@ interface PermissionGridProps {
   markedAttendance: Record<string, 'present' | 'absent'>;
   attendanceSubmissions: api.AttendanceSubmissionItem[];
   selectedSubmissionId: string;
+  selectedPeriodFilter: number | 'all';
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectPass: (pass: ExtendedAttendanceRequest) => void;
@@ -219,6 +220,7 @@ const PermissionGrid = React.memo(({
   markedAttendance,
   attendanceSubmissions,
   selectedSubmissionId,
+  selectedPeriodFilter,
   isCollapsed,
   onToggleCollapse,
   onSelectPass,
@@ -263,13 +265,15 @@ const PermissionGrid = React.memo(({
       ? attendanceSubmissions.find(s => s.id === selectedSubmissionId)
       : null;
 
-    const activePeriodNums: number[] = activeSub && activeSub.periods
-      ? activeSub.periods.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n))
-      : [];
+    const activePeriodNums: number[] = selectedPeriodFilter !== 'all'
+      ? [Number(selectedPeriodFilter)]
+      : (activeSub && activeSub.periods
+          ? activeSub.periods.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n))
+          : []);
 
     passes.forEach(p => {
-      // If filtering by a specific period submission, verify period overlap
-      if (activeSub && activePeriodNums.length > 0) {
+      // Filter strictly by period if a specific period is selected
+      if (activePeriodNums.length > 0) {
         const passPeriods = getPeriodsFromRequest(p);
         const hasOverlap = activePeriodNums.some(pNum => passPeriods.includes(pNum));
         if (!hasOverlap) return;
@@ -282,7 +286,7 @@ const PermissionGrid = React.memo(({
       }
     });
     return map;
-  }, [passes, rollNumbers, selectedSubmissionId, attendanceSubmissions]);
+  }, [passes, rollNumbers, selectedSubmissionId, attendanceSubmissions, selectedPeriodFilter]);
 
   const permissionCount = permissionMap.size;
   
@@ -332,7 +336,7 @@ const PermissionGrid = React.memo(({
                 <span>Permission ({permissionCount})</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded bg-slate-900 border border-slate-700 inline-block shadow-2xs"></span>
+                <span className="w-3.5 h-3.5 rounded bg-emerald-300 border border-emerald-400 inline-block shadow-2xs"></span>
                 <span>Present ({presentCount})</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -433,9 +437,10 @@ export default function PermissionsPage() {
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
   const [sectionFilter, setSectionFilter] = useState('CSIT-B');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>('combined');
+  const [selectedPeriodFilter, setSelectedPeriodFilter] = useState<number | 'all'>('all');
   const [dateMode, setDateMode] = useState<'today' | 'all'>('today');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [markedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
+  const [markedAttendance, setMarkedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [selectedPass, setSelectedPass] = useState<AttendanceRequest | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -579,13 +584,30 @@ export default function PermissionsPage() {
     setSelectedPass(pass);
   }, []);
 
-  // Handle Roll Button Click (Opens permission slip modal if student has approved pass, or shows info toast)
+  // Handle Roll Button Click (Interactive in-memory tracker: Unmarked -> Present -> Absent -> Unmarked)
   const handleRollClick = useCallback((rollNo: string, pass?: ExtendedAttendanceRequest) => {
     if (pass) {
       setSelectedPass(pass);
       return;
     }
-    showToast(`Roll #${rollNo}: View period submissions above or select a period for details.`);
+
+    setMarkedAttendance(prev => {
+      const current = prev[rollNo];
+      let next: 'present' | 'absent' | undefined;
+      if (!current) next = 'present';
+      else if (current === 'present') next = 'absent';
+      else next = undefined;
+
+      const copy = { ...prev };
+      if (next) {
+        copy[rollNo] = next;
+        showToast(`Roll #${rollNo} marked ${next === 'present' ? 'PRESENT' : 'ABSENT'}`);
+      } else {
+        delete copy[rollNo];
+        showToast(`Roll #${rollNo} reset to Unmarked`);
+      }
+      return copy;
+    });
   }, [showToast]);
 
   return (
@@ -648,6 +670,21 @@ export default function PermissionsPage() {
                   <span>List</span>
                 </button>
               </div>
+
+              {Object.keys(markedAttendance).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMarkedAttendance({});
+                    showToast('All in-memory marks reset');
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                  title="Reset all in-memory attendance clicks"
+                >
+                  <RefreshCw size={12} />
+                  <span>Reset Marks ({Object.keys(markedAttendance).length})</span>
+                </button>
+              )}
 
               <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
                 <button
@@ -789,7 +826,7 @@ export default function PermissionsPage() {
                 <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
                   {[1, 2, 3, 4].map(pNum => {
                     const sub = activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
-                    const isSelected = sub && selectedSubmissionId === sub.id;
+                    const isSelected = selectedPeriodFilter === pNum || (sub && selectedSubmissionId === sub.id);
                     const isSubmitted = !!sub;
                     const isLiveNow = getCurrentPeriodId() === pNum;
 
@@ -798,11 +835,14 @@ export default function PermissionsPage() {
                         key={pNum}
                         type="button"
                         onClick={() => {
-                          if (sub) {
-                            setSelectedSubmissionId(sub.id);
-                            showToast(`Showing Period ${pNum} Attendance (Submitted by ${sub.markedBy?.name || 'Faculty'})`);
+                          if (selectedPeriodFilter === pNum) {
+                            setSelectedPeriodFilter('all');
+                            if (sub) setSelectedSubmissionId('combined');
+                            showToast(`Showing All Periods Attendance`);
                           } else {
-                            showToast(`Period ${pNum} attendance has not been submitted by faculty yet.`, true);
+                            setSelectedPeriodFilter(pNum);
+                            if (sub) setSelectedSubmissionId(sub.id);
+                            showToast(`Filtered for Period ${pNum} Permissions & Attendance`);
                           }
                         }}
                         className={`
@@ -849,7 +889,7 @@ export default function PermissionsPage() {
                 <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
                   {[5, 6, 7, 8].map(pNum => {
                     const sub = activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
-                    const isSelected = sub && selectedSubmissionId === sub.id;
+                    const isSelected = selectedPeriodFilter === pNum || (sub && selectedSubmissionId === sub.id);
                     const isSubmitted = !!sub;
                     const isLiveNow = getCurrentPeriodId() === pNum;
 
@@ -858,11 +898,14 @@ export default function PermissionsPage() {
                         key={pNum}
                         type="button"
                         onClick={() => {
-                          if (sub) {
-                            setSelectedSubmissionId(sub.id);
-                            showToast(`Showing Period ${pNum} Attendance (Submitted by ${sub.markedBy?.name || 'Faculty'})`);
+                          if (selectedPeriodFilter === pNum) {
+                            setSelectedPeriodFilter('all');
+                            if (sub) setSelectedSubmissionId('combined');
+                            showToast(`Showing All Periods Attendance`);
                           } else {
-                            showToast(`Period ${pNum} attendance has not been submitted by faculty yet.`, true);
+                            setSelectedPeriodFilter(pNum);
+                            if (sub) setSelectedSubmissionId(sub.id);
+                            showToast(`Filtered for Period ${pNum} Permissions & Attendance`);
                           }
                         }}
                         className={`
@@ -967,6 +1010,7 @@ export default function PermissionsPage() {
                   markedAttendance={markedAttendance}
                   attendanceSubmissions={activeSectionSubmissions}
                   selectedSubmissionId={selectedSubmissionId}
+                  selectedPeriodFilter={selectedPeriodFilter}
                   isCollapsed={Boolean(collapsedSections[sectionKey])}
                   onToggleCollapse={() => toggleSection(sectionKey)}
                   onSelectPass={handleSelectPass}
