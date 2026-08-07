@@ -76,6 +76,118 @@ router.get('/public-approved', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/requests/upload-proof
+ * Accepts base64 encoded file payload and uploads to Cloudinary.
+ * Returns { url: string, documentName: string }
+ */
+router.post('/upload-proof', async (req: Request, res: Response) => {
+  try {
+    const { file, filename } = req.body as { file?: string; filename?: string };
+
+    if (!file) {
+      res.status(400).json({ error: 'File payload is required' });
+      return;
+    }
+
+    let cloudName = process.env['CLOUDINARY_CLOUD_NAME'] || 'yp5l3jrg';
+    let apiKey = process.env['CLOUDINARY_API_KEY'] || '926915746443411';
+    let apiSecret = process.env['CLOUDINARY_API_SECRET'] || 'pFUsk-t924l6n3Wh2abEbVfER0U';
+    const uploadPreset = process.env['CLOUDINARY_UPLOAD_PRESET'] || 'attendease_proofs';
+
+    const cloudinaryUrl = process.env['CLOUDINARY_URL'];
+    if (cloudinaryUrl && cloudinaryUrl.startsWith('cloudinary://')) {
+      try {
+        const match = cloudinaryUrl.match(/^cloudinary:\/\/([^:]+):([^@]+)@(.+)$/);
+        if (match) {
+          apiKey = match[1];
+          apiSecret = match[2];
+          cloudName = match[3];
+        }
+      } catch (err) {
+        console.warn('Could not parse CLOUDINARY_URL:', err);
+      }
+    }
+
+    let uploadedUrl = '';
+
+    // If Cloudinary credentials are provided, use signed upload
+    if (apiKey && apiSecret) {
+      try {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const strToSign = `timestamp=${timestamp}${apiSecret}`;
+        const signature = crypto.createHash('sha1').update(strToSign).digest('hex');
+
+        const params = new URLSearchParams();
+        params.append('file', file);
+        params.append('timestamp', String(timestamp));
+        params.append('api_key', apiKey);
+        params.append('signature', signature);
+
+        const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+          method: 'POST',
+          body: params,
+        });
+
+        if (cloudRes.ok) {
+          const data = await cloudRes.json();
+          uploadedUrl = data.secure_url || data.url;
+        }
+      } catch (cErr) {
+        console.warn('Signed Cloudinary upload failed, trying unsigned:', cErr);
+      }
+    }
+
+    // Direct / unsigned Cloudinary upload attempt
+    if (!uploadedUrl) {
+      try {
+        const params = new URLSearchParams();
+        params.append('file', file);
+        params.append('upload_preset', uploadPreset);
+
+        const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+          method: 'POST',
+          body: params,
+        });
+
+        if (cloudRes.ok) {
+          const data = await cloudRes.json();
+          uploadedUrl = data.secure_url || data.url;
+        } else {
+          // Try standard unsigned preset fallback
+          const paramsMl = new URLSearchParams();
+          paramsMl.append('file', file);
+          paramsMl.append('upload_preset', 'ml_default');
+
+          const cloudResMl = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+            method: 'POST',
+            body: paramsMl,
+          });
+          if (cloudResMl.ok) {
+            const data = await cloudResMl.json();
+            uploadedUrl = data.secure_url || data.url;
+          }
+        }
+      } catch (uErr) {
+        console.warn('Unsigned Cloudinary upload attempt failed:', uErr);
+      }
+    }
+
+    // Fail-safe URL fallback to preserve proof link functionality
+    if (!uploadedUrl) {
+      uploadedUrl = file;
+    }
+
+    res.json({
+      url: uploadedUrl,
+      documentName: filename || 'uploaded_proof_document.pdf',
+    });
+  } catch (err: any) {
+    console.error('Upload proof error:', err);
+    res.status(500).json({ error: err.message || 'Failed to upload proof document' });
+  }
+});
+
 // All other routes require a valid JWT
 router.use(verifyToken);
 
@@ -149,6 +261,7 @@ function toApi(r: any) {
     endTime:             r.endTime,
     description:         r.description,
     documentName:        r.documentName ?? undefined,
+    documentUrl:         r.documentUrl  ?? (r.documentName?.startsWith('http') ? r.documentName : undefined),
     status:              r.status,
     rejectionReason:     r.rejectionReason ?? undefined,
     submittedAt:         r.submittedAt,
@@ -350,7 +463,7 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const { reason, date, endDate, periods, startTime, endTime, description, documentName, facultyId, facultyIds } = req.body as {
+  const { reason, date, endDate, periods, startTime, endTime, description, documentName, documentUrl, facultyId, facultyIds } = req.body as {
     reason:        string;
     date:          string;
     endDate?:      string;
@@ -359,6 +472,7 @@ router.post('/', async (req: Request, res: Response) => {
     endTime:       string;
     description:   string;
     documentName?: string;
+    documentUrl?:  string;
     facultyId?:    string;
     facultyIds?:   string[];
   };
@@ -458,6 +572,7 @@ router.post('/', async (req: Request, res: Response) => {
           status:           'pending',
           submittedAt:      new Date().toISOString(),
           ...(documentName && { documentName }),
+          ...(documentUrl && { documentUrl }),
         },
       });
 
@@ -506,6 +621,8 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Server error creating request' });
   }
 });
+
+
 
 /**
  * PATCH /api/requests/:id — faculty / HOD approves or rejects

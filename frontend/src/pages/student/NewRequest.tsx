@@ -145,21 +145,31 @@ export default function NewRequest() {
   });
 
   const mutation = useMutation({
-    mutationFn: (data: FormData) => api.createRequest({
-      reason: data.reason as api.RequestReason,
-      date: startDate,
-      ...(requestType === 'leave' && endDate ? { endDate } : {}),
-      periods: computedTimeRange.periodsStr,
-      startTime: computedTimeRange.start,
-      endTime: computedTimeRange.end,
-      description: data.description,
-      ...(selectedFacultyIds.length > 0
-        ? { facultyIds: selectedFacultyIds, facultyId: selectedFacultyIds[0] }
-        : data.facultyId
-          ? { facultyId: data.facultyId, facultyIds: [data.facultyId] }
-          : {}),
-      ...(file ? { documentName: file.name } : {}),
-    }),
+    mutationFn: async (data: FormData) => {
+      let uploadedDoc = { url: '', name: file ? file.name : '' };
+      if (file) {
+        uploadedDoc = await api.uploadProofDocument(file);
+      }
+
+      return api.createRequest({
+        reason: data.reason as api.RequestReason,
+        date: startDate,
+        ...(requestType === 'leave' && endDate ? { endDate } : {}),
+        periods: computedTimeRange.periodsStr,
+        startTime: computedTimeRange.start,
+        endTime: computedTimeRange.end,
+        description: data.description,
+        ...(selectedFacultyIds.length > 0
+          ? { facultyIds: selectedFacultyIds, facultyId: selectedFacultyIds[0] }
+          : data.facultyId
+            ? { facultyId: data.facultyId, facultyIds: [data.facultyId] }
+            : {}),
+        ...(file ? {
+          documentName: uploadedDoc.name || file.name,
+          ...(uploadedDoc.url ? { documentUrl: uploadedDoc.url } : {}),
+        } : {}),
+      });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
       navigate('/student/success');

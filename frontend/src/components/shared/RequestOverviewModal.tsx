@@ -136,21 +136,38 @@ export function RequestOverviewModal({
                     </div>
                     <p className="text-[13px] font-bold text-slate-900 truncate">{request.documentName || 'Uploaded_Proof_Document.pdf'}</p>
                     <div className="flex items-center gap-3 mt-1.5">
-                      <button
-                        type="button"
-                        onClick={() => alert(`Previewing uploaded proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                      <a
+                        href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => {
+                          const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
+                          if (!targetUrl) {
+                            e.preventDefault();
+                            alert(`Attached proof document: ${request.documentName || 'Proof Document'}`);
+                          }
+                        }}
                         className="text-[11px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 transition-colors cursor-pointer"
                       >
                         👁️ Preview Proof
-                      </button>
+                      </a>
                       <span className="text-slate-300">•</span>
-                      <button
-                        type="button"
-                        onClick={() => alert(`Downloading proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                      <a
+                        href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
+                        download={request.documentName || 'proof_document'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => {
+                          const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
+                          if (!targetUrl) {
+                            e.preventDefault();
+                            alert(`Attached proof document: ${request.documentName || 'Proof Document'}`);
+                          }
+                        }}
                         className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 transition-colors cursor-pointer"
                       >
                         📥 Download
-                      </button>
+                      </a>
                     </div>
                   </div>
                 </div>

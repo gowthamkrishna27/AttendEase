@@ -89,6 +89,7 @@ model Request {
   endTime             String
   description         String
   documentName        String?
+  documentUrl         String?
   status              RequestStatus @default(pending)
   rejectionReason     String?
   submittedAt         String

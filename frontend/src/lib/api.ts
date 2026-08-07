@@ -314,8 +314,34 @@ export interface CreateRequestPayload {
   endTime: string;
   description: string;
   documentName?: string;
+  documentUrl?: string;
   facultyId?: string;
   facultyIds?: string[];
+}
+
+export async function uploadProofDocument(file: File): Promise<{ url: string; name: string }> {
+  try {
+    const reader = new FileReader();
+    const base64Promise = new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const dataUrl = await base64Promise;
+
+    const res = await apiFetch<{ url: string; documentName: string }>('/api/requests/upload-proof', {
+      method: 'POST',
+      body: JSON.stringify({ file: dataUrl, filename: file.name }),
+    });
+
+    if (res && res.url) {
+      return { url: res.url, name: res.documentName || file.name };
+    }
+  } catch (err) {
+    console.warn('Error uploading proof document to Cloudinary via backend:', err);
+  }
+
+  return { url: '', name: file.name };
 }
 
 export async function createRequest(data: CreateRequestPayload): Promise<AttendanceRequest> {

@@ -151,16 +151,28 @@ export default function RequestDetails() {
               </div>
             </div>
 
-            {request.documentName && (
+            {Boolean(request.documentName || request.documentUrl) && (
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#F3F4F6] flex items-center justify-center flex-shrink-0">
-                  <FileText size={15} className="text-[#6B7280]" />
+                <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center flex-shrink-0">
+                  <FileText size={15} />
                 </div>
                 <div>
-                  <p className="text-[13px] text-[#6B7280] mb-0.5">Document</p>
-                  <p className="text-[14px] font-medium text-[#111111] truncate max-w-[160px]">
-                    {request.documentName}
-                  </p>
+                  <p className="text-[13px] text-[#6B7280] mb-0.5">Proof Document</p>
+                  <a
+                    href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
+                      if (!targetUrl) {
+                        e.preventDefault();
+                        alert(`Attached file: ${request.documentName}`);
+                      }
+                    }}
+                    className="text-[13px] font-bold text-orange-600 hover:underline truncate max-w-[200px] block"
+                  >
+                    👁️ {request.documentName || 'View Proof Link'}
+                  </a>
                 </div>
               </div>
             )}
