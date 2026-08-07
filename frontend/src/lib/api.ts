@@ -250,11 +250,23 @@ export async function removeAllPasskeys(): Promise<{ success: boolean }> {
   return apiFetch('/api/auth/passkey/remove-all', { method: 'DELETE' });
 }
 
-export async function changePin(currentPin: string, newPin: string): Promise<{ success: boolean; message: string }> {
-  return apiFetch('/api/auth/change-pin', {
-    method: 'POST',
-    body: JSON.stringify({ currentPin, newPin }),
-  });
+export interface PublicFacultyMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  designation?: string;
+  avatarUrl?: string;
+}
+
+export async function getPublicFacultyList(): Promise<PublicFacultyMember[]> {
+  try {
+    const res = await apiFetch<{ faculty: PublicFacultyMember[] }>('/api/auth/public-faculty', {}, false);
+    return res.faculty;
+  } catch {
+    return [];
+  }
 }
 
 export async function logout(): Promise<void> {

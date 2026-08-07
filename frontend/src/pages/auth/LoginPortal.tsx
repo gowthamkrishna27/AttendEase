@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -70,6 +70,50 @@ export default function LoginPortal() {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const [dynamicFaculty, setDynamicFaculty] = useState<api.PublicFacultyMember[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getPublicFacultyList().then(list => {
+      if (isMounted && list && list.length > 0) {
+        setDynamicFaculty(list);
+      }
+    }).catch(err => {
+      console.warn('Could not fetch dynamic faculty list:', err);
+    });
+    return () => { isMounted = false; };
+  }, []);
+
+  // Group dynamic faculty members by department
+  const facultyListOptions = useMemo(() => {
+    const dbFaculty = dynamicFaculty.filter(f => f.role === 'faculty');
+    if (dbFaculty.length > 0) {
+      const csd = dbFaculty.filter(f => (f.department || '').toUpperCase().includes('CSD'));
+      const csit = dbFaculty.filter(f => (f.department || '').toUpperCase().includes('CSIT'));
+      const others = dbFaculty.filter(f => !(f.department || '').toUpperCase().includes('CSD') && !(f.department || '').toUpperCase().includes('CSIT'));
+      return { csd, csit, others, isDynamic: true };
+    }
+    return { csd: [], csit: [], others: [], isDynamic: false };
+  }, [dynamicFaculty]);
+
+  const hodListOptions = useMemo(() => {
+    return dynamicFaculty.filter(f => f.role === 'hod');
+  }, [dynamicFaculty]);
+
+  // Selected faculty or HOD profile preview card
+  const selectedFacultyProfile = useMemo(() => {
+    if (!identifier) return null;
+    const match = dynamicFaculty.find(f => f.email.toLowerCase() === identifier.toLowerCase() || f.userId === identifier);
+    if (match) {
+      return {
+        name: match.name,
+        dept: match.department ? `${match.department} ${match.role === 'hod' ? 'HOD' : 'Faculty'}` : (match.role === 'hod' ? 'HOD' : 'Faculty'),
+        photo: match.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(match.name)}&background=F97316&color=fff`,
+      };
+    }
+    return FACULTY_PHOTO_MAP[identifier] || null;
+  }, [identifier, dynamicFaculty]);
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
@@ -345,29 +389,57 @@ export default function LoginPortal() {
                 }}
               >
                 <option value="">-- Select Faculty Name --</option>
-                <optgroup label="CSD Department Faculty">
-                  <option value="aapriyanka@srkrec.ac.in">A. Aswini Priyanka (CSD)</option>
-                  <option value="asatyam@srkrec.ac.in">Angara Satyam (CSD)</option>
-                  <option value="ksrinivasarao@srkrec.ac.in">Dr. K. Srinivasa Rao (CSD)</option>
-                  <option value="suresh.mudunuri@srkrec.ac.in">Dr. Suresh Babu Mudunuri (CSD)</option>
-                  <option value="kbrnaidu@srkrec.ac.in">K. Bhanu Rajesh Naidu (CSD)</option>
-                  <option value="madhuryamudundi@gmail.com">M Sai Madhuri (CSD)</option>
-                  <option value="aneela@srkrec.ac.in">N. Aneela (CSD)</option>
-                  <option value="psvsuryakumar@srkrec.ac.in">P S V Surya Kumar (CSD)</option>
-                  <option value="mohanakrishna.seerla@srkrec.ac.in">S. Mohan Krishna (CSD)</option>
-                </optgroup>
-                <optgroup label="CSIT Department Faculty">
-                  <option value="akveni@srkrec.ac.in">Anusuri Krishna Veni (CSIT)</option>
-                  <option value="parvathiram21@gmail.com">D Parvathi (CSIT)</option>
-                  <option value="gopinukala@gmail.com">Dr. NGK Murthy (CSIT)</option>
-                  <option value="vignyak@gmail.com">K Sri Vigyna (CSIT)</option>
-                  <option value="kvsunilvarma@srkrec.ac.in">K V Sunil Varma (CSIT)</option>
-                  <option value="kvvstnaidu@srkrec.ac.in">K V V Satya Trinadh Naidu (CSIT)</option>
-                  <option value="navyanallaparaju@srkrec.ac.in">N. Navya (CSIT)</option>
-                  <option value="npraveen@srkrec.ac.in">Neti Praveen (CSIT)</option>
-                  <option value="manoj.p@srkrec.ac.in">P Manoj (CSIT)</option>
-                  <option value="mouna.p@srkrec.ac.in">P Mouna (CSIT)</option>
-                </optgroup>
+                {facultyListOptions.isDynamic ? (
+                  <>
+                    {facultyListOptions.csd.length > 0 && (
+                      <optgroup label="CSD Department Faculty">
+                        {facultyListOptions.csd.map(f => (
+                          <option key={f.userId || f.email} value={f.email}>{f.name} ({f.department || 'CSD'})</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {facultyListOptions.csit.length > 0 && (
+                      <optgroup label="CSIT Department Faculty">
+                        {facultyListOptions.csit.map(f => (
+                          <option key={f.userId || f.email} value={f.email}>{f.name} ({f.department || 'CSIT'})</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {facultyListOptions.others.length > 0 && (
+                      <optgroup label="Other Department Faculty">
+                        {facultyListOptions.others.map(f => (
+                          <option key={f.userId || f.email} value={f.email}>{f.name} ({f.department || 'Faculty'})</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <optgroup label="CSD Department Faculty">
+                      <option value="aapriyanka@srkrec.ac.in">A. Aswini Priyanka (CSD)</option>
+                      <option value="asatyam@srkrec.ac.in">Angara Satyam (CSD)</option>
+                      <option value="ksrinivasarao@srkrec.ac.in">Dr. K. Srinivasa Rao (CSD)</option>
+                      <option value="suresh.mudunuri@srkrec.ac.in">Dr. Suresh Babu Mudunuri (CSD)</option>
+                      <option value="kbrnaidu@srkrec.ac.in">K. Bhanu Rajesh Naidu (CSD)</option>
+                      <option value="madhuryamudundi@gmail.com">M Sai Madhuri (CSD)</option>
+                      <option value="aneela@srkrec.ac.in">N. Aneela (CSD)</option>
+                      <option value="psvsuryakumar@srkrec.ac.in">P S V Surya Kumar (CSD)</option>
+                      <option value="mohanakrishna.seerla@srkrec.ac.in">S. Mohan Krishna (CSD)</option>
+                    </optgroup>
+                    <optgroup label="CSIT Department Faculty">
+                      <option value="akveni@srkrec.ac.in">Anusuri Krishna Veni (CSIT)</option>
+                      <option value="parvathiram21@gmail.com">D Parvathi (CSIT)</option>
+                      <option value="gopinukala@gmail.com">Dr. NGK Murthy (CSIT)</option>
+                      <option value="vignyak@gmail.com">K Sri Vigyna (CSIT)</option>
+                      <option value="kvsunilvarma@srkrec.ac.in">K V Sunil Varma (CSIT)</option>
+                      <option value="kvvstnaidu@srkrec.ac.in">K V V Satya Trinadh Naidu (CSIT)</option>
+                      <option value="navyanallaparaju@srkrec.ac.in">N. Navya (CSIT)</option>
+                      <option value="npraveen@srkrec.ac.in">Neti Praveen (CSIT)</option>
+                      <option value="manoj.p@srkrec.ac.in">P Manoj (CSIT)</option>
+                      <option value="mouna.p@srkrec.ac.in">P Mouna (CSIT)</option>
+                    </optgroup>
+                  </>
+                )}
               </select>
             </div>
           ) : activeTab === 'hod' ? (
@@ -388,8 +460,18 @@ export default function LoginPortal() {
                 }}
               >
                 <option value="">-- Select HOD Name --</option>
-                <option value="hod.csit@srkrec.ac.in">Dr. NGK Murthy — CSIT HOD</option>
-                <option value="hod.csd@srkrec.ac.in">Dr. Suresh Babu Mudunuri — CSD HOD</option>
+                {hodListOptions.length > 0 ? (
+                  hodListOptions.map(h => (
+                    <option key={h.userId || h.email} value={h.email}>
+                      {h.name} — {h.department || 'HOD'}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="hod.csit@srkrec.ac.in">Dr. NGK Murthy — CSIT HOD</option>
+                    <option value="hod.csd@srkrec.ac.in">Dr. Suresh Babu Mudunuri — CSD HOD</option>
+                  </>
+                )}
               </select>
             </div>
           ) : (
@@ -421,7 +503,7 @@ export default function LoginPortal() {
           )}
 
           {/* Photo Avatar Preview Card for Selected Faculty / HOD */}
-          {(activeTab === 'faculty' || activeTab === 'hod') && identifier && FACULTY_PHOTO_MAP[identifier] && (
+          {(activeTab === 'faculty' || activeTab === 'hod') && identifier && selectedFacultyProfile && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -434,20 +516,20 @@ export default function LoginPortal() {
             >
               <div style={{ width: 44, height: 44, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: '#EA580C', border: '1.5px solid #F97316', boxShadow: '0 2px 6px rgba(249,115,22,0.2)' }}>
                 <img
-                  src={FACULTY_PHOTO_MAP[identifier].photo}
-                  alt={FACULTY_PHOTO_MAP[identifier].name}
+                  src={selectedFacultyProfile.photo}
+                  alt={selectedFacultyProfile.name}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(FACULTY_PHOTO_MAP[identifier].name)}&background=F97316&color=fff`;
+                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedFacultyProfile.name)}&background=F97316&color=fff`;
                   }}
                 />
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>
-                  {FACULTY_PHOTO_MAP[identifier].name}
+                  {selectedFacultyProfile.name}
                 </p>
                 <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, color: '#EA580C', background: 'rgba(234,88,12,0.1)', padding: '1px 6px', borderRadius: 6, marginTop: 3 }}>
-                  {FACULTY_PHOTO_MAP[identifier].dept}
+                  {selectedFacultyProfile.dept}
                 </span>
               </div>
             </motion.div>
