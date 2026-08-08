@@ -75,3 +75,14 @@ export interface FacultyFilters {
   dateFrom: string;
   dateTo: string;
 }
+
+export interface HODDirectExemptionPayload {
+  studentIds: string[];
+  reason: string;
+  startDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  periods?: string;
+  description?: string;
+}

@@ -454,9 +454,141 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/requests/hod-direct-grant
+ * HOD voluntarily selects students and grants direct classwork exemptions (pre-approved).
+ */
+router.post('/hod-direct-grant', async (req: Request, res: Response) => {
+  const user = req.user!;
+  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
+  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod';
+
+  if (!isHodOrAdmin) {
+    res.status(403).json({ error: 'Only HOD or Admin can issue direct classwork exemptions' });
+    return;
+  }
+
+  const { studentIds, reason, startDate, endDate, startTime, endTime, periods, description } = req.body as {
+    studentIds:   string[];
+    reason:       string;
+    startDate:    string;
+    endDate?:     string;
+    startTime?:   string;
+    endTime?:     string;
+    periods?:     string;
+    description?: string;
+  };
+
+  if (!Array.isArray(studentIds) || studentIds.length === 0 || !reason || !startDate) {
+    res.status(400).json({ error: 'studentIds (array), reason, and startDate are required' });
+    return;
+  }
+
+  try {
+    const hodUser = await prisma.user.findFirst({
+      where: { OR: [{ userId: user.id }, { email: user.email }] },
+    });
+    const performingUserId = hodUser?.userId || user.id;
+
+    const targetStudents = await prisma.user.findMany({
+      where: {
+        OR: [
+          { userId: { in: studentIds } },
+          { id: { in: studentIds } },
+          { rollNumber: { in: studentIds } },
+        ],
+      },
+    });
+
+    if (targetStudents.length === 0) {
+      res.status(404).json({ error: 'No matching students found' });
+      return;
+    }
+
+    const createdRequests: any[] = [];
+
+    for (const student of targetStudents) {
+      const tsHex   = Date.now().toString(36).toUpperCase();
+      const randHex = Math.random().toString(36).slice(2, 6).toUpperCase();
+      const requestId = `req-HOD-${tsHex}-${randHex}`;
+
+      const sDate = String(startDate).trim();
+      const eDate = endDate ? String(endDate).trim() : sDate;
+      const sTime = startTime ? String(startTime).trim() : '09:00';
+      const eTime = endTime ? String(endTime).trim() : '17:00';
+      const pText = periods ? String(periods).trim() : '1,2,3,4,5,6,7,8';
+      const desc  = description?.trim() || `HOD Direct Voluntary Classwork Exemption: ${reason}`;
+      const rLabel = String(reason).trim();
+
+      const newDoc = await prisma.$transaction(async tx => {
+        const created = await tx.request.create({
+          data: {
+            requestId,
+            studentId:           student.userId,
+            primaryFacultyId:    performingUserId,
+            reason:              'other',
+            reasonLabel:         rLabel,
+            date:                sDate,
+            endDate:             eDate,
+            startTime:           sTime,
+            endTime:             eTime,
+            periods:             pText,
+            description:         desc,
+            status:              'approved',
+            submittedAt:         new Date().toISOString(),
+            reviewedAt:          new Date().toISOString(),
+            finalDecisionBy:     'HOD',
+            finalDecisionUserId: performingUserId,
+          },
+        });
+
+        await tx.requestAction.create({
+          data: {
+            requestId:     created.id,
+            action:        'Approved by HOD',
+            remarks:       `Voluntary Classwork Exemption Granted by HOD: ${rLabel}`,
+            performedById: performingUserId,
+            performedAt:   new Date().toISOString(),
+          },
+        });
+
+        await tx.notification.create({
+          data: {
+            userId:    student.userId,
+            requestId: created.id,
+            title:     'Classwork Exemption Granted by HOD',
+            message:   `HOD has granted you direct permission for "${rLabel}" from ${sDate}${eDate !== sDate ? ' to ' + eDate : ''}.`,
+            type:      'approved',
+          },
+        });
+
+        return tx.request.findUnique({
+          where: { id: created.id },
+          include: REQUEST_INCLUDE,
+        });
+      });
+
+      if (newDoc) {
+        createdRequests.push(toApi(newDoc));
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Direct exemption granted to ${createdRequests.length} student(s)`,
+      count:   createdRequests.length,
+      requests: createdRequests,
+    });
+  } catch (err) {
+    console.error('POST /requests/hod-direct-grant error:', err);
+    res.status(500).json({ error: 'Failed to grant HOD direct exemption' });
+  }
+});
+
+/**
  * POST /api/requests — student creates a new request
  */
 router.post('/', async (req: Request, res: Response) => {
+
   const user = req.user!;
   if (user.role !== 'student') {
     res.status(403).json({ error: 'Only students can submit requests' });

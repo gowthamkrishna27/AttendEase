@@ -621,4 +621,29 @@ export async function getShareRedirect(publicId: string): Promise<{ success: boo
   return apiFetch<{ success: boolean; redirectTo?: string; status?: number; error?: string }>(`/api/share/${encodeURIComponent(publicId)}`);
 }
 
+// ─── HOD Direct Exemption ─────────────────────────────────────────────────────
+
+export interface HODDirectExemptionPayload {
+  studentIds: string[];
+  reason: string;
+  startDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  periods?: string;
+  description?: string;
+}
+
+export async function grantHODDirectExemption(payload: HODDirectExemptionPayload): Promise<{ success: boolean; message: string; count: number; requests: AttendanceRequest[] }> {
+  return apiFetch('/api/requests/hod-direct-grant', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getAllStudents(): Promise<Student[]> {
+  const res = await apiFetch<{ students: Student[] }>('/api/users/students');
+  return res.students ?? [];
+}
+
 

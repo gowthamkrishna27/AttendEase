@@ -135,6 +135,45 @@ router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/users/students
+ * Returns all students with derived section and year — used by HOD Direct Exemption Modal.
+ */
+router.get('/students', verifyToken, async (_req: Request, res: Response) => {
+  try {
+    const students = await prisma.user.findMany({
+      where: { role: 'student' },
+      orderBy: { rollNumber: 'asc' },
+    });
+
+    const formatted = students.map((s: any) => {
+      const roll = s.rollNumber || s.userId;
+      const isSecB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B') || roll.includes('95A');
+      const derivedSec = isSecB ? 'Section B' : 'Section A';
+      const sem = s.semester || 6;
+      const derivedYear = `${Math.ceil(sem / 2)}th Year`;
+
+      return {
+        id:         s.userId,
+        name:       s.name,
+        email:      s.email,
+        rollNumber: roll,
+        department: s.department || 'Computer Science',
+        semester:   sem,
+        year:       derivedYear,
+        section:    s.section || derivedSec,
+        avatarUrl:  s.avatarUrl ?? undefined,
+      };
+    });
+
+    res.json({ students: formatted });
+  } catch (err) {
+    console.error('GET /users/students error:', err);
+    res.status(500).json({ error: 'Failed to fetch students list' });
+  }
+});
+
+
+/**
  * GET /api/users/counseling/all
  * Returns all faculty members along with their assigned counseling students.
  */

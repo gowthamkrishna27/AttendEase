@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, RotateCcw, Check, X, Paperclip } from 'lucide-react';
+import { Search, SlidersHorizontal, RotateCcw, Check, X, Paperclip, ShieldCheck } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -12,6 +12,7 @@ import { formatDate, DEPARTMENTS } from '../../lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
+import { HODDirectExemptionModal } from './components/HODDirectExemptionModal';
 
 const listVariants = { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } };
 const itemVariants = {
@@ -42,6 +43,7 @@ export default function HODAllRequests() {
   const [department, setDept]   = useState('');
   const [yearFilter, setYearFilter] = useState('');
   const [tab, setTab]           = useState<TabValue>('all');
+  const [isExemptionModalOpen, setIsExemptionModalOpen] = useState(false);
 
   const { data: requestsList = [] } = useQuery({
     queryKey: ['requests'],
@@ -92,11 +94,21 @@ export default function HODAllRequests() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="mb-5 sm:mb-6"
+          className="mb-5 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
-          <p className="text-[11px] sm:text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">HOD</p>
-          <h1 className="text-[22px] sm:text-[26px] font-heading font-bold text-slate-900">All Requests</h1>
-          <p className="text-[13px] sm:text-[14px] text-slate-400 mt-1">Every attendance permission request across all faculty</p>
+          <div>
+            <p className="text-[11px] sm:text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">HOD</p>
+            <h1 className="text-[22px] sm:text-[26px] font-heading font-bold text-slate-900">All Requests</h1>
+            <p className="text-[13px] sm:text-[14px] text-slate-400 mt-1">Every attendance permission request across all faculty</p>
+          </div>
+
+          <button
+            onClick={() => setIsExemptionModalOpen(true)}
+            className="h-[42px] px-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-[13px] rounded-xl flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
+          >
+            <ShieldCheck size={17} />
+            <span>Grant Direct Exemption</span>
+          </button>
         </motion.div>
 
         {/* ── Filters ── */}
@@ -339,6 +351,11 @@ export default function HODAllRequests() {
         )}
 
       </div>
+
+      <HODDirectExemptionModal
+        open={isExemptionModalOpen}
+        onClose={() => setIsExemptionModalOpen(false)}
+      />
     </PageWrapper>
   );
 }
