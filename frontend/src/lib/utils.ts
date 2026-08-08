@@ -163,6 +163,8 @@ export function getPeriodsFromRequest(req: { periods?: string | null; startTime?
 
 export const REASON_LABELS: Record<string, string> = {
   internship: 'Internship',
+  startup: 'Startup Work',
+  project_development: 'Project Development',
   medical: 'Medical Leave',
   sports: 'Sports Event',
   family_emergency: 'Family Emergency',

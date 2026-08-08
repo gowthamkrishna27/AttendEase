@@ -34,6 +34,8 @@ type FormData = z.infer<typeof schema>;
 
 const reasonOptions = [
   { value: 'internship', label: 'Internship' },
+  { value: 'startup', label: 'Startup Work' },
+  { value: 'project_development', label: 'Project Development' },
   { value: 'medical', label: 'Medical Leave' },
   { value: 'sports', label: 'Sports Event' },
   { value: 'family_emergency', label: 'Family Emergency' },

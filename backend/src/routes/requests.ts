@@ -192,12 +192,14 @@ router.post('/upload-proof', async (req: Request, res: Response) => {
 router.use(verifyToken);
 
 const REASON_LABELS: Record<RequestReason, string> = {
-  internship:       'Internship',
-  medical:          'Medical Leave',
-  sports:           'Sports Event',
-  family_emergency: 'Family Emergency',
-  competition:      'Competition',
-  other:            'Other',
+  internship:          'Internship',
+  startup:             'Startup Work',
+  project_development: 'Project Development',
+  medical:             'Medical Leave',
+  sports:              'Sports Event',
+  family_emergency:    'Family Emergency',
+  competition:         'Competition',
+  other:               'Other',
 };
 
 // Shared include for all request queries including actions audit trail
@@ -617,7 +619,7 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     // Normalize reason enum value safely
     const rawReason = String(reason).trim().toLowerCase().replace(/\s+/g, '_');
-    const validReasons: RequestReason[] = ['internship', 'medical', 'sports', 'family_emergency', 'competition', 'other'];
+    const validReasons: RequestReason[] = ['internship', 'startup', 'project_development', 'medical', 'sports', 'family_emergency', 'competition', 'other'];
     const safeReason: RequestReason = validReasons.includes(rawReason as RequestReason)
       ? (rawReason as RequestReason)
       : 'other';
@@ -835,7 +837,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const { reason, date, endDate, periods, startTime, endTime, description, documentName, documentUrl, facultyId, facultyIds } = req.body;
 
     const rawReason = reason ? String(reason).trim().toLowerCase().replace(/\s+/g, '_') : existing.reason;
-    const validReasons: RequestReason[] = ['internship', 'medical', 'sports', 'family_emergency', 'competition', 'other'];
+    const validReasons: RequestReason[] = ['internship', 'startup', 'project_development', 'medical', 'sports', 'family_emergency', 'competition', 'other'];
     const safeReason: RequestReason = validReasons.includes(rawReason as RequestReason)
       ? (rawReason as RequestReason)
       : existing.reason;

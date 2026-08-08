@@ -205,6 +205,8 @@ export const EditRequestModal: React.FC<EditRequestModalProps> = ({
                 >
                   <option value="medical">Medical Leave</option>
                   <option value="internship">Internship / Off-Campus</option>
+                  <option value="startup">Startup Work</option>
+                  <option value="project_development">Project Development</option>
                   <option value="sports">Sports Event</option>
                   <option value="competition">Hackathon / Competition</option>
                   <option value="family_emergency">Family Emergency</option>

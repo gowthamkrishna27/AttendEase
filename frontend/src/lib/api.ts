@@ -43,7 +43,7 @@ export function clearStoredToken(): void {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
-export type RequestReason = 'internship' | 'medical' | 'sports' | 'family_emergency' | 'competition' | 'other';
+export type RequestReason = 'internship' | 'startup' | 'project_development' | 'medical' | 'sports' | 'family_emergency' | 'competition' | 'other';
 export type UserRole = 'student' | 'faculty' | 'hod' | 'admin';
 
 export interface AuthUser {
