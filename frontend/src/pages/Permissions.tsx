@@ -151,7 +151,7 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
     textColor = 'text-slate-900';
     badgeStyle = 'bg-[#FDE047] border-amber-400 text-slate-900 shadow-amber-200/50 hover:bg-[#FACC15] ring-2 ring-amber-300/40 font-black';
   } else if (isPresent) {
-    bgColor = '#86EFAC'; // Light Green
+    bgColor = '#5ff797ff'; // Light Green
     textColor = 'text-emerald-950 font-black';
     badgeStyle = 'bg-emerald-300 border-emerald-400 text-emerald-950 shadow-emerald-200/60 hover:bg-emerald-400 ring-2 ring-emerald-300/40 font-black';
   } else if (isAbsent) {
@@ -186,10 +186,10 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
         isPresent
           ? `Roll #${rollNo}: Marked Present${Boolean(request) ? ' (Has Approved Permission)' : ''}`
           : isAbsent
-          ? `Roll #${rollNo}: Marked Absent${Boolean(request) ? ' (Has Approved Permission — marked absent by faculty)' : ''}`
-          : isPermission
-          ? `Roll #${rollNo}: Approved Permission (${request?.reasonLabel}) - Click to view slip`
-          : `Roll #${rollNo}: Unmarked`
+            ? `Roll #${rollNo}: Marked Absent${Boolean(request) ? ' (Has Approved Permission — marked absent by faculty)' : ''}`
+            : isPermission
+              ? `Roll #${rollNo}: Approved Permission (${request?.reasonLabel}) - Click to view slip`
+              : `Roll #${rollNo}: Unmarked`
       }
     >
       {rollNo}
@@ -268,8 +268,8 @@ const PermissionGrid = React.memo(({
     const activePeriodNums: number[] = selectedPeriodFilter !== 'all'
       ? [Number(selectedPeriodFilter)]
       : (activeSub && activeSub.periods
-          ? activeSub.periods.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n))
-          : []);
+        ? activeSub.periods.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n))
+        : []);
 
     passes.forEach(p => {
       // Filter strictly by period if a specific period is selected
@@ -289,7 +289,7 @@ const PermissionGrid = React.memo(({
   }, [passes, rollNumbers, selectedSubmissionId, attendanceSubmissions, selectedPeriodFilter]);
 
   const permissionCount = permissionMap.size;
-  
+
   // Combine manual click mode overrides with database submission records
   const combinedAttendance = useMemo(() => {
     return { ...submissionRecordsMap, ...markedAttendance };
@@ -647,11 +647,10 @@ export default function PermissionsPage() {
               <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${
-                    viewMode === 'grid'
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${viewMode === 'grid'
                       ? 'bg-orange-500 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                    }`}
                   title="Grid View (Roll 1-72)"
                 >
                   <LayoutGrid size={13} />
@@ -659,11 +658,10 @@ export default function PermissionsPage() {
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${
-                    viewMode === 'list'
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${viewMode === 'list'
                       ? 'bg-orange-500 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                    }`}
                   title="List View"
                 >
                   <List size={13} />
@@ -689,21 +687,19 @@ export default function PermissionsPage() {
               <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
                 <button
                   onClick={() => setDateMode('today')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
-                    dateMode === 'today'
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${dateMode === 'today'
                       ? 'bg-orange-500 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                    }`}
                 >
                   Today ({getTodayFormattedDate()})
                 </button>
                 <button
                   onClick={() => setDateMode('all')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
-                    dateMode === 'all'
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${dateMode === 'all'
                       ? 'bg-orange-500 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                    }`}
                 >
                   All Dates
                 </button>
@@ -713,7 +709,7 @@ export default function PermissionsPage() {
 
           {/* ── Section Selector Bar & Year Quick Selection (Matches Faculty Attendance Page) ── */}
           <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 space-y-3.5 shadow-xs">
-            
+
             {/* Top Row: Year Selection (Circle buttons with orange active state) */}
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1.5 mr-1">
@@ -732,11 +728,10 @@ export default function PermissionsPage() {
                     type="button"
                     onClick={() => setSelectedYear(yr.value)}
                     title={yr.value}
-                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${
-                      selectedYear === yr.value
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${selectedYear === yr.value
                         ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-500/20 scale-105'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
-                    }`}
+                      }`}
                   >
                     {yr.label}
                   </button>
@@ -758,12 +753,12 @@ export default function PermissionsPage() {
                     {sectionFilter === 'CSD-A'
                       ? 'CSD — Section A'
                       : sectionFilter === 'CSIT-A'
-                      ? 'CSIT — Section A'
-                      : sectionFilter === 'CSIT-B'
-                      ? 'CSIT — Section B'
-                      : sectionFilter === 'all'
-                      ? 'All Sections'
-                      : 'Choose Section...'}
+                        ? 'CSIT — Section A'
+                        : sectionFilter === 'CSIT-B'
+                          ? 'CSIT — Section B'
+                          : sectionFilter === 'all'
+                            ? 'All Sections'
+                            : 'Choose Section...'}
                   </span>
                 </div>
                 <ChevronDown size={16} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
@@ -791,9 +786,8 @@ export default function PermissionsPage() {
                           setSectionFilter(sec.value);
                           setIsSectionDropdownOpen(false);
                         }}
-                        className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${
-                          sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
-                        }`}
+                        className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
+                          }`}
                       >
                         <span>{sec.label}</span>
                         {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
@@ -848,22 +842,21 @@ export default function PermissionsPage() {
                         className={`
                           flex-1 h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
                           transition-all duration-150 cursor-pointer border select-none relative
-                          ${
-                            isSelected
-                              ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
-                              : isLiveNow
+                          ${isSelected
+                            ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
+                            : isLiveNow
                               ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-400/60 shadow-xs'
                               : isSubmitted
-                              ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
-                              : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
+                                ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
+                                : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
                           }
                         `}
                         title={
                           sub
                             ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
                             : isLiveNow
-                            ? `Period ${pNum}: Live Active Period Right Now`
-                            : `Period ${pNum}: Not yet submitted`
+                              ? `Period ${pNum}: Live Active Period Right Now`
+                              : `Period ${pNum}: Not yet submitted`
                         }
                       >
                         {isLiveNow && (
@@ -911,22 +904,21 @@ export default function PermissionsPage() {
                         className={`
                           flex-1 h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
                           transition-all duration-150 cursor-pointer border select-none relative
-                          ${
-                            isSelected
-                              ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
-                              : isLiveNow
+                          ${isSelected
+                            ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
+                            : isLiveNow
                               ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-400/60 shadow-xs'
                               : isSubmitted
-                              ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
-                              : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
+                                ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
+                                : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
                           }
                         `}
                         title={
                           sub
                             ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
                             : isLiveNow
-                            ? `Period ${pNum}: Live Active Period Right Now`
-                            : `Period ${pNum}: Not yet submitted`
+                              ? `Period ${pNum}: Live Active Period Right Now`
+                              : `Period ${pNum}: Not yet submitted`
                         }
                       >
                         {isLiveNow && (
@@ -955,11 +947,10 @@ export default function PermissionsPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedSubmissionId('combined')}
-                    className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer ${
-                      selectedSubmissionId === 'combined'
+                    className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer ${selectedSubmissionId === 'combined'
                         ? 'bg-slate-900 text-white shadow-2xs'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
+                      }`}
                   >
                     Combined Overview
                   </button>
@@ -968,11 +959,10 @@ export default function PermissionsPage() {
                       key={sub.id}
                       type="button"
                       onClick={() => setSelectedSubmissionId(sub.id)}
-                      className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
-                        selectedSubmissionId === sub.id
+                      className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${selectedSubmissionId === sub.id
                           ? 'bg-orange-500 text-white shadow-2xs'
                           : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
-                      }`}
+                        }`}
                     >
                       <span>{sub.markedBy?.name}:</span>
                       <span className="opacity-90">{sub.periodLabel}</span>

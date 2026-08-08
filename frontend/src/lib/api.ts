@@ -114,12 +114,15 @@ export interface AttendanceRequest {
   reason: RequestReason;
   reasonLabel: string;
   date: string;
+  endDate?: string;
+  periods?: string;
   startTime: string;
   endTime: string;
   description: string;
   documentName?: string;
   documentUrl?: string;
   status: RequestStatus;
+  rejectionReason?: string;
   submittedAt: string;
   facultyId?: string;
   faculty?: Faculty;

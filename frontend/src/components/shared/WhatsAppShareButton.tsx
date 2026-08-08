@@ -56,7 +56,10 @@ ${shareUrl}`;
         type="button"
         onClick={handleShare}
         title="Share on WhatsApp"
-        className={`p-2 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors cursor-pointer border border-emerald-200/80 ${className}`}
+        className={`p-2 rounded-xl transition-colors cursor-pointer border ${className}`}
+        style={{ background: '#5ff797', borderColor: '#3de07a', color: '#14532d' }}
+        onMouseEnter={e => (e.currentTarget.style.background = '#3de07a')}
+        onMouseLeave={e => (e.currentTarget.style.background = '#5ff797')}
       >
         <Share2 size={16} />
       </button>
@@ -68,7 +71,10 @@ ${shareUrl}`;
       <button
         type="button"
         onClick={handleShare}
-        className={`px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${className}`}
+        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 border ${className}`}
+        style={{ background: '#5ff797', borderColor: '#3de07a', color: '#14532d' }}
+        onMouseEnter={e => (e.currentTarget.style.background = '#3de07a')}
+        onMouseLeave={e => (e.currentTarget.style.background = '#5ff797')}
       >
         <Share2 size={14} />
         <span>Share on WhatsApp</span>
@@ -80,10 +86,14 @@ ${shareUrl}`;
     <button
       type="button"
       onClick={handleShare}
-      className={`px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 ${className}`}
+      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 ${className}`}
+      style={{ background: '#5ff797', color: '#14532d' }}
+      onMouseEnter={e => (e.currentTarget.style.background = '#3de07a')}
+      onMouseLeave={e => (e.currentTarget.style.background = '#5ff797')}
     >
       <Share2 size={15} />
       <span>Share on WhatsApp</span>
     </button>
   );
 };
+

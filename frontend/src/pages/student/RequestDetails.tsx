@@ -86,7 +86,6 @@ export default function RequestDetails() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <WhatsAppShareButton request={request} variant="secondary" />
             <StatusBadge status={request.status} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
           </div>
         </div>
@@ -276,6 +275,11 @@ export default function RequestDetails() {
           >
             Back to History
           </button>
+        </div>
+
+        {/* WhatsApp Share */}
+        <div className="mt-4">
+          <WhatsAppShareButton request={request} variant="primary" className="w-full h-11 rounded-xl text-[14px]" />
         </div>
 
         {/* Inline Edit Request Modal Overlay */}

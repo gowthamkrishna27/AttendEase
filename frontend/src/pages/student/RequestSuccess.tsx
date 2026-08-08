@@ -1,10 +1,17 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Check, Clock } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
+import { WhatsAppShareButton } from '../../components/shared/WhatsAppShareButton';
 
 export default function RequestSuccess() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Grab the most recently submitted request from the already-cached query
+  const requests: any[] = queryClient.getQueryData(['requests']) ?? [];
+  const latestRequest = requests.length > 0 ? requests[0] : null;
 
   return (
     <PageWrapper role="student">
@@ -185,6 +192,15 @@ export default function RequestSuccess() {
               >
                 View History
               </button>
+
+              {/* WhatsApp Share — shown when request is available in cache */}
+              {latestRequest && (
+                <WhatsAppShareButton
+                  request={latestRequest}
+                  variant="primary"
+                  className="w-full h-[52px] rounded-[14px] text-[15px]"
+                />
+              )}
             </motion.div>
 
           </div>
