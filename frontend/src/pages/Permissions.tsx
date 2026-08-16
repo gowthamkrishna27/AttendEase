@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Printer, Calendar, RefreshCw, Info,
   ChevronDown, ChevronUp, LayoutGrid, List, CheckCircle2,
-  GraduationCap, Building2
+  GraduationCap, Building2, Copy, Check
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import * as api from '../lib/api';
@@ -16,6 +16,45 @@ import srkrEmblem from '../assets/srkr-emblem.png';
 export interface ExtendedAttendanceRequest extends AttendanceRequest {
   sectionName?: string;
 }
+
+export const WhatsappIcon = ({ size = 16, className = "" }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.67-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.572-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.99c-.002 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.05 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.523-8.41" />
+  </svg>
+);
+
+export const formatRollNumberForDisplay = (raw: string): string => {
+  const str = raw.trim();
+  if (/^\d+$/.test(str)) {
+    const num = parseInt(str, 10);
+    return num < 10 ? `0${num}` : `${num}`;
+  }
+  return str;
+};
+
+export const sortRollNumbers = (rolls: string[]): string[] => {
+  return [...rolls].sort((a, b) => {
+    const isNumA = /^\d+$/.test(a);
+    const isNumB = /^\d+$/.test(b);
+    if (isNumA && isNumB) {
+      return parseInt(a, 10) - parseInt(b, 10);
+    }
+    if (isNumA) return -1;
+    if (isNumB) return 1;
+
+    const isLeA = /^LE\d+$/i.test(a);
+    const isLeB = /^LE\d+$/i.test(b);
+    if (isLeA && isLeB) {
+      const numA = parseInt(a.replace(/LE/i, ''), 10);
+      const numB = parseInt(b.replace(/LE/i, ''), 10);
+      return numA - numB;
+    }
+    if (isLeA) return 1;
+    if (isLeB) return -1;
+
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+};
 
 export const getSectionRollNumbers = (sectionKey: string): string[] => {
   if (sectionKey.includes('CSIT') && sectionKey.includes('B')) {
@@ -211,6 +250,8 @@ interface PermissionGridProps {
   onToggleCollapse: () => void;
   onSelectPass: (pass: ExtendedAttendanceRequest) => void;
   onRollClick: (rollNo: string, pass?: ExtendedAttendanceRequest) => void;
+  onMarkAll: (sectionKey: string, status: 'present' | 'absent') => void;
+  onOpenWhatsApp: (sectionKey: string) => void;
   viewMode: 'grid' | 'list';
 }
 
@@ -225,6 +266,8 @@ const PermissionGrid = React.memo(({
   onToggleCollapse,
   onSelectPass,
   onRollClick,
+  onMarkAll,
+  onOpenWhatsApp,
   viewMode,
 }: PermissionGridProps) => {
   const rollNumbers = useMemo(() => getSectionRollNumbers(sectionKey), [sectionKey]);
@@ -349,6 +392,33 @@ const PermissionGrid = React.memo(({
               </div>
             </div>
 
+            {/* Quick Mark All Header Bar (Just below color identifications) */}
+            <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <span className="font-extrabold text-slate-600 uppercase tracking-wider text-[10px]">
+                Quick Mark (In-Memory Only):
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onMarkAll(sectionKey, 'present')}
+                  className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg font-bold text-[11px] transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                  title="Mark all regular students in this section as Present (preserves yellow permission slips)"
+                >
+                  <CheckCircle2 size={13} className="text-emerald-600" />
+                  <span>Mark Everyone Present</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onMarkAll(sectionKey, 'absent')}
+                  className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 rounded-lg font-bold text-[11px] transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                  title="Mark all regular students in this section as Absent (preserves yellow permission slips)"
+                >
+                  <RefreshCw size={12} className="text-rose-600" />
+                  <span>Mark Everyone Absent</span>
+                </button>
+              </div>
+            </div>
+
             {/* Non-stretching fixed grid container */}
             <div className="p-4 sm:p-6 bg-slate-50/20">
               <div className="flex flex-wrap justify-center gap-3 sm:gap-3.5 max-w-[680px] mx-auto">
@@ -421,6 +491,25 @@ const PermissionGrid = React.memo(({
           </div>
         )
       )}
+
+      {/* Attendance Grid Footer (WhatsApp Share Button & Database Lock Notice) */}
+      {!isCollapsed && (
+        <div className="px-4 py-3 bg-slate-50 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-[12px]">
+          <div className="flex items-center gap-2 text-slate-500 font-medium text-[11px]">
+            <Info size={14} className="text-orange-500 shrink-0" />
+            <span>Public marked attendance is strictly temporary (in-memory) &amp; not saved to database.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenWhatsApp(sectionKey)}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-extrabold text-[12px] flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 shrink-0"
+            title="Format and send attendance report to WhatsApp"
+          >
+            <WhatsappIcon size={17} />
+            <span>Share {sectionKey} to WhatsApp</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 });
@@ -444,6 +533,11 @@ export default function PermissionsPage() {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [selectedPass, setSelectedPass] = useState<AttendanceRequest | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // WhatsApp Modal State
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [activeWhatsAppSection, setActiveWhatsAppSection] = useState<string>('');
+  const [copiedWhatsApp, setCopiedWhatsApp] = useState(false);
 
   const showToast = useCallback((msg: string, _isError?: boolean) => {
     setToastMsg(msg);
@@ -576,6 +670,68 @@ export default function PermissionsPage() {
     });
   }, [attendanceSubmissions, sectionFilter]);
 
+  const handleOpenWhatsApp = useCallback((secKey?: string) => {
+    const targetSec = secKey || (sectionKeys.length > 0 ? sectionKeys[0] : 'CSIT — Section B');
+    setActiveWhatsAppSection(targetSec);
+    setIsWhatsAppModalOpen(true);
+  }, [sectionKeys]);
+
+  // WhatsApp Export Calculation
+  const whatsAppSectionKey = activeWhatsAppSection || (sectionKeys[0] ?? 'CSIT — Section B');
+  const whatsAppRollNumbers = useMemo(() => getSectionRollNumbers(whatsAppSectionKey), [whatsAppSectionKey]);
+
+  const whatsAppAttendanceMap = useMemo(() => {
+    const map: Record<string, 'present' | 'absent'> = {};
+    const relevantSubmissions = selectedSubmissionId === 'combined'
+      ? activeSectionSubmissions
+      : activeSectionSubmissions.filter(s => s.id === selectedSubmissionId);
+
+    relevantSubmissions.forEach(sub => {
+      sub.records.forEach(rec => {
+        const raw = rec.rollNumber;
+        const suffix = extractRollSuffix(raw);
+        const status = rec.status as 'present' | 'absent';
+        map[raw] = status;
+        if (suffix) {
+          map[suffix] = status;
+          const num = parseInt(suffix, 10);
+          if (!isNaN(num)) {
+            map[String(num)] = status;
+            map[String(num).padStart(2, '0')] = status;
+          }
+        }
+      });
+    });
+    return { ...map, ...markedAttendance };
+  }, [activeSectionSubmissions, selectedSubmissionId, markedAttendance, whatsAppSectionKey]);
+
+  const { whatsAppPresentRolls, whatsAppAbsentRolls } = useMemo(() => {
+    const present: string[] = [];
+    const absent: string[] = [];
+
+    whatsAppRollNumbers.forEach(numStr => {
+      const status = whatsAppAttendanceMap[numStr];
+      if (status === 'present') {
+        present.push(numStr);
+      } else if (status === 'absent') {
+        absent.push(numStr);
+      }
+    });
+
+    return {
+      whatsAppPresentRolls: sortRollNumbers(present).map(formatRollNumberForDisplay),
+      whatsAppAbsentRolls: sortRollNumbers(absent).map(formatRollNumberForDisplay),
+    };
+  }, [whatsAppRollNumbers, whatsAppAttendanceMap]);
+
+  const formattedWhatsAppText = useMemo(() => {
+    const yearNum = selectedYear.replace(/[^0-9]/g, '') || '3';
+    const presentText = whatsAppPresentRolls.length > 0 ? whatsAppPresentRolls.join(', ') : 'None';
+    const absentText = whatsAppAbsentRolls.length > 0 ? whatsAppAbsentRolls.join(', ') : 'None';
+
+    return `*Year:* ${yearNum} / 4\n*Branch Name:* ${whatsAppSectionKey}\n\n*Presentees:*\n${presentText}\n\n*Absentees:*\n${absentText}`;
+  }, [selectedYear, whatsAppSectionKey, whatsAppPresentRolls, whatsAppAbsentRolls]);
+
   const toggleSection = useCallback((key: string) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
@@ -583,6 +739,36 @@ export default function PermissionsPage() {
   const handleSelectPass = useCallback((pass: AttendanceRequest) => {
     setSelectedPass(pass);
   }, []);
+
+  // Handle Mark Everyone Present / Absent (In-Memory Only)
+  const handleMarkAll = useCallback((secKey: string, status: 'present' | 'absent') => {
+    const rolls = getSectionRollNumbers(secKey);
+    const secPasses = sectionsMap[secKey] || [];
+
+    // Extract roll suffixes of approved permissions in this section to preserve them
+    const permissionRollsSet = new Set<string>();
+    secPasses.forEach(p => {
+      const rollStr = p.student?.rollNumber ?? p.studentId;
+      const suffix = extractRollSuffix(rollStr);
+      if (suffix) permissionRollsSet.add(suffix);
+    });
+
+    setMarkedAttendance(prev => {
+      const copy = { ...prev };
+      let updatedCount = 0;
+
+      rolls.forEach(numStr => {
+        // Preserve yellow permission slips
+        if (permissionRollsSet.has(numStr)) return;
+
+        copy[numStr] = status;
+        updatedCount++;
+      });
+
+      showToast(`Marked ${updatedCount} students in ${secKey} as ${status.toUpperCase()} (Permissions preserved)`);
+      return copy;
+    });
+  }, [sectionsMap, showToast]);
 
   // Handle Roll Button Click (Interactive in-memory tracker: Unmarked -> Present -> Absent -> Unmarked)
   const handleRollClick = useCallback((rollNo: string, pass?: ExtendedAttendanceRequest) => {
@@ -704,6 +890,16 @@ export default function PermissionsPage() {
                   All Dates
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={() => handleOpenWhatsApp()}
+                className="h-[28px] px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs hover:scale-105 active:scale-95 shrink-0"
+                title="Format and send attendance report to WhatsApp"
+              >
+                <WhatsappIcon size={14} />
+                <span>WhatsApp Report</span>
+              </button>
             </div>
           </div>
 
@@ -1005,12 +1201,132 @@ export default function PermissionsPage() {
                   onToggleCollapse={() => toggleSection(sectionKey)}
                   onSelectPass={handleSelectPass}
                   onRollClick={handleRollClick}
+                  onMarkAll={handleMarkAll}
+                  onOpenWhatsApp={handleOpenWhatsApp}
                   viewMode={viewMode}
                 />
               ))}
             </div>
           )}
         </div>
+
+        {/* WhatsApp Attendance Export Modal */}
+        <AnimatePresence>
+          {isWhatsAppModalOpen && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 print:hidden">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200"
+              >
+                {/* Modal Header */}
+                <div className="bg-emerald-700 px-5 py-4 text-white flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center shadow-inner">
+                      <WhatsappIcon size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-[16px] leading-tight">Send Attendance to WhatsApp</h3>
+                      <p className="text-[11px] text-emerald-100 font-medium">Formatted presentees &amp; absentees report</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsWhatsAppModalOpen(false)}
+                    className="w-8 h-8 rounded-full bg-emerald-800/60 hover:bg-emerald-800 text-white flex items-center justify-center transition-colors cursor-pointer text-sm font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-5 space-y-4">
+                  {/* Section Selector */}
+                  <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-[12px]">
+                    <span className="font-bold text-slate-700">Target Section:</span>
+                    <select
+                      value={whatsAppSectionKey}
+                      onChange={(e) => setActiveWhatsAppSection(e.target.value)}
+                      className="bg-white border border-slate-300 font-bold text-slate-900 px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                    >
+                      {sectionKeys.map(k => (
+                        <option key={k} value={k}>{k}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Metrics */}
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-emerald-50 border border-emerald-200/80 p-2.5 rounded-xl">
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Present</span>
+                      <span className="text-[18px] font-black text-emerald-900">{whatsAppPresentRolls.length}</span>
+                    </div>
+                    <div className="bg-rose-50 border border-rose-200/80 p-2.5 rounded-xl">
+                      <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider block">Absent</span>
+                      <span className="text-[18px] font-black text-rose-900">{whatsAppAbsentRolls.length}</span>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Students</span>
+                      <span className="text-[18px] font-black text-slate-800">{whatsAppRollNumbers.length}</span>
+                    </div>
+                  </div>
+
+                  {/* Message Preview */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                      <span>Formatted WhatsApp Message:</span>
+                      <span className="text-emerald-700 font-mono">Sorted Ascending</span>
+                    </div>
+                    <textarea
+                      readOnly
+                      value={formattedWhatsAppText}
+                      rows={8}
+                      className="w-full p-3.5 bg-emerald-950/5 border border-emerald-200/80 rounded-xl font-mono text-[12.5px] text-slate-800 leading-relaxed focus:outline-none select-all resize-none shadow-inner"
+                    />
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(formattedWhatsAppText);
+                        setCopiedWhatsApp(true);
+                        showToast('Copied formatted WhatsApp message to clipboard!');
+                        setTimeout(() => setCopiedWhatsApp(false), 2500);
+                      }}
+                      className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[12px] rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-slate-200"
+                    >
+                      {copiedWhatsApp ? (
+                        <>
+                          <Check size={16} className="text-emerald-600" />
+                          <span className="text-emerald-700 font-extrabold">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} />
+                          <span>Copy Message</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `https://wa.me/?text=${encodeURIComponent(formattedWhatsAppText)}`;
+                        window.open(url, '_blank');
+                      }}
+                      className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[12px] rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-600/20 transition-all hover:scale-[1.02] active:scale-95"
+                    >
+                      <WhatsappIcon size={18} />
+                      <span>Send directly to WhatsApp</span>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Printable Slip Modal */}
         <AnimatePresence>
