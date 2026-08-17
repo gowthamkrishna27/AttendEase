@@ -649,4 +649,12 @@ export async function getAllStudents(): Promise<Student[]> {
   return res.students ?? [];
 }
 
+export async function changePin(currentPin: string, newPin: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>('/api/auth/change-pin', {
+    method: 'POST',
+    body: JSON.stringify({ currentPin, newPin }),
+  });
+}
+
+
 

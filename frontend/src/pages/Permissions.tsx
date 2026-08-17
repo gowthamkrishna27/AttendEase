@@ -56,6 +56,45 @@ export const sortRollNumbers = (rolls: string[]): string[] => {
   });
 };
 
+export const PERIOD_TIMINGS: Record<number, { start: string; end: string }> = {
+  1: { start: '09:00 AM', end: '09:45 AM' },
+  2: { start: '09:45 AM', end: '10:30 AM' },
+  3: { start: '10:30 AM', end: '11:15 AM' },
+  4: { start: '11:15 AM', end: '12:00 PM' },
+  5: { start: '01:30 PM', end: '02:15 PM' },
+  6: { start: '02:15 PM', end: '03:00 PM' },
+  7: { start: '03:00 PM', end: '03:45 PM' },
+  8: { start: '03:45 PM', end: '04:30 PM' },
+};
+
+export const getFormattedDateString = () => {
+  const d = new Date();
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+export const getFormattedTimeString = (selectedPeriods: number[]) => {
+  if (selectedPeriods.length > 0) {
+    const sorted = [...selectedPeriods].sort((a, b) => a - b);
+    const minP = sorted[0];
+    const maxP = sorted[sorted.length - 1];
+    const startStr = PERIOD_TIMINGS[minP]?.start || '09:00 AM';
+    const endStr = PERIOD_TIMINGS[maxP]?.end || '04:30 PM';
+    const periodsLabel = sorted.map(p => `P${p}`).join(', ');
+    return `${startStr} - ${endStr} (${periodsLabel})`;
+  }
+
+  const d = new Date();
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+};
+
 export const getSectionRollNumbers = (sectionKey: string): string[] => {
   if (sectionKey.includes('CSIT') && sectionKey.includes('B')) {
     const list: string[] = [];
@@ -245,7 +284,7 @@ interface PermissionGridProps {
   markedAttendance: Record<string, 'present' | 'absent'>;
   attendanceSubmissions: api.AttendanceSubmissionItem[];
   selectedSubmissionId: string;
-  selectedPeriodFilter: number | 'all';
+  selectedPeriodFilters: number[];
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectPass: (pass: ExtendedAttendanceRequest) => void;
@@ -261,7 +300,7 @@ const PermissionGrid = React.memo(({
   markedAttendance,
   attendanceSubmissions,
   selectedSubmissionId,
-  selectedPeriodFilter,
+  selectedPeriodFilters,
   isCollapsed,
   onToggleCollapse,
   onSelectPass,
@@ -276,9 +315,16 @@ const PermissionGrid = React.memo(({
   // Compute records map from faculty submissions for this section
   const submissionRecordsMap = useMemo(() => {
     const map: Record<string, 'present' | 'absent'> = {};
-    const relevantSubmissions = selectedSubmissionId === 'combined'
+    let relevantSubmissions = selectedSubmissionId === 'combined'
       ? attendanceSubmissions
       : attendanceSubmissions.filter(s => s.id === selectedSubmissionId);
+
+    if (selectedPeriodFilters.length > 0) {
+      relevantSubmissions = relevantSubmissions.filter(sub => {
+        const subPeriods = parseSubmissionPeriods(sub.periods);
+        return selectedPeriodFilters.some(p => subPeriods.includes(p));
+      });
+    }
 
     relevantSubmissions.forEach(sub => {
       sub.records.forEach(rec => {
@@ -298,7 +344,7 @@ const PermissionGrid = React.memo(({
       });
     });
     return map;
-  }, [attendanceSubmissions, selectedSubmissionId]);
+  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters]);
 
   const permissionMap = useMemo(() => {
     const map = new Map<string, ExtendedAttendanceRequest>();
@@ -308,14 +354,14 @@ const PermissionGrid = React.memo(({
       ? attendanceSubmissions.find(s => s.id === selectedSubmissionId)
       : null;
 
-    const activePeriodNums: number[] = selectedPeriodFilter !== 'all'
-      ? [Number(selectedPeriodFilter)]
+    const activePeriodNums: number[] = selectedPeriodFilters.length > 0
+      ? selectedPeriodFilters
       : (activeSub && activeSub.periods
         ? activeSub.periods.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n))
         : []);
 
     passes.forEach(p => {
-      // Filter strictly by period if a specific period is selected
+      // Filter strictly by period if specific period(s) are selected
       if (activePeriodNums.length > 0) {
         const passPeriods = getPeriodsFromRequest(p);
         const hasOverlap = activePeriodNums.some(pNum => passPeriods.includes(pNum));
@@ -329,7 +375,7 @@ const PermissionGrid = React.memo(({
       }
     });
     return map;
-  }, [passes, rollNumbers, selectedSubmissionId, attendanceSubmissions, selectedPeriodFilter]);
+  }, [passes, rollNumbers, selectedSubmissionId, attendanceSubmissions, selectedPeriodFilters]);
 
   const permissionCount = permissionMap.size;
 
@@ -526,8 +572,9 @@ export default function PermissionsPage() {
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
   const [sectionFilter, setSectionFilter] = useState('CSIT-B');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>('combined');
-  const [selectedPeriodFilter, setSelectedPeriodFilter] = useState<number | 'all'>('all');
+  const [selectedPeriodFilters, setSelectedPeriodFilters] = useState<number[]>([]);
   const [dateMode, setDateMode] = useState<'today' | 'all'>('today');
+
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [markedAttendance, setMarkedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -543,6 +590,24 @@ export default function PermissionsPage() {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
   }, []);
+
+  const handlePeriodToggle = useCallback((pNum: number) => {
+    setSelectedPeriodFilters(prev => {
+      let next: number[];
+      if (prev.includes(pNum)) {
+        next = prev.filter(p => p !== pNum);
+      } else {
+        next = [...prev, pNum].sort((a, b) => a - b);
+      }
+
+      if (next.length === 0) {
+        showToast('Showing All Periods Attendance');
+      } else {
+        showToast(`Filtered for Period(s) ${next.map(n => `P${n}`).join(', ')} Permissions & Attendance`);
+      }
+      return next;
+    });
+  }, [showToast]);
 
   // Sync URL params
   useEffect(() => {
@@ -729,8 +794,11 @@ export default function PermissionsPage() {
     const presentText = whatsAppPresentRolls.length > 0 ? whatsAppPresentRolls.join(', ') : 'None';
     const absentText = whatsAppAbsentRolls.length > 0 ? whatsAppAbsentRolls.join(', ') : 'None';
 
-    return `*Year:* ${yearNum} / 4\n*Branch Name:* ${whatsAppSectionKey}\n\n*Presentees:*\n${presentText}\n\n*Absentees:*\n${absentText}`;
-  }, [selectedYear, whatsAppSectionKey, whatsAppPresentRolls, whatsAppAbsentRolls]);
+    const dateStr = getFormattedDateString();
+    const timeStr = getFormattedTimeString(selectedPeriodFilters);
+
+    return `*Year:* ${yearNum} / 4\n*Branch Name:* ${whatsAppSectionKey}\n*Date:* ${dateStr}\n*Time:* ${timeStr}\n\n*Presentees:*\n${presentText}\n\n*Absentees:*\n${absentText}`;
+  }, [selectedYear, whatsAppSectionKey, whatsAppPresentRolls, whatsAppAbsentRolls, selectedPeriodFilters]);
 
   const toggleSection = useCallback((key: string) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -994,7 +1062,7 @@ export default function PermissionsPage() {
               </AnimatePresence>
             </div>
 
-            {/* ── 8 Linear Period Selector Boxes Widget (User requirement) ── */}
+            {/* ── 8 Linear Period Selector Boxes Widget (Multi-Select Enabled) ── */}
             <div className="pt-2.5 border-t border-slate-100 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -1003,6 +1071,18 @@ export default function PermissionsPage() {
                     <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200 text-[9.5px] font-bold animate-pulse">
                       ⚡ Period {getCurrentPeriodId()} Live Now
                     </span>
+                  )}
+                  {selectedPeriodFilters.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPeriodFilters([]);
+                        showToast('Showing All Periods Attendance');
+                      }}
+                      className="px-2 py-0.5 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 text-[9.5px] font-bold transition-colors cursor-pointer"
+                    >
+                      Clear Filter (P{selectedPeriodFilters.join(', P')}) ✕
+                    </button>
                   )}
                 </span>
                 <span className="text-[10.5px] font-bold text-slate-400">
@@ -1016,7 +1096,7 @@ export default function PermissionsPage() {
                 <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
                   {[1, 2, 3, 4].map(pNum => {
                     const sub = activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
-                    const isSelected = selectedPeriodFilter === pNum || (sub && selectedSubmissionId === sub.id);
+                    const isSelected = selectedPeriodFilters.includes(pNum);
                     const isSubmitted = !!sub;
                     const isLiveNow = getCurrentPeriodId() === pNum;
 
@@ -1024,17 +1104,7 @@ export default function PermissionsPage() {
                       <button
                         key={pNum}
                         type="button"
-                        onClick={() => {
-                          if (selectedPeriodFilter === pNum) {
-                            setSelectedPeriodFilter('all');
-                            if (sub) setSelectedSubmissionId('combined');
-                            showToast(`Showing All Periods Attendance`);
-                          } else {
-                            setSelectedPeriodFilter(pNum);
-                            if (sub) setSelectedSubmissionId(sub.id);
-                            showToast(`Filtered for Period ${pNum} Permissions & Attendance`);
-                          }
-                        }}
+                        onClick={() => handlePeriodToggle(pNum)}
                         className={`
                           flex-1 h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
                           transition-all duration-150 cursor-pointer border select-none relative
@@ -1052,7 +1122,7 @@ export default function PermissionsPage() {
                             ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
                             : isLiveNow
                               ? `Period ${pNum}: Live Active Period Right Now`
-                              : `Period ${pNum}: Not yet submitted`
+                              : `Period ${pNum}: Click to toggle period selection`
                         }
                       >
                         {isLiveNow && (
@@ -1078,7 +1148,7 @@ export default function PermissionsPage() {
                 <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
                   {[5, 6, 7, 8].map(pNum => {
                     const sub = activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
-                    const isSelected = selectedPeriodFilter === pNum || (sub && selectedSubmissionId === sub.id);
+                    const isSelected = selectedPeriodFilters.includes(pNum);
                     const isSubmitted = !!sub;
                     const isLiveNow = getCurrentPeriodId() === pNum;
 
@@ -1086,17 +1156,7 @@ export default function PermissionsPage() {
                       <button
                         key={pNum}
                         type="button"
-                        onClick={() => {
-                          if (selectedPeriodFilter === pNum) {
-                            setSelectedPeriodFilter('all');
-                            if (sub) setSelectedSubmissionId('combined');
-                            showToast(`Showing All Periods Attendance`);
-                          } else {
-                            setSelectedPeriodFilter(pNum);
-                            if (sub) setSelectedSubmissionId(sub.id);
-                            showToast(`Filtered for Period ${pNum} Permissions & Attendance`);
-                          }
-                        }}
+                        onClick={() => handlePeriodToggle(pNum)}
                         className={`
                           flex-1 h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
                           transition-all duration-150 cursor-pointer border select-none relative
@@ -1114,7 +1174,7 @@ export default function PermissionsPage() {
                             ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
                             : isLiveNow
                               ? `Period ${pNum}: Live Active Period Right Now`
-                              : `Period ${pNum}: Not yet submitted`
+                              : `Period ${pNum}: Click to toggle period selection`
                         }
                       >
                         {isLiveNow && (
@@ -1196,7 +1256,7 @@ export default function PermissionsPage() {
                   markedAttendance={markedAttendance}
                   attendanceSubmissions={activeSectionSubmissions}
                   selectedSubmissionId={selectedSubmissionId}
-                  selectedPeriodFilter={selectedPeriodFilter}
+                  selectedPeriodFilters={selectedPeriodFilters}
                   isCollapsed={Boolean(collapsedSections[sectionKey])}
                   onToggleCollapse={() => toggleSection(sectionKey)}
                   onSelectPass={handleSelectPass}
