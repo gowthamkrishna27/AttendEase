@@ -139,7 +139,7 @@ export default function LandingPage() {
               <span>View Public Permissions</span>
             </Link>
             <a
-              href="https://github.com/gowthamkrishna27/AttendEase/releases/download/stable/AttendEase-v1.1.0.apk"
+              href="https://github.com/gowthamkrishna27/AttendEase/releases/latest"
               target="_blank"
               rel="noopener noreferrer"
               className="landing-btn border border-slate-300 bg-white hover:bg-slate-50 text-slate-800"
