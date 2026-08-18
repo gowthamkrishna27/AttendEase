@@ -2,15 +2,130 @@
 <html lang="en">
 
 <head>
+  <!-- Primary Meta Tags -->
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="/srkr-emblem.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AttendEase</title>
+  <title>AttendEase | Smart Attendance &amp; Permission Management System</title>
+  <meta name="title" content="AttendEase | Smart Attendance &amp; Permission Management System" />
   <meta name="description"
-    content="AttendEase is a minimal, elegant attendance permission app for students, faculty and HOD. Submit and review attendance requests with ease." />
+    content="AttendEase is a smart digital attendance and student permission management platform built for SRKR Engineering College. Track attendance, manage duty-leave approvals, and export real-time reports with ease." />
+  <meta name="keywords"
+    content="AttendEase, SRKR Engineering College, attendance management, student permissions, duty leave portal, faculty attendance, HOD approval workflow, college attendance app, WhatsApp attendance export" />
+  <meta name="author" content="AttendEase Team" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="theme-color" content="#f97316" />
+  <meta name="application-name" content="AttendEase" />
+
+  <!-- Canonical Link -->
+  <link rel="canonical" href="https://attendease.vercel.app/" />
+
+  <!-- Favicons & App Icons -->
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="apple-touch-icon" href="/logo.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+
+  <!-- Open Graph / Facebook / LinkedIn -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://attendease.vercel.app/" />
+  <meta property="og:site_name" content="AttendEase" />
+  <meta property="og:title" content="AttendEase | Smart Attendance &amp; Permission Management System" />
+  <meta property="og:description"
+    content="Streamline student permission requests, faculty period-wise attendance, and HOD approvals with instant WhatsApp export and analytics." />
+  <meta property="og:image" content="https://attendease.vercel.app/logo.png" />
+  <meta property="og:image:alt" content="AttendEase Logo &amp; Emblem" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:locale" content="en_US" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:url" content="https://attendease.vercel.app/" />
+  <meta name="twitter:title" content="AttendEase | Smart Attendance &amp; Permission Management System" />
+  <meta name="twitter:description"
+    content="Streamline student permission requests, faculty period-wise attendance, and HOD approvals with instant WhatsApp export and analytics." />
+  <meta name="twitter:image" content="https://attendease.vercel.app/logo.png" />
+  <meta name="twitter:image:alt" content="AttendEase Logo" />
+
+  <!-- Mobile & PWA Optimization -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="AttendEase" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- Preconnect Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Structured Data: SoftwareApplication & FAQPage JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "@id": "https://attendease.vercel.app/#app",
+        "name": "AttendEase",
+        "url": "https://attendease.vercel.app",
+        "description": "AttendEase is a modern digital attendance and student permission management system for students, faculty, and administrators at SRKR Engineering College.",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "All",
+        "browserRequirements": "Requires JavaScript. Requires HTML5.",
+        "image": "https://attendease.vercel.app/logo.png",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "INR"
+        },
+        "featureList": [
+          "Student duty-leave and permission requests",
+          "Faculty one-tap period attendance marking",
+          "HOD bulk exemptions and real-time approval workflows",
+          "Public attendance transparency & WhatsApp instant export",
+          "AI-powered support assistant"
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://attendease.vercel.app/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do students apply for duty-leave / permissions?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Students can log in to the Student Portal, click 'New Permission Request', select their date, time slot/periods, reason category, and upload proof documents. Once submitted, it forwards to their assigned Faculty Advisor."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does Faculty mark attendance?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Faculty members log in, select the Year and Target Section (e.g. CSIT-B), select the specific period (P1 to P8), and tap student roll numbers to mark Present/Absent. Approved permissions automatically highlight in yellow."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the HOD Direct Exemption feature?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "HODs can grant bulk attendance exemptions to multiple students directly for academic events, hackathons, sports, or official college duties without requiring individual student submissions."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How can I export attendance to WhatsApp?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "On the Public Permissions & Attendance page, tap 'Share to WhatsApp' or 'WhatsApp Report' to automatically format sorted presentees and absentees lists with Date and Time, ready to paste directly into official WhatsApp groups."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 
 <body>

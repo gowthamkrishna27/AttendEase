@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Allow: /permissions
+Allow: /login
+Allow: /landing
+Disallow: /api/
+
+Sitemap: https://attendease.vercel.app/sitemap.xml
