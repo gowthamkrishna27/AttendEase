@@ -43,10 +43,10 @@ export default function FacultyAttendance() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Selection States
+  // Selection States (No default pre-selected parameters)
   const [selectedDate, setSelectedDate] = useState<string>(getTodayFormattedDate());
-  const [selectedYear, setSelectedYear] = useState<string>('3rd Year');
-  const [sectionFilter, setSectionFilter] = useState<string>('CSIT-B');
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [sectionFilter, setSectionFilter] = useState<string>('');
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState<boolean>(false);
   
   // Selected Periods (e.g. [1, 2])
@@ -264,7 +264,6 @@ export default function FacultyAttendance() {
   const togglePeriodSlot = (id: number) => {
     setSelectedPeriodIds(prev => {
       if (prev.includes(id)) {
-        if (prev.length === 1) return prev; // keep at least 1 period selected
         return prev.filter(p => p !== id);
       }
       return [...prev, id];
@@ -392,7 +391,12 @@ export default function FacultyAttendance() {
                 <button
                   key={yr.value}
                   type="button"
-                  onClick={() => setSelectedYear(yr.value)}
+                  onClick={() => {
+                    setSelectedYear(selectedYear === yr.value ? '' : yr.value);
+                    setSectionFilter('');
+                    setSelectedPeriodIds([]);
+                    setMarkedAttendance({});
+                  }}
                   title={yr.value}
                   className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${
                     selectedYear === yr.value
@@ -417,7 +421,17 @@ export default function FacultyAttendance() {
                 <Building2 size={16} className="text-orange-500" />
                 <span className="text-slate-400 font-medium">Select Target Section:</span>
                 <span className="text-slate-900 font-bold">
-                  {sectionFilter === 'CSD-A' ? 'CSD — Section A' : sectionFilter === 'CSIT-A' ? 'CSIT — Section A' : 'CSIT — Section B'}
+                  {!selectedYear
+                    ? 'Select Year First...'
+                    : !sectionFilter
+                    ? 'Choose Section...'
+                    : sectionFilter === 'CSD-A'
+                    ? 'CSD — Section A'
+                    : sectionFilter === 'CSIT-A'
+                    ? 'CSIT — Section A'
+                    : sectionFilter === 'CSIT-B'
+                    ? 'CSIT — Section B'
+                    : sectionFilter}
                 </span>
               </div>
               <ChevronDown size={16} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
@@ -431,26 +445,32 @@ export default function FacultyAttendance() {
                   exit={{ opacity: 0, y: 4 }}
                   className="absolute left-0 right-0 top-[48px] z-30 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1"
                 >
-                  {[
-                    { label: 'CSD - Sec A', value: 'CSD-A' },
-                    { label: 'CSIT - Sec A', value: 'CSIT-A' },
-                    { label: 'CSIT - Sec B', value: 'CSIT-B' },
-                  ].map(sec => (
-                    <button
-                      key={sec.value}
-                      type="button"
-                      onClick={() => {
-                        setSectionFilter(sec.value);
-                        setIsSectionDropdownOpen(false);
-                      }}
-                      className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${
-                        sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
-                      }`}
-                    >
-                      <span>{sec.label}</span>
-                      {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
-                    </button>
-                  ))}
+                  {!selectedYear ? (
+                    <div className="px-4 py-3 text-center text-slate-400 text-[12px]">
+                      Please select an Academic Year first
+                    </div>
+                  ) : (
+                    [
+                      { label: 'CSD - Sec A', value: 'CSD-A' },
+                      { label: 'CSIT - Sec A', value: 'CSIT-A' },
+                      { label: 'CSIT - Sec B', value: 'CSIT-B' },
+                    ].map(sec => (
+                      <button
+                        key={sec.value}
+                        type="button"
+                        onClick={() => {
+                          setSectionFilter(sec.value);
+                          setIsSectionDropdownOpen(false);
+                        }}
+                        className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${
+                          sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
+                        }`}
+                      >
+                        <span>{sec.label}</span>
+                        {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
+                      </button>
+                    ))
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -539,13 +559,13 @@ export default function FacultyAttendance() {
         </div>
 
         {/* ── Conditional Render: Require Year, Branch/Section & Period Numbers Selection ── */}
-        {selectedPeriodIds.length === 0 ? (
+        {!selectedYear || !sectionFilter || selectedPeriodIds.length === 0 ? (
           <div className="bg-white border border-slate-200/80 rounded-2xl p-8 sm:p-12 text-center space-y-3 shadow-xs">
             <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 border border-orange-200/60 flex items-center justify-center mx-auto shadow-xs">
               <Calendar size={24} />
             </div>
             <div className="space-y-1 max-w-md mx-auto">
-              <h3 className="text-sm sm:text-base font-bold text-slate-900">Select Academic Year, Branch & Period Numbers</h3>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">Select Academic Year, Branch &amp; Period Numbers</h3>
               <p className="text-xs text-slate-500 font-medium leading-relaxed">
                 Student roll numbers and approved permissions will appear here once you select the required Academic Year, Branch/Section, and Period number(s) above.
               </p>

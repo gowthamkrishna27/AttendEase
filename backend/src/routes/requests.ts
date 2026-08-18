@@ -8,10 +8,248 @@ import type { Prisma, RequestStatus } from '@prisma/client';
 
 const router = Router();
 
+// Helper to extract roll suffix in backend
+function extractRollSuffixBackend(rawRoll: string): string {
+  if (!rawRoll) return '';
+  const str = rawRoll.trim().toUpperCase();
+
+  const leMatch = str.match(/LE0*([1-9]|1[0-2])$/i);
+  if (leMatch) {
+    return `LE${parseInt(leMatch[1], 10)}`;
+  }
+
+  if (str.includes('95A')) {
+    const numMatch = str.match(/(\d{1,2})$/);
+    if (numMatch) {
+      const num = parseInt(numMatch[1], 10);
+      if (num >= 1 && num <= 20) {
+        return `LE${num}`;
+      }
+    }
+  }
+
+  const suffixMatch = str.match(/([A-D][0-9]|[0-9]{1,2})$/i);
+  if (suffixMatch) {
+    const val = suffixMatch[1];
+    if (/^\d+$/.test(val)) {
+      return String(parseInt(val, 10));
+    }
+    return val;
+  }
+  return str;
+}
+
+function sortRolls(rolls: string[]): string[] {
+  return [...rolls].sort((a, b) => {
+    const isNumA = /^\d+$/.test(a);
+    const isNumB = /^\d+$/.test(b);
+    if (isNumA && isNumB) return parseInt(a, 10) - parseInt(b, 10);
+    if (isNumA) return -1;
+    if (isNumB) return 1;
+
+    const isLeA = /^LE\d+$/i.test(a);
+    const isLeB = /^LE\d+$/i.test(b);
+    if (isLeA && isLeB) {
+      const numA = parseInt(a.replace(/LE/i, ''), 10);
+      const numB = parseInt(b.replace(/LE/i, ''), 10);
+      return numA - numB;
+    }
+    if (isLeA) return 1;
+    if (isLeB) return -1;
+
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+}
+
+// Public endpoint for sections list and section-wise student rosters from database
+router.get('/public-sections', async (req: Request, res: Response) => {
+  try {
+    const { year } = req.query;
+    const targetYear = (typeof year === 'string' && year.trim() && year !== 'all')
+      ? year.trim().toLowerCase()
+      : '3rd year';
+
+    const targetDigitMatch = targetYear.match(/([1-4])/);
+    const targetDigit = targetDigitMatch ? targetDigitMatch[1] : '3';
+
+    // Fetch all student users from DB
+    const students = await prisma.user.findMany({
+      where: {
+        role: 'student',
+        isActive: true,
+      },
+      select: {
+        userId: true,
+        name: true,
+        rollNumber: true,
+        department: true,
+        semester: true,
+      },
+      orderBy: { rollNumber: 'asc' },
+    });
+
+    // Filter students by academic year
+    const yearStudents = students.filter(s => {
+      const sem = s.semester;
+      if (sem && typeof sem === 'number') {
+        const derivedYearNum = String(Math.ceil(sem / 2));
+        return derivedYearNum === targetDigit;
+      }
+      const roll = (s.rollNumber || '').toUpperCase();
+      if (targetDigit === '3' && (roll.startsWith('24B') || roll.startsWith('25B95A'))) return true;
+      if (targetDigit === '2' && roll.startsWith('25B')) return true;
+      if (targetDigit === '1' && roll.startsWith('26B')) return true;
+      if (targetDigit === '4' && roll.startsWith('23B')) return true;
+      return targetDigit === '3';
+    });
+
+    // Map of sectionKey -> Section metadata
+    const sectionMap = new Map<string, {
+      key: string;
+      department: string;
+      section: string;
+      year: string;
+      label: string;
+      value: string;
+      rollNumbers: Set<string>;
+      studentCount: number;
+    }>();
+
+    // Default base sections for standard 3rd Year if empty or to ensure structure
+    if (targetDigit === '3') {
+      sectionMap.set('CSD — Section A', {
+        key: 'CSD — Section A',
+        department: 'CSD',
+        section: 'A',
+        year: '3rd Year',
+        label: 'CSD - Sec A',
+        value: 'CSD-A',
+        rollNumbers: new Set<string>(),
+        studentCount: 0,
+      });
+      sectionMap.set('CSIT — Section A', {
+        key: 'CSIT — Section A',
+        department: 'CSIT',
+        section: 'A',
+        year: '3rd Year',
+        label: 'CSIT - Sec A',
+        value: 'CSIT-A',
+        rollNumbers: new Set<string>(),
+        studentCount: 0,
+      });
+      sectionMap.set('CSIT — Section B', {
+        key: 'CSIT — Section B',
+        department: 'CSIT',
+        section: 'B',
+        year: '3rd Year',
+        label: 'CSIT - Sec B',
+        value: 'CSIT-B',
+        rollNumbers: new Set<string>(),
+        studentCount: 0,
+      });
+    }
+
+    yearStudents.forEach(s => {
+      const dept = (s.department || 'CSIT').toUpperCase().trim();
+      const rawRoll = (s.rollNumber || s.userId || '').toUpperCase().trim();
+      const suffix = extractRollSuffixBackend(rawRoll);
+
+      let secKey = '';
+      let secValue = '';
+      let secLabel = '';
+      let secLetter = 'A';
+
+      if (dept === 'CSD' || rawRoll.includes('62') || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
+        secKey = 'CSD — Section A';
+        secValue = 'CSD-A';
+        secLabel = 'CSD - Sec A';
+        secLetter = 'A';
+      } else if (dept === 'CSIT' || rawRoll.includes('07')) {
+        let isSecB = false;
+        if (/^\d+$/.test(suffix)) {
+          const num = parseInt(suffix, 10);
+          isSecB = num >= 73;
+        } else {
+          isSecB = true;
+        }
+        if (isSecB) {
+          secKey = 'CSIT — Section B';
+          secValue = 'CSIT-B';
+          secLabel = 'CSIT - Sec B';
+          secLetter = 'B';
+        } else {
+          secKey = 'CSIT — Section A';
+          secValue = 'CSIT-A';
+          secLabel = 'CSIT - Sec A';
+          secLetter = 'A';
+        }
+      } else {
+        secKey = `${dept} — Section A`;
+        secValue = `${dept}-A`;
+        secLabel = `${dept} - Sec A`;
+        secLetter = 'A';
+      }
+
+      if (!sectionMap.has(secKey)) {
+        sectionMap.set(secKey, {
+          key: secKey,
+          department: dept,
+          section: secLetter,
+          year: `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`,
+          label: secLabel,
+          value: secValue,
+          rollNumbers: new Set<string>(),
+          studentCount: 0,
+        });
+      }
+
+      const secObj = sectionMap.get(secKey)!;
+      if (suffix) {
+        secObj.rollNumbers.add(suffix);
+      }
+      secObj.studentCount += 1;
+    });
+
+    // Populate fallback roll numbers if any section has 0 students in DB
+    const result = Array.from(sectionMap.values()).map(sec => {
+      let rolls = Array.from(sec.rollNumbers);
+      if (rolls.length === 0) {
+        if (sec.key.includes('CSIT') && sec.key.includes('B')) {
+          const defaultList: string[] = [];
+          for (let i = 73; i <= 99; i++) defaultList.push(String(i));
+          for (let i = 0; i <= 9; i++) defaultList.push(`A${i}`);
+          for (let i = 0; i <= 9; i++) defaultList.push(`B${i}`);
+          for (let i = 0; i <= 9; i++) defaultList.push(`C${i}`);
+          defaultList.push('D0', 'D1');
+          for (let i = 1; i <= 12; i++) defaultList.push(`LE${i}`);
+          rolls = defaultList;
+        } else {
+          rolls = Array.from({ length: 72 }, (_, i) => String(i + 1));
+        }
+      }
+      return {
+        key: sec.key,
+        department: sec.department,
+        section: sec.section,
+        year: sec.year,
+        label: sec.label,
+        value: sec.value,
+        rollNumbers: sortRolls(rolls),
+        studentCount: sec.studentCount || rolls.length,
+      };
+    });
+
+    res.json({ sections: result });
+  } catch (error) {
+    console.error('Error fetching public sections:', error);
+    res.status(500).json({ error: 'Failed to fetch public sections' });
+  }
+});
+
 // Public endpoint for permissions page viewer & attendance pre-highlighting
 router.get('/public-approved', async (req: Request, res: Response) => {
   try {
-    const { date, department, section, year } = req.query;
+    const { date } = req.query;
 
     const where: Prisma.RequestWhereInput = {
       status: 'approved',
@@ -24,52 +262,8 @@ router.get('/public-approved', async (req: Request, res: Response) => {
       orderBy: { date: 'desc' },
     });
 
-    let filtered = requests.map(toApi);
-
-    // Filter by department if specified
-    if (department && typeof department === 'string' && department.trim() && department !== 'all') {
-      const depNorm = department.trim().toLowerCase();
-      filtered = filtered.filter(r => (r.student?.department || '').toLowerCase() === depNorm);
-    }
-
-    // Filter by section if specified ('CSD-A', 'CSIT-A', 'CSIT-B', 'A', 'B', etc.)
-    if (section && typeof section === 'string' && section.trim() && section !== 'none' && section !== 'all') {
-      const secNorm = section.trim().toUpperCase();
-      const isSecB = secNorm.includes('B') || secNorm === 'CSIT-B';
-      filtered = filtered.filter(r => {
-        const studentSec = ((r.student as any)?.section || '').toUpperCase();
-        if (studentSec) {
-          return studentSec === secNorm || secNorm.includes(studentSec) || studentSec.includes(secNorm);
-        }
-        // Fallback: derive from roll number
-        const roll = (r.student?.rollNumber || r.studentId || '').toUpperCase();
-        const isRollB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B') || roll.includes('95A') || roll.includes('LE');
-        return isSecB ? isRollB : !isRollB;
-      });
-    }
-
-    // Filter by year if specified ('1st Year', '2nd Year', '3rd Year', '4th Year', '1', '2', '3', '4', etc.)
-    if (year && typeof year === 'string' && year.trim() && year !== 'all') {
-      const yrNorm = year.trim().toLowerCase();
-      const yearDigitMatch = yrNorm.match(/([1-4])/);
-      const targetNum = yearDigitMatch ? yearDigitMatch[1] : '';
-
-      filtered = filtered.filter(r => {
-        const reqYear = ((r.student as any)?.year || '').toLowerCase();
-        if (reqYear) {
-          if (reqYear === yrNorm) return true;
-          if (targetNum && reqYear.includes(targetNum)) return true;
-        }
-        const sem = r.student?.semester;
-        if (sem && typeof sem === 'number' && targetNum) {
-          const derivedYear = String(Math.ceil(sem / 2));
-          return derivedYear === targetNum;
-        }
-        return !targetNum || targetNum === '3';
-      });
-    }
-
-    res.json({ requests: filtered });
+    const mapped = requests.map(toApi);
+    res.json({ requests: mapped });
   } catch (error) {
     console.error('Error fetching public approved requests:', error);
     res.status(500).json({ error: 'Failed to fetch public approved requests' });

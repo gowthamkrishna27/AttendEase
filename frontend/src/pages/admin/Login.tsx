@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Lock, User, ArrowRight, Home } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import srkrEmblem from '../../assets/srkr-emblem.png';
+import logo from '../../assets/logo.png';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -78,13 +78,10 @@ export default function AdminLogin() {
         >
           {/* Header */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 24 }}>
-            <img src={srkrEmblem} alt="SRKR Logo" style={{ width: 60, height: 60, objectFit: 'contain', marginBottom: 12 }} />
+            <img src={logo} alt="AttendEase Logo" style={{ width: 60, height: 60, objectFit: 'contain', marginBottom: 12 }} />
             <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>Admin Portal</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
               <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>Smart Attendance Permission System</p>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#F97316', background: 'rgba(249,115,22,0.1)', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(249,115,22,0.2)' }}>
-                v1.1.2.6
-              </span>
             </div>
           </div>
 
@@ -173,7 +170,7 @@ export default function AdminLogin() {
                 opacity: isLoading ? 0.85 : 1,
                 transition: 'background 0.2s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#000000'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#EA580C'; }}
               onMouseLeave={e => { e.currentTarget.style.background = '#F97316'; }}
             >
               {isLoading ? (

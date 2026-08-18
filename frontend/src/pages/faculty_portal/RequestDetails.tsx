@@ -114,23 +114,6 @@ export default function FacultyRequestDetails() {
           <StatusBadge status={currentStatus} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
         </div>
 
-        {/* HOD Decision Banner */}
-        {request.finalDecisionBy === 'HOD' && (
-          <div className="mb-6 p-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between text-[13px] text-white font-medium shadow-2xs">
-            <div>
-              <p className="font-bold text-[14px] text-orange-400 flex items-center gap-1.5">
-                👑 Official Decision by Head of Department (HOD)
-              </p>
-              <p className="text-[12px] text-slate-300 mt-0.5">
-                Head of Department (HOD) holds the official rights to override permission requests.
-              </p>
-            </div>
-            <span className="px-2.5 py-1 bg-orange-500 text-white font-bold text-[11px] rounded-lg shrink-0">
-              HOD Overridden
-            </span>
-          </div>
-        )}
-
         {/* Student info card */}
         <div
           className="mb-6 flex flex-row items-stretch"

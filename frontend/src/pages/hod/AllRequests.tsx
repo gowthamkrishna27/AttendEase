@@ -30,7 +30,7 @@ const STATUS_TABS = [
 type TabValue = 'all' | 'pending' | 'approved' | 'rejected';
 
 const tabActiveClass: Record<TabValue, string> = {
-  all:      'bg-slate-900 text-white',
+  all:      'bg-orange-500 text-white',
   pending:  'bg-amber-500 text-white',
   approved: 'bg-emerald-600 text-white',
   rejected: 'bg-rose-500 text-white',

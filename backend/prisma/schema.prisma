@@ -27,6 +27,8 @@ enum RequestStatus {
 
 enum RequestReason {
   internship
+  startup
+  project_development
   medical
   sports
   family_emergency

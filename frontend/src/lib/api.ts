@@ -558,6 +558,26 @@ export interface SubmitAttendancePayload {
   records: { rollNumber: string; status: 'present' | 'absent' }[];
 }
 
+export interface PublicSectionItem {
+  key: string;
+  department: string;
+  section: string;
+  year: string;
+  label: string;
+  value: string;
+  rollNumbers: string[];
+  studentCount: number;
+}
+
+export async function getPublicSections(year?: string): Promise<PublicSectionItem[]> {
+  const params = new URLSearchParams();
+  if (year) params.append('year', year);
+  const queryString = params.toString();
+  const url = `/api/requests/public-sections${queryString ? `?${queryString}` : ''}`;
+  const res = await apiFetch<{ sections: PublicSectionItem[] }>(url, {}, false);
+  return res.sections ?? [];
+}
+
 export async function getAttendanceSubmissions(date?: string, section?: string, year?: string): Promise<AttendanceSubmissionItem[]> {
   const params = new URLSearchParams();
   if (date) params.append('date', date);
