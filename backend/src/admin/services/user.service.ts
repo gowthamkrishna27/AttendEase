@@ -73,8 +73,19 @@ export async function createUser(body: CreateUserBody): Promise<UserResponse> {
   const byEmail = await userRepo.findUserByEmail(body.email);
   if (byEmail) throw new DuplicateUserError('email', body.email);
 
+  const payload = { ...body };
+  const rawYear = (payload as any).year;
+  if (rawYear) {
+    const digit = parseInt(String(rawYear).replace(/[^0-9]/g, ''), 10);
+    if (!isNaN(digit) && digit >= 1 && digit <= 4) {
+      if (!payload.semester || Math.ceil(payload.semester / 2) !== digit) {
+        payload.semester = (digit * 2) - 1;
+      }
+    }
+  }
+
   // Store raw password directly for auth login matching
-  const doc = await userRepo.createUser({ ...body, password: body.password });
+  const doc = await userRepo.createUser({ ...payload, password: body.password });
   return toResponse(doc as unknown as Record<string, unknown>);
 }
 
@@ -87,7 +98,18 @@ export async function updateUser(userId: string, patch: UpdateUserBody): Promise
     }
   }
 
-  const doc = await userRepo.updateUser(userId, patch);
+  const payload = { ...patch };
+  const rawYear = (payload as any).year;
+  if (rawYear) {
+    const digit = parseInt(String(rawYear).replace(/[^0-9]/g, ''), 10);
+    if (!isNaN(digit) && digit >= 1 && digit <= 4) {
+      if (!payload.semester || Math.ceil(payload.semester / 2) !== digit) {
+        payload.semester = (digit * 2) - 1;
+      }
+    }
+  }
+
+  const doc = await userRepo.updateUser(userId, payload);
   if (!doc) throw new UserNotFoundError(userId);
   return toResponse(doc as unknown as Record<string, unknown>);
 }

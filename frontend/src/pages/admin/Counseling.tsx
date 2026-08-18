@@ -257,13 +257,15 @@ export default function AdminCounseling() {
 
         {/* ── Header ── */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.2 }}
         >
-          <p className="text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">Admin Portal</p>
-          <h1 className="text-[26px] font-heading font-bold text-slate-900">Faculty Counseling Management</h1>
-          <p className="text-[14px] text-slate-400 mt-1">Assign students to faculty counselors using the interactive section roll grid</p>
+          <span className="text-[11px] font-semibold text-[#18181b] bg-[#edf0f2] px-2 py-0.5 rounded-[5px]">
+            ADMIN PORTAL
+          </span>
+          <h1 className="text-[22px] font-bold text-[#18181b] tracking-tight mt-1">Faculty Counseling Management</h1>
+          <p className="text-[13px] text-[#6b7280]">Assign students to faculty counselors using the interactive section roll grid</p>
         </motion.div>
 
         {/* Toast Alerts */}
@@ -432,11 +434,11 @@ export default function AdminCounseling() {
                     const isSelected = selectedStudentIds.includes(targetId);
                     const assignedCounselor = currentCounselorMap.get(suffix);
 
-                    let buttonBg = 'bg-white border-slate-200 text-slate-700 hover:bg-orange-50 hover:border-orange-300';
+                    let buttonBg = 'bg-white border-slate-200/80 text-[#374151] hover:bg-[#edf0f2]';
                     if (isSelected) {
-                      buttonBg = 'bg-orange-500 border-orange-600 text-white shadow-md ring-2 ring-orange-300';
+                      buttonBg = 'bg-[#18181b] border-[#18181b] text-white shadow-xs';
                     } else if (assignedCounselor) {
-                      buttonBg = 'bg-slate-100 border-slate-300 text-slate-500 hover:bg-orange-50';
+                      buttonBg = 'bg-[#edf0f2] border-slate-200 text-[#6b7280] hover:bg-slate-200';
                     }
 
                     return (
@@ -446,8 +448,8 @@ export default function AdminCounseling() {
                         whileTap={{ scale: 0.94 }}
                         onClick={() => handleToggleRollNumber(suffix)}
                         className={`
-                          w-[50px] h-[50px] sm:w-[54px] sm:h-[54px]
-                          rounded-xl font-extrabold text-[13px] sm:text-[14px]
+                          w-[48px] h-[48px] sm:w-[50px] sm:h-[50px]
+                          rounded-lg font-bold text-[13px] sm:text-[13.5px]
                           flex flex-col items-center justify-center
                           select-none cursor-pointer border shadow-2xs shrink-0
                           transition-all duration-150 relative
@@ -478,9 +480,9 @@ export default function AdminCounseling() {
                 type="button"
                 onClick={handleAssign}
                 disabled={assignMutation.isPending || !selectedFacultyId || selectedStudentIds.length === 0}
-                className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold rounded-xl text-[13px] shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full h-[40px] bg-[#18181b] hover:bg-[#27272a] disabled:opacity-50 text-white font-medium rounded-lg text-[13.5px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                <UserCheck size={16} />
+                <UserCheck size={15} />
                 <span>Assign {selectedStudentIds.length} Student(s) to Counselor</span>
               </button>
             </div>

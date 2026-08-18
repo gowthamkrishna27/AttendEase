@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Lock, User, ArrowRight, Home } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import logo from '../../assets/logo.png';
 
@@ -27,7 +26,7 @@ export default function AdminLogin() {
       await login(identifier.trim(), password, 'admin');
       navigate('/admin');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      const msg = err instanceof Error ? err.message : 'Login failed. Please check your credentials.';
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -35,171 +34,92 @@ export default function AdminLogin() {
   };
 
   return (
-    <>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .admin-login-page {
-          min-height: 100vh;
-          width: 100%;
-          background: #F3F6FB;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 24px 16px;
-          font-family: 'Inter','Segoe UI',system-ui,sans-serif;
-        }
-        .admin-login-card {
-          width: 100%;
-          max-width: 440px;
-          background: #ffffff;
-          border-radius: 24px;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.04), 0 1px 8px rgba(0,0,0,0.02);
-          border: 1px solid #EEF2F7;
-          padding: 32px 28px;
-          box-sizing: border-box;
-        }
-        @media (max-width: 640px) {
-          .admin-login-page {
-            padding: 16px 12px;
-          }
-          .admin-login-card {
-            padding: 24px 18px;
-            border-radius: 20px;
-          }
-        }
-      `}</style>
+    <div className="min-h-screen w-full bg-[#f4f5f7] flex flex-col items-center justify-center p-4 font-sans antialiased text-[#1f2937]">
+      {/* Top Emblem & Title */}
+      <div className="flex flex-col items-center text-center mb-6">
+        <img
+          src={logo}
+          alt="AttendEase Logo"
+          className="w-12 h-12 object-contain mb-3 drop-shadow-xs"
+        />
+        <h1 className="text-[20px] font-semibold text-[#18181b] tracking-tight">
+          Login to AttendEase
+        </h1>
+      </div>
 
-      <div className="admin-login-page">
-        <motion.div
-          className="admin-login-card"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          {/* Header */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: 24 }}>
-            <img src={logo} alt="AttendEase Logo" style={{ width: 60, height: 60, objectFit: 'contain', marginBottom: 12 }} />
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>Admin Portal</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-              <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>Smart Attendance Permission System</p>
+      {/* Main Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="w-full max-w-[450px] bg-white rounded-xl px-9 py-10 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] border border-slate-100/80"
+      >
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          {/* Email / Identifier */}
+          <div>
+            <input
+              type="text"
+              placeholder="jane@example.com"
+              value={identifier}
+              onChange={e => setIdentifier(e.target.value)}
+              autoComplete="username"
+              className="w-full h-[42px] px-3.5 bg-[#edf0f2] text-[#1f2937] placeholder:text-[#88929e] text-[13.5px] rounded-[7px] outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all font-normal"
+            />
+          </div>
+
+          {/* Password */}
+          <div>
+            <div className="relative flex items-center">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="•••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                autoComplete="current-password"
+                className="w-full h-[42px] pl-3.5 pr-14 bg-[#edf0f2] text-[#1f2937] placeholder:text-[#88929e] text-[13.5px] rounded-[7px] outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all font-normal tracking-wide"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3.5 text-[12px] font-medium text-[#717b88] hover:text-[#18181b] transition-colors cursor-pointer"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Email */}
-            <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                Admin Email
-              </label>
-              <div style={{ position: 'relative' }}>
-                <User size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#CBD5E1', pointerEvents: 'none' }} />
-                <input
-                  type="email"
-                  placeholder="admin@college.edu"
-                  value={identifier}
-                  onChange={e => setIdentifier(e.target.value)}
-                  autoComplete="email"
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    height: 46, paddingLeft: 38, paddingRight: 14,
-                    fontSize: 14, color: '#1E293B',
-                    background: '#F8FAFC', border: '1.5px solid #E2E8F0',
-                    borderRadius: 12, outline: 'none',
-                    transition: 'all 0.15s',
-                  }}
-                  onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
-                  onBlur={e  => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                Password
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#CBD5E1', pointerEvents: 'none' }} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    height: 46, paddingLeft: 38, paddingRight: 42,
-                    fontSize: 14, color: '#1E293B',
-                    background: '#F8FAFC', border: '1.5px solid #E2E8F0',
-                    borderRadius: 12, outline: 'none',
-                    transition: 'all 0.15s',
-                  }}
-                  onFocus={e => { e.target.style.borderColor = '#F97316'; e.target.style.boxShadow = '0 0 0 4px rgba(249,115,22,0.08)'; e.target.style.background = '#fff'; }}
-                  onBlur={e  => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#F8FAFC'; }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(v => !v)}
-                  style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
-                >
-                  {showPassword ? <Eye size={15} /> : <EyeOff size={15} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div style={{ fontSize: 12, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '9px 13px' }}>
-                {error}
-              </div>
-            )}
-
-            {/* Submit */}
-            <motion.button
-              type="submit"
-              disabled={isLoading}
-              whileHover={{ scale: isLoading ? 1 : 1.01 }}
-              whileTap={{ scale: 0.985 }}
-              style={{
-                width: '100%', height: 48, borderRadius: 12,
-                background: '#F97316',
-                color: '#fff', fontSize: 14, fontWeight: 700,
-                border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                boxShadow: '0 4px 18px rgba(249,115,22,0.25)',
-                opacity: isLoading ? 0.85 : 1,
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#EA580C'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#F97316'; }}
+          {/* Forgot Password */}
+          <div className="flex justify-end pt-0.5">
+            <button
+              type="button"
+              onClick={() => alert('Please contact the System Administrator to reset your admin credentials.')}
+              className="text-[12px] text-[#717b88] hover:text-[#18181b] transition-colors cursor-pointer"
             >
-              {isLoading ? (
-                <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
-              ) : (
-                <>
-                  <span>Sign In as Admin</span>
-                  <ArrowRight size={15} />
-                </>
-              )}
-            </motion.button>
-          </form>
+              Forgot Password?
+            </button>
+          </div>
 
+          {/* Error Banner */}
+          {error && (
+            <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2 font-medium">
+              {error}
+            </div>
+          )}
 
-
-          {/* Back Link */}
+          {/* Login Button */}
           <button
-            onClick={() => navigate('/')}
-            style={{
-              marginTop: 20, width: '100%', background: 'none', border: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              fontSize: 12, fontWeight: 600, color: '#64748B', cursor: 'pointer'
-            }}
+            type="submit"
+            disabled={isLoading}
+            className="w-full h-[42px] bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[13.5px] font-semibold rounded-[7px] transition-all duration-150 cursor-pointer disabled:opacity-70 flex items-center justify-center shadow-xs mt-1"
           >
-            <Home size={13} />
-            <span>Back to Home</span>
+            {isLoading ? (
+              <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin inline-block" />
+            ) : (
+              'Login'
+            )}
           </button>
-        </motion.div>
-      </div>
-    </>
+        </form>
+      </motion.div>
+    </div>
   );
 }

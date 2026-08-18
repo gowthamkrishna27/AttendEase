@@ -2,32 +2,20 @@
  * import.service.ts
  *
  * Orchestrates the bulk Excel/CSV import pipeline:
- *   1. Stream-parse the uploaded file with ExcelJS (no full-array memory load)
- *   2. Map each row's columns using the configured column map
- *   3. Validate every row against the canonical student Zod schema
- *   4. Batch-insert all valid rows in a single DB operation
- *   5. Return a detailed ImportReport (inserted / skipped / failed counts + per-row errors)
- *
- * No column names or magic numbers are hardcoded here — all come from admin.config.ts.
+ *   1. Direct parsing for CSV (fast, resilient) + ExcelJS for XLSX
+ *   2. Smart column matching and derivation
+ *   3. Batch-insert all valid rows directly into PostgreSQL
+ *   4. Return a detailed ImportReport
  */
 import ExcelJS from 'exceljs';
-import { importConfig } from '../config/admin.config.js';
+import { prisma } from '../../db/prisma.js';
 import { mapRowToFields, validateImportRow } from '../validators/import.validator.js';
-import * as studentRepo from '../repositories/prisma/student.repository.prisma.js';
-import { hashPassword } from './password.service.js';
 import type { ImportReport, ImportRowError, RawExcelRow } from '../types/import.types.js';
-import type { CreateStudentBody } from '../types/student.types.js';
-
-// ── Internal helpers ──────────────────────────────────────────────────────────
 
 function toUserId(rollNumber: string): string {
   return `stu-${rollNumber}`;
 }
 
-/**
- * Converts ExcelJS cell values (which can be complex objects) to primitives
- * that can be safely passed through the Zod validator.
- */
 function normaliseCellValue(
   raw: ExcelJS.CellValue,
 ): string | number | boolean | null | undefined {
@@ -35,72 +23,138 @@ function normaliseCellValue(
   if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
     return raw;
   }
-  // RichText, Error, Hyperlink — convert to string
   if (typeof raw === 'object' && 'text' in (raw as object)) {
     return String((raw as { text: unknown }).text);
   }
   return String(raw);
 }
 
-// ── Main import function ──────────────────────────────────────────────────────
+/** Simple, robust CSV line splitter that handles quotes */
+function parseCsvLine(line: string, delimiter: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
 
-/**
- * Processes an in-memory file buffer and inserts valid student rows into the DB.
- *
- * @param buffer - The raw uploaded file bytes (xlsx or csv)
- * @returns ImportReport with inserted/skipped/failed counts and per-row error details
- */
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delimiter && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
 export async function importStudentsFromBuffer(buffer: Buffer): Promise<ImportReport> {
-  const validRows:   Array<CreateStudentBody & { userId: string; password: string }> = [];
-  const failedRows:  ImportRowError[] = [];
+  const dataRows: Array<{ rowIndex: number; raw: RawExcelRow }> = [];
+  const failedRows: ImportRowError[] = [];
   const skippedRows: ImportRowError[] = [];
 
-  // ── Step 1: Stream-parse the workbook ──────────────────────────────────────
-  const workbook = new ExcelJS.Workbook();
-  // Convert to ArrayBuffer — avoids Buffer<ArrayBufferLike> vs Buffer<ArrayBuffer> mismatch
-  const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-  await workbook.xlsx.load(arrayBuffer as ArrayBuffer);
+  const isZip = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b; // 'PK'
 
-  const worksheet = workbook.worksheets[0];
-  if (!worksheet) {
-    return { inserted: 0, skipped: 0, upserted: 0, failed: [{ row: 0, reason: 'The uploaded file contains no worksheets.' }] };
-  }
+  if (!isZip) {
+    // ── Parse Plain CSV Text ─────────────────────────────────────────────────
+    const text = buffer.toString('utf-8').replace(/^\uFEFF/, ''); // strip BOM
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
 
-  // Read header row (row 1)
-  const headerRow = worksheet.getRow(1);
-  const headers: string[] = [];
-  headerRow.eachCell({ includeEmpty: true }, (cell, colIndex) => {
-    headers[colIndex] = String(cell.value ?? '').trim();
-  });
-
-  // ── Step 2: Parse data rows ────────────────────────────────────────────────
-  const dataRows: Array<{ rowIndex: number; raw: RawExcelRow }> = [];
-
-  worksheet.eachRow({ includeEmpty: false }, (row, rowIndex) => {
-    if (rowIndex === 1) return; // skip header
-
-    const rawRow: RawExcelRow = {};
-    row.eachCell({ includeEmpty: true }, (cell, colIndex) => {
-      const header = headers[colIndex];
-      if (header) {
-        rawRow[header] = normaliseCellValue(cell.value);
-      }
-    });
-
-    // Skip completely empty rows
-    const hasAnyValue = Object.values(rawRow).some(
-      (v) => v !== null && v !== undefined && v !== '',
-    );
-    if (hasAnyValue) {
-      dataRows.push({ rowIndex, raw: rawRow });
+    if (lines.length === 0) {
+      return { inserted: 0, skipped: 0, upserted: 0, failed: [{ row: 0, reason: 'The CSV file is empty.' }] };
     }
-  });
+
+    // Detect delimiter: comma, semicolon, or tab
+    const firstLine = lines[0] || '';
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semiCount = (firstLine.match(/;/g) || []).length;
+    const tabCount = (firstLine.match(/\t/g) || []).length;
+    const delimiter = (semiCount > commaCount && semiCount > tabCount) ? ';' : (tabCount > commaCount ? '\t' : ',');
+
+    const headers = parseCsvLine(firstLine, delimiter).map(h => h.replace(/^["']|["']$/g, '').trim());
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line || !line.trim()) continue;
+      const values = parseCsvLine(line, delimiter).map(v => v.replace(/^["']|["']$/g, '').trim());
+      const rawRow: RawExcelRow = {};
+
+      headers.forEach((header, colIdx) => {
+        if (header) {
+          rawRow[header] = values[colIdx] ?? '';
+        }
+      });
+
+      const hasValue = Object.values(rawRow).some(v => v !== null && v !== undefined && String(v).trim() !== '');
+      if (hasValue) {
+        dataRows.push({ rowIndex: i + 1, raw: rawRow });
+      }
+    }
+  } else {
+    // ── Parse XLSX via ExcelJS ───────────────────────────────────────────────
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      await workbook.xlsx.load(arrayBuffer as ArrayBuffer);
+
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        return { inserted: 0, skipped: 0, upserted: 0, failed: [{ row: 0, reason: 'The uploaded file contains no worksheets.' }] };
+      }
+
+      const headerRow = worksheet.getRow(1);
+      const headers: string[] = [];
+      headerRow.eachCell({ includeEmpty: true }, (cell, colIndex) => {
+        headers[colIndex] = String(cell.value ?? '').trim();
+      });
+
+      worksheet.eachRow({ includeEmpty: false }, (row, rowIndex) => {
+        if (rowIndex === 1) return;
+        const rawRow: RawExcelRow = {};
+        row.eachCell({ includeEmpty: true }, (cell, colIndex) => {
+          const header = headers[colIndex];
+          if (header) {
+            rawRow[header] = normaliseCellValue(cell.value);
+          }
+        });
+        const hasAnyValue = Object.values(rawRow).some(v => v !== null && v !== undefined && v !== '');
+        if (hasAnyValue) {
+          dataRows.push({ rowIndex, raw: rawRow });
+        }
+      });
+    } catch (err: any) {
+      return { inserted: 0, skipped: 0, upserted: 0, failed: [{ row: 0, reason: `Excel parse error: ${err.message}` }] };
+    }
+  }
 
   if (dataRows.length === 0) {
-    return { inserted: 0, skipped: 0, upserted: 0, failed: [{ row: 0, reason: 'The worksheet contains no data rows.' }] };
+    return { inserted: 0, skipped: 0, upserted: 0, failed: [{ row: 0, reason: 'No student data rows found in the uploaded file.' }] };
   }
 
-  // ── Step 3: Validate each row ──────────────────────────────────────────────
+  // ── Step 2: Validate & Map ────────────────────────────────────────────────
+  const validUsers: Array<{
+    userId: string;
+    name: string;
+    email: string;
+    role: 'student' | 'faculty' | 'hod' | 'admin';
+    department: string;
+    rollNumber?: string;
+    year?: string;
+    section?: string;
+    semester?: number;
+    password: string;
+    avatarUrl?: string;
+    phone?: string;
+    isActive: boolean;
+  }> = [];
+
   for (const { rowIndex, raw } of dataRows) {
     const mapped = mapRowToFields(raw);
     const result = validateImportRow(mapped);
@@ -110,67 +164,81 @@ export async function importStudentsFromBuffer(buffer: Buffer): Promise<ImportRe
       continue;
     }
 
-    validRows.push({
-      ...result.data,
-      userId:   toUserId(result.data.rollNumber),
-      password: '', // placeholder — will be replaced with hashed password below
+    const s = result.data;
+    const roll = s.rollNumber.toUpperCase().trim();
+    const role = (s.role as 'student' | 'faculty' | 'hod' | 'admin') || 'student';
+    const password = role === 'student' ? roll : '1234';
+
+    validUsers.push({
+      userId: toUserId(roll),
+      name: s.name,
+      email: s.email,
+      role: role,
+      department: s.department,
+      rollNumber: roll,
+      year: s.year || (role === 'student' ? '3rd Year' : undefined),
+      section: s.section || (role === 'student' ? 'A' : undefined),
+      semester: s.semester || (role === 'student' ? 6 : undefined),
+      password: password,
+      avatarUrl: s.avatarUrl || (role === 'student' ? `https://srkrexams.in/SRKR/photo/${roll}.jpg` : undefined),
+      phone: s.phone,
+      isActive: true,
     });
   }
 
-  if (validRows.length === 0) {
-    return { inserted: 0, skipped: 0, upserted: 0, failed: failedRows };
-  }
+  // ── Step 3: Upsert directly into PostgreSQL (preserve existing passwords) ──
+  let insertedCount = 0;
+  let updatedCount = 0;
 
-  // ── Step 4: Hash passwords (default = roll number) and check duplicates ────
-  const rollNumbers   = validRows.map((r) => r.rollNumber);
-  const existingRolls = await studentRepo.findExistingRollNumbers(rollNumbers);
+  const upsertPromises = validUsers.map(async (u, idx) => {
+    try {
+      const existing = await prisma.user.findFirst({
+        where: {
+          OR: [
+            ...(u.rollNumber ? [{ rollNumber: u.rollNumber }] : []),
+            { userId: u.userId },
+            { email: u.email },
+          ],
+        },
+      });
 
-  const toInsert:  typeof validRows = [];
-  const toUpsert:  typeof validRows = [];
-
-  await Promise.all(
-    validRows.map(async (row) => {
-      const hashedPassword = await hashPassword(row.rollNumber);
-      const rowWithHash    = { ...row, password: hashedPassword };
-
-      const isDuplicate = existingRolls.has(row.rollNumber.toLowerCase());
-
-      if (isDuplicate) {
-        if (importConfig.duplicateStrategy === 'upsert') {
-          toUpsert.push(rowWithHash);
-        } else {
-          skippedRows.push({
-            row: rollNumbers.indexOf(row.rollNumber) + 2, // +2: 1-indexed + header
-            rollNumber: row.rollNumber,
-            reason: 'Duplicate roll number (skipped — existing record preserved)',
-          });
-        }
+      if (existing) {
+        // Update student/user details while preserving their existing password
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            name: u.name,
+            department: u.department,
+            ...(u.year ? { year: u.year } : {}),
+            ...(u.section ? { section: u.section } : {}),
+            ...(u.semester ? { semester: u.semester } : {}),
+            ...(u.role ? { role: u.role } : {}),
+            ...(u.avatarUrl ? { avatarUrl: u.avatarUrl } : {}),
+          },
+        });
+        updatedCount++;
       } else {
-        toInsert.push(rowWithHash);
+        // Insert new student/user
+        await prisma.user.create({
+          data: u,
+        });
+        insertedCount++;
       }
-    }),
-  );
+    } catch (err: any) {
+      failedRows.push({
+        row: idx + 2,
+        rollNumber: u.rollNumber,
+        reason: err.message || 'Database error during import',
+      });
+    }
+  });
 
-  // ── Step 5: Bulk insert new rows ───────────────────────────────────────────
-  let insertedCount  = 0;
-  let upsertedCount  = 0;
-
-  if (toInsert.length > 0) {
-    insertedCount = await studentRepo.bulkInsertStudents(toInsert);
-  }
-
-  // ── Step 6: Upsert existing rows (only when strategy=upsert) ──────────────
-  if (toUpsert.length > 0) {
-    await Promise.all(
-      toUpsert.map((row) => studentRepo.upsertStudentByRollNumber(row)),
-    );
-    upsertedCount = toUpsert.length;
-  }
+  await Promise.all(upsertPromises);
 
   return {
     inserted: insertedCount,
-    skipped:  skippedRows.length,
-    upserted: upsertedCount,
-    failed:   [...failedRows, ...skippedRows],
+    skipped: 0,
+    upserted: updatedCount,
+    failed: failedRows,
   };
 }

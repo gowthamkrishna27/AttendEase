@@ -28,7 +28,10 @@ export async function listAllUsers(): ReturnType<IUserRepository['listAllUsers']
 
 export async function findUserByUserId(userId: string): ReturnType<IUserRepository['findUserByUserId']> {
   const record = await prisma.user.findFirst({
-    where: { userId, isActive: true },
+    where: {
+      OR: [{ userId }, { id: userId }],
+      isActive: true,
+    },
     omit:  { password: true },
   });
   return record as Record<string, unknown> | null;
@@ -46,7 +49,10 @@ export async function findUserWithPasswordByUserId(
   userId: string,
 ): ReturnType<IUserRepository['findUserWithPasswordByUserId']> {
   const record = await prisma.user.findFirst({
-    where:  { userId, isActive: true },
+    where:  {
+      OR: [{ userId }, { id: userId }],
+      isActive: true,
+    },
     select: { password: true },
   });
   return record;
@@ -73,8 +79,17 @@ export async function updateUser(
   patch: UpdateUserBody,
 ): ReturnType<IUserRepository['updateUser']> {
   try {
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [{ userId }, { id: userId }],
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!existing) return null;
+
     const record = await prisma.user.update({
-      where: { userId },
+      where: { id: existing.id },
       data:  patch,
       omit:  { password: true },
     });
@@ -86,8 +101,17 @@ export async function updateUser(
 
 export async function softDeleteUser(userId: string): ReturnType<IUserRepository['softDeleteUser']> {
   try {
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [{ userId }, { id: userId }],
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!existing) return false;
+
     await prisma.user.update({
-      where: { userId, isActive: true },
+      where: { id: existing.id },
       data:  { isActive: false },
     });
     return true;
@@ -101,8 +125,17 @@ export async function updateUserPassword(
   hashedPassword: string,
 ): ReturnType<IUserRepository['updateUserPassword']> {
   try {
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [{ userId }, { id: userId }],
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!existing) return false;
+
     await prisma.user.update({
-      where: { userId, isActive: true },
+      where: { id: existing.id },
       data:  { password: hashedPassword },
     });
     return true;

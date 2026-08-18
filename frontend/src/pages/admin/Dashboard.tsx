@@ -2,9 +2,10 @@ import { motion } from 'framer-motion';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Users, ShieldAlert, Settings, ArrowRight, UserCheck, KeyRound } from 'lucide-react';
+import { Users, Settings, ArrowRight, UserCheck, ShieldCheck, FileSpreadsheet } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
+import logo from '../../assets/logo.png';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -20,151 +21,124 @@ export default function AdminDashboard() {
   const hodCount      = usersList.filter(u => u.role === 'hod').length;
   const totalUsers    = usersList.length;
 
-  const quickLinks = [
+  const modules = [
     {
-      label: 'Manage Accounts & Students',
-      description: 'Create, update, and manage student, faculty, and HOD accounts',
+      label: 'Manage Accounts',
+      description: 'Create, edit, delete & bulk import student or faculty records',
       icon: Users,
       to: '/admin/users',
-      color: '#F97316',
-      bg: 'rgba(249,115,22,0.08)'
+      tag: `${totalUsers} Accounts`
     },
     {
-      label: 'Password Management',
-      description: 'Self-service password updates and user password resets',
-      icon: KeyRound,
-      to: '/admin/settings',
-      color: '#10B981',
-      bg: 'rgba(16,185,129,0.08)'
+      label: 'Counseling Assignment',
+      description: 'Map students to faculty counselors for guidance & approval flow',
+      icon: UserCheck,
+      to: '/admin/counseling',
+      tag: 'Counseling'
     },
     {
-      label: 'Portal Preferences',
-      description: 'Configure global system parameters and security controls',
+      label: 'System & Security Settings',
+      description: 'Self-service password management and system configuration',
       icon: Settings,
       to: '/admin/settings',
-      color: '#3B82F6',
-      bg: 'rgba(59,130,246,0.08)'
+      tag: 'Security'
     },
   ];
 
   return (
     <PageWrapper role="admin">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto space-y-6">
 
-        {/* Banner */}
+        {/* Profile Card */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="card overflow-hidden mb-6 sm:mb-8"
-          style={{
-            background: '#ffffff',
-            borderRadius: 20,
-            border: '1px solid #EEF2F7',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-          }}
+          transition={{ duration: 0.2 }}
+          className="bg-white rounded-xl p-6 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5"
         >
-          <div className="flex flex-col sm:flex-row items-stretch">
-            {/* Logo area */}
-            <div className="sm:w-44 w-full h-44 sm:h-auto flex-shrink-0 bg-slate-50 flex items-center justify-center border-r border-slate-100">
-              <ShieldAlert size={64} className="text-orange-500" />
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-xl bg-[#edf0f2] p-2 flex items-center justify-center border border-slate-200/60 shrink-0">
+              <img src={logo} alt="Logo" className="w-full h-full object-contain" />
             </div>
-            {/* Info */}
-            <div className="flex-1 p-5 sm:px-6 sm:py-5 flex flex-col justify-center">
-              <p className="text-[11px] font-bold text-orange-500 uppercase tracking-widest mb-1.5">
-                SYSTEM ADMINISTRATOR
-              </p>
-              <p className="text-[20px] sm:text-[22px] font-heading font-bold text-slate-900 mb-0.5">{user?.name}</p>
-              <p className="text-[13px] sm:text-[14px] text-slate-500 mb-3">Portal Root Admin</p>
-              <div className="flex flex-wrap gap-2 mb-3">
-                <span className="px-3 py-1 text-[11px] sm:text-[12px] font-semibold rounded-full bg-orange-50 text-orange-600 border border-orange-200">
-                  User & Student Management
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] font-semibold text-[#18181b] bg-[#edf0f2] px-2 py-0.5 rounded-[5px]">
+                  SYSTEM ADMIN
                 </span>
-                <span className="px-3 py-1 text-[11px] sm:text-[12px] font-semibold rounded-full bg-slate-100 text-slate-500 border border-slate-200">
-                  SRKR Engineering College
-                </span>
+                <span className="text-[12px] text-[#6b7280]">SRKR Engineering College</span>
               </div>
-              <p className="text-[12px] sm:text-[13px] text-slate-400 font-medium">{user?.email}</p>
+              <h1 className="text-[20px] font-bold text-[#18181b] tracking-tight">{user?.name || 'Administrator'}</h1>
+              <p className="text-[13px] text-[#6b7280]">{user?.email}</p>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <button
+              onClick={() => navigate('/admin/users')}
+              className="flex-1 sm:flex-initial h-[38px] px-4 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[13px] font-medium rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+            >
+              <Users size={15} />
+              <span>Manage Users</span>
+            </button>
           </div>
         </motion.div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 sm:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
           {[
-            { label: 'Students', value: studentsCount, color: '#0F172A' },
-            { label: 'Faculty', value: facultyCount, color: '#0F172A' },
-            { label: 'HODs', value: hodCount, color: '#0F172A' },
-            { label: 'Total Accounts', value: totalUsers, color: '#F97316' },
+            { label: 'Total Students', value: studentsCount },
+            { label: 'Faculty Members', value: facultyCount },
+            { label: 'Department HODs', value: hodCount },
+            { label: 'Total Accounts', value: totalUsers },
           ].map(stat => (
             <div
               key={stat.label}
-              className="card p-5 text-center"
-              style={{
-                background: '#ffffff',
-                borderRadius: 16,
-                border: '1px solid #EEF2F7',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.03)',
-              }}
+              className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
             >
-              <p className="text-[28px] font-bold tracking-tight mb-1" style={{ color: stat.color }}>
+              <p className="text-[26px] font-bold text-[#18181b] tracking-tight mb-0.5">
                 {stat.value}
               </p>
-              <p className="text-[12px] text-slate-400 font-semibold uppercase tracking-wider">
+              <p className="text-[12px] text-[#6b7280] font-medium">
                 {stat.label}
               </p>
             </div>
           ))}
         </div>
 
-        {/* Quick Links */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-        >
-          {quickLinks.map(link => {
-            const Icon = link.icon;
-            return (
-              <div
-                key={link.label}
-                onClick={() => navigate(link.to)}
-                className="card p-5 cursor-pointer hover:border-orange-200 transition-all duration-200 group flex items-start gap-4"
-                style={{
-                  background: '#ffffff',
-                  borderRadius: 16,
-                  border: '1px solid #EEF2F7',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.03)',
-                }}
-              >
+        {/* Minimal Management Overview */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <h2 className="text-[13.5px] font-semibold text-[#18181b]">Management Shortcuts</h2>
+            <span className="text-[11.5px] text-[#88929e]">Quick Admin Access</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {modules.map(module => {
+              const Icon = module.icon;
+              return (
                 <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: link.bg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
+                  key={module.label}
+                  onClick={() => navigate(module.to)}
+                  className="bg-white rounded-lg p-3.5 border border-slate-200/90 shadow-2xs hover:border-[#18181b] hover:bg-[#fafafa] transition-all duration-150 cursor-pointer flex items-center justify-between gap-3 group"
                 >
-                  <Icon size={22} style={{ color: link.color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-orange-600 transition-colors">
-                      {link.label}
-                    </h3>
-                    <ArrowRight size={16} className="text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-md bg-[#edf0f2] text-[#18181b] flex items-center justify-center shrink-0">
+                      <Icon size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-[13.5px] font-semibold text-[#18181b] truncate">
+                        {module.label}
+                      </h3>
+                      <p className="text-[11.5px] text-[#6b7280] truncate">
+                        {module.description}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[12px] text-slate-400 leading-snug">
-                    {link.description}
-                  </p>
+                  <ArrowRight size={14} className="text-[#88929e] group-hover:text-[#18181b] group-hover:translate-x-0.5 transition-all shrink-0" />
                 </div>
-              </div>
-            );
-          })}
-        </motion.div>
+              );
+            })}
+          </div>
+        </div>
 
       </div>
     </PageWrapper>

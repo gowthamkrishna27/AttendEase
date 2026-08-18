@@ -71,6 +71,7 @@ router.get('/public-sections', async (req: Request, res: Response) => {
 
     const targetDigitMatch = targetYear.match(/([1-4])/);
     const targetDigit = targetDigitMatch ? targetDigitMatch[1] : '3';
+    const yearLabel = `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`;
 
     // Fetch all student users from DB
     const students = await prisma.user.findMany({
@@ -83,23 +84,39 @@ router.get('/public-sections', async (req: Request, res: Response) => {
         name: true,
         rollNumber: true,
         department: true,
+        year: true,
+        section: true,
         semester: true,
       },
       orderBy: { rollNumber: 'asc' },
     });
 
-    // Filter students by academic year
+    // Filter students by academic year (prioritizing explicit DB year record)
     const yearStudents = students.filter(s => {
+      if (s.year) {
+        const digitMatch = s.year.match(/([1-4])/);
+        if (digitMatch) return digitMatch[1] === targetDigit;
+      }
       const sem = s.semester;
       if (sem && typeof sem === 'number') {
         const derivedYearNum = String(Math.ceil(sem / 2));
         return derivedYearNum === targetDigit;
       }
       const roll = (s.rollNumber || '').toUpperCase();
-      if (targetDigit === '3' && (roll.startsWith('24B') || roll.startsWith('25B95A'))) return true;
-      if (targetDigit === '2' && roll.startsWith('25B')) return true;
-      if (targetDigit === '1' && roll.startsWith('26B')) return true;
-      if (targetDigit === '4' && roll.startsWith('23B')) return true;
+      const isLateralEntry = roll.includes('95A') || roll.includes('LE') || /LE\d+$/i.test(roll);
+
+      if (targetDigit === '3') {
+        return roll.startsWith('24B') || (roll.startsWith('25B') && isLateralEntry);
+      }
+      if (targetDigit === '2') {
+        return roll.startsWith('25B') && !isLateralEntry;
+      }
+      if (targetDigit === '1') {
+        return roll.startsWith('26B') && !isLateralEntry;
+      }
+      if (targetDigit === '4') {
+        return roll.startsWith('23B') || (roll.startsWith('24B') && isLateralEntry);
+      }
       return targetDigit === '3';
     });
 
@@ -115,39 +132,37 @@ router.get('/public-sections', async (req: Request, res: Response) => {
       studentCount: number;
     }>();
 
-    // Default base sections for standard 3rd Year if empty or to ensure structure
-    if (targetDigit === '3') {
-      sectionMap.set('CSD — Section A', {
-        key: 'CSD — Section A',
-        department: 'CSD',
-        section: 'A',
-        year: '3rd Year',
-        label: 'CSD - Sec A',
-        value: 'CSD-A',
-        rollNumbers: new Set<string>(),
-        studentCount: 0,
-      });
-      sectionMap.set('CSIT — Section A', {
-        key: 'CSIT — Section A',
-        department: 'CSIT',
-        section: 'A',
-        year: '3rd Year',
-        label: 'CSIT - Sec A',
-        value: 'CSIT-A',
-        rollNumbers: new Set<string>(),
-        studentCount: 0,
-      });
-      sectionMap.set('CSIT — Section B', {
-        key: 'CSIT — Section B',
-        department: 'CSIT',
-        section: 'B',
-        year: '3rd Year',
-        label: 'CSIT - Sec B',
-        value: 'CSIT-B',
-        rollNumbers: new Set<string>(),
-        studentCount: 0,
-      });
-    }
+    // Default base sections for standard years
+    sectionMap.set('CSD — Section A', {
+      key: 'CSD — Section A',
+      department: 'CSD',
+      section: 'A',
+      year: yearLabel,
+      label: 'CSD - Sec A',
+      value: 'CSD-A',
+      rollNumbers: new Set<string>(),
+      studentCount: 0,
+    });
+    sectionMap.set('CSIT — Section A', {
+      key: 'CSIT — Section A',
+      department: 'CSIT',
+      section: 'A',
+      year: yearLabel,
+      label: 'CSIT - Sec A',
+      value: 'CSIT-A',
+      rollNumbers: new Set<string>(),
+      studentCount: 0,
+    });
+    sectionMap.set('CSIT — Section B', {
+      key: 'CSIT — Section B',
+      department: 'CSIT',
+      section: 'B',
+      year: yearLabel,
+      label: 'CSIT - Sec B',
+      value: 'CSIT-B',
+      rollNumbers: new Set<string>(),
+      studentCount: 0,
+    });
 
     yearStudents.forEach(s => {
       const dept = (s.department || 'CSIT').toUpperCase().trim();
@@ -159,7 +174,13 @@ router.get('/public-sections', async (req: Request, res: Response) => {
       let secLabel = '';
       let secLetter = 'A';
 
-      if (dept === 'CSD' || rawRoll.includes('62') || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
+      const explicitSec = (s.section || '').toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
+      if (explicitSec === 'A' || explicitSec === 'B' || explicitSec === 'C' || explicitSec === 'D') {
+        secLetter = explicitSec;
+        secKey = `${dept} — Section ${explicitSec}`;
+        secValue = `${dept}-${explicitSec}`;
+        secLabel = `${dept} - Sec ${explicitSec}`;
+      } else if (dept === 'CSD' || rawRoll.includes('62') || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
         secKey = 'CSD — Section A';
         secValue = 'CSD-A';
         secLabel = 'CSD - Sec A';
@@ -210,34 +231,22 @@ router.get('/public-sections', async (req: Request, res: Response) => {
       secObj.studentCount += 1;
     });
 
-    // Populate fallback roll numbers if any section has 0 students in DB
-    const result = Array.from(sectionMap.values()).map(sec => {
-      let rolls = Array.from(sec.rollNumbers);
-      if (rolls.length === 0) {
-        if (sec.key.includes('CSIT') && sec.key.includes('B')) {
-          const defaultList: string[] = [];
-          for (let i = 73; i <= 99; i++) defaultList.push(String(i));
-          for (let i = 0; i <= 9; i++) defaultList.push(`A${i}`);
-          for (let i = 0; i <= 9; i++) defaultList.push(`B${i}`);
-          for (let i = 0; i <= 9; i++) defaultList.push(`C${i}`);
-          defaultList.push('D0', 'D1');
-          for (let i = 1; i <= 12; i++) defaultList.push(`LE${i}`);
-          rolls = defaultList;
-        } else {
-          rolls = Array.from({ length: 72 }, (_, i) => String(i + 1));
-        }
-      }
-      return {
-        key: sec.key,
-        department: sec.department,
-        section: sec.section,
-        year: sec.year,
-        label: sec.label,
-        value: sec.value,
-        rollNumbers: sortRolls(rolls),
-        studentCount: sec.studentCount || rolls.length,
-      };
-    });
+    // Return only the sections and real student rolls from DB (no dummy fallback data)
+    const result = Array.from(sectionMap.values())
+      .filter(sec => sec.studentCount > 0 || sec.rollNumbers.size > 0)
+      .map(sec => {
+        const rolls = Array.from(sec.rollNumbers);
+        return {
+          key: sec.key,
+          department: sec.department,
+          section: sec.section,
+          year: sec.year,
+          label: sec.label,
+          value: sec.value,
+          rollNumbers: sortRolls(rolls),
+          studentCount: sec.studentCount,
+        };
+      });
 
     res.json({ sections: result });
   } catch (error) {
@@ -416,6 +425,7 @@ function toApi(r: any) {
     name:        student.name,
     rollNumber:  student.rollNumber ?? fallbackRoll,
     department:  student.department ?? 'CSIT',
+    year:        student.year       ?? undefined,
     semester:    student.semester   ?? 1,
     email:       student.email,
     avatarUrl:   student.avatarUrl  ?? undefined,
@@ -424,6 +434,7 @@ function toApi(r: any) {
     name:        r.studentName || fallbackRoll,
     rollNumber:  fallbackRoll,
     department:  'CSIT',
+    year:        undefined,
     semester:    1,
     email:       `${fallbackRoll.toLowerCase()}@srkrec.ac.in`,
     avatarUrl:   undefined,

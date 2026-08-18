@@ -39,10 +39,9 @@ export async function importStudents(
     }
 
     const report = await importStudentsFromBuffer(req.file.buffer);
-
-    // 200 OK even on partial failures — the report contains the full breakdown
     res.json({ import: report });
-  } catch (err) {
-    next(err);
+  } catch (err: any) {
+    console.error('Error in importStudents controller:', err);
+    res.status(500).json({ error: err.message || 'Failed to process student import' });
   }
 }

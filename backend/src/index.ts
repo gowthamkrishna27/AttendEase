@@ -101,9 +101,10 @@ async function bootstrap() {
 
       server.on('error', (err: NodeJS.ErrnoException) => {
         if (err.code === 'EADDRINUSE') {
-          console.warn(`⚠️  Port ${p} is in use. Trying port ${p + 1}...`);
-          server.close();
-          tryListen(p + 1);
+          console.warn(`⚠️  Port ${p} busy during reload. Retrying in 400ms...`);
+          setTimeout(() => {
+            tryListen(p);
+          }, 400);
         } else {
           console.error('❌  Server error:', err);
           process.exit(1);

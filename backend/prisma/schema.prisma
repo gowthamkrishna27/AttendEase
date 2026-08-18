@@ -47,6 +47,8 @@ model User {
   department  String
   password    String
   rollNumber  String?
+  year        String?
+  section     String?
   semester    Int?
   avatarUrl   String?
   designation String?

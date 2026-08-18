@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet, Download, CheckCircle2, AlertCircle } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -11,12 +11,20 @@ import * as api from '../../lib/api';
 
 export default function AdminUsers() {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch]   = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'student' | 'faculty' | 'hod' | 'admin'>('all');
 
   // Modals state
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingUser, setEditingUser]     = useState<api.AuthUser | null>(null);
+
+  // Bulk Import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile]           = useState<File | null>(null);
+  const [importResult, setImportResult]       = useState<api.ImportReport | null>(null);
+  const [isUploading, setIsUploading]         = useState(false);
+  const [importError, setImportError]         = useState('');
 
   // Form state
   const [formId, setFormId]         = useState('');
@@ -91,6 +99,52 @@ export default function AdminUsers() {
   const handleOpenAdd = () => {
     resetForm();
     setShowFormModal(true);
+  };
+
+  const handleOpenImport = () => {
+    setImportFile(null);
+    setImportResult(null);
+    setImportError('');
+    setShowImportModal(true);
+  };
+
+  const handleDownloadSampleCsv = () => {
+    const csvContent =
+      'Register Number,Student Name,Year,Branch,Section,Role\n' +
+      '23B91A0701,BARAKATA TARUN SWAMY,4,CSIT,A,student\n' +
+      '23B91A0702,BARRI SRAVYA SREE,4,CSIT,A,student\n' +
+      '24B91A0701,Gowtham Krishna,3,CSIT,A,student\n' +
+      'FAC-CSIT-001,Dr. J. Somaraju,3,CSIT,A,faculty\n';
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'students_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!importFile) {
+      setImportError('Please select a .csv or .xlsx file to upload.');
+      return;
+    }
+    setImportError('');
+    setIsUploading(true);
+    try {
+      const report = await api.importStudentsFile(importFile);
+      setImportResult(report);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['public-sections'] });
+    } catch (err: any) {
+      setImportError(err.message || 'Failed to upload student file.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleOpenEdit = (u: api.AuthUser) => {
@@ -192,21 +246,50 @@ export default function AdminUsers() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <p className="text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">Admin Control</p>
-            <h1 className="text-[26px] font-heading font-bold text-slate-900">Manage Accounts</h1>
-            <p className="text-[14px] text-slate-400 mt-1">Full control to create, edit, and delete Student, Faculty, HOD, and Admin accounts</p>
+            <span className="text-[11px] font-semibold text-[#18181b] bg-[#edf0f2] px-2 py-0.5 rounded-[5px]">
+              ADMIN CONTROL
+            </span>
+            <h1 className="text-[22px] font-bold text-[#18181b] tracking-tight mt-1">Manage Accounts</h1>
+            <p className="text-[13px] text-[#6b7280]">Create, edit, delete and bulk upload Student, Faculty, HOD, and Admin accounts</p>
           </div>
-          <Button
-            onClick={handleOpenAdd}
-            className="flex items-center justify-center gap-2 h-[42px] px-5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold text-[13px] rounded-xl shadow-subtle transition-all cursor-pointer w-full sm:w-auto"
-          >
-            <Plus size={16} />
-            <span>Add New User</span>
-          </Button>
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <label
+              htmlFor="header-csv-file-input"
+              className="inline-flex items-center justify-center gap-2 h-[38px] px-3.5 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer flex-1 sm:flex-initial"
+            >
+              <UploadCloud size={15} />
+              <span>Import CSV / Excel</span>
+              <input
+                id="header-csv-file-input"
+                type="file"
+                accept=".csv, .xlsx, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                className="hidden"
+                onClick={(e) => {
+                  (e.target as HTMLInputElement).value = '';
+                }}
+                onChange={e => {
+                  if (e.target.files && e.target.files[0]) {
+                    const selected = e.target.files[0];
+                    setImportFile(selected);
+                    setImportResult(null);
+                    setImportError('');
+                    setShowImportModal(true);
+                  }
+                }}
+              />
+            </label>
+            <button
+              onClick={handleOpenAdd}
+              className="flex items-center justify-center gap-1.5 h-[38px] px-4 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white font-medium text-[13px] rounded-lg shadow-xs transition-all cursor-pointer flex-1 sm:flex-initial"
+            >
+              <Plus size={15} />
+              <span>Add User</span>
+            </button>
+          </div>
         </div>
 
         {/* Toggle Option Tabs */}
-        <div className="flex overflow-x-auto bg-slate-100 border border-slate-200 p-1 rounded-xl mb-5 shadow-subtle">
+        <div className="flex overflow-x-auto bg-[#edf0f2] p-1 rounded-lg mb-4">
           {[
             { id: 'all', label: 'All Accounts' },
             { id: 'student', label: 'Students' },
@@ -218,10 +301,10 @@ export default function AdminUsers() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 py-2 px-3 min-w-[90px] text-center font-bold text-[12px] sm:text-[13px] transition-all rounded-lg cursor-pointer whitespace-nowrap ${
+              className={`flex-1 py-1.5 px-3 min-w-[85px] text-center font-medium text-[12.5px] transition-all rounded-[6px] cursor-pointer whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-[#18181b] text-white shadow-xs'
+                  : 'text-[#6b7280] hover:text-[#18181b]'
               }`}
             >
               {tab.label}
@@ -230,15 +313,15 @@ export default function AdminUsers() {
         </div>
 
         {/* Filter Toolbar */}
-        <div className="flex gap-3 mb-6">
+        <div className="flex gap-3 mb-5">
           <div className="relative flex-1">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#88929e]" />
             <input
               type="text"
               placeholder="Search by name, email, roll no..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full h-[42px] pl-9 pr-4 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/12 transition-all shadow-subtle"
+              className="w-full h-[40px] pl-9 pr-4 text-[13.5px] bg-[#edf0f2] text-[#18181b] placeholder:text-[#88929e] rounded-lg outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all"
             />
           </div>
         </div>
@@ -256,64 +339,101 @@ export default function AdminUsers() {
             action={<Button variant="secondary" onClick={() => { setSearch(''); setActiveTab('student'); }}>Reset Filters</Button>}
           />
         ) : (
-          <div className="card overflow-hidden">
-            {/* Desktop Table View */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            {/* Table Stats Bar */}
+            <div className="px-4 py-2.5 bg-[#f8f9fa] border-b border-slate-200 flex items-center justify-between text-[12px] text-[#6b7280]">
+              <span>Showing <strong className="text-[#18181b]">{sorted.length}</strong> {activeTab === 'all' ? 'total accounts' : `${activeTab} accounts`}</span>
+              <span className="text-[11px] text-[#88929e]">Scroll horizontally if needed</span>
+            </div>
+
+            {/* Structured Grid Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/60">
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">User</th>
-                    <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Role</th>
-                    <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Department</th>
-                    <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">ID / Roll No.</th>
-                    <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Actions</th>
+                  <tr className="bg-[#edf0f2] text-[#374151] border-b border-slate-200">
+                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 w-10">#</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 w-14">Photo</th>
+                    <th className="px-3.5 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Register No.</th>
+                    <th className="px-4 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Full Name</th>
+                    <th className="px-4 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Email Address</th>
+                    <th className="px-3 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 text-center whitespace-nowrap">Role</th>
+                    <th className="px-3 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 text-center whitespace-nowrap">Year</th>
+                    <th className="px-3 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 text-center whitespace-nowrap">Section</th>
+                    <th className="px-3 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 text-center whitespace-nowrap">Branch</th>
+                    <th className="px-3.5 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider text-center whitespace-nowrap w-24">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map(u => (
+                  {sorted.map((u, index) => (
                     <tr
                       key={u.id}
-                      className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
+                      className={`border-b border-slate-200 hover:bg-[#f0f4f8] transition-colors ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-[#fafbfc]'
+                      }`}
                     >
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} />
-                          <div>
-                            <p className="text-[13px] font-semibold text-slate-800">{u.name}</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">{u.email}</p>
-                          </div>
+                      {/* Serial Number */}
+                      <td className="px-3 py-2 text-center text-[#88929e] font-mono text-[12px] border-r border-slate-200 w-10">
+                        {index + 1}
+                      </td>
+
+                      {/* Photo Avatar */}
+                      <td className="px-2 py-2 text-center border-r border-slate-200 w-14">
+                        <div className="flex items-center justify-center">
+                          <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} className="rounded-full shadow-2xs border border-slate-200/80" />
                         </div>
                       </td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 text-[11px] font-bold rounded-full border uppercase tracking-wider ${
-                          u.role === 'hod' ? 'bg-purple-50 text-purple-600 border-purple-200' :
-                          u.role === 'faculty' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                          'bg-orange-50 text-orange-600 border-orange-200'
-                        }`}>
-                          {u.role}
-                        </span>
+
+                      {/* Register Number */}
+                      <td className="px-3.5 py-2 font-mono font-medium text-[#18181b] border-r border-slate-200 whitespace-nowrap">
+                        {u.rollNumber || '—'}
                       </td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className="text-[13px] text-slate-600 font-semibold">{u.department}</span>
+
+                      {/* Name */}
+                      <td className="px-4 py-2 font-semibold text-[#18181b] border-r border-slate-200 whitespace-nowrap">
+                        {u.name}
                       </td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className="text-[13px] font-mono text-slate-500">{u.rollNumber || u.id}</span>
+
+                      {/* Email */}
+                      <td className="px-4 py-2 text-[#6b7280] border-r border-slate-200 whitespace-nowrap text-[12.5px]">
+                        {u.email}
                       </td>
-                      <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2 flex-shrink-0">
+
+                      {/* Role */}
+                      <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151] capitalize">
+                        {u.role === 'hod' ? 'HOD' : u.role}
+                      </td>
+
+                      {/* Year */}
+                      <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12px] text-[#374151]">
+                        {u.year || '—'}
+                      </td>
+
+                      {/* Section */}
+                      <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12px] font-medium text-[#374151]">
+                        {u.section ? `Sec ${u.section}` : '—'}
+                      </td>
+
+                      {/* Branch / Department */}
+                      <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap font-medium text-[12px] text-[#374151]">
+                        {u.department}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => handleOpenEdit(u)}
-                            className="w-7 h-7 bg-slate-50 hover:bg-orange-50 text-slate-400 hover:text-orange-500 border border-slate-200 hover:border-orange-200 rounded-lg flex items-center justify-center transition-all cursor-pointer flex-shrink-0"
+                            className="w-6 h-6 bg-[#edf0f2] hover:bg-[#18181b] text-[#374151] hover:text-white rounded flex items-center justify-center transition-all cursor-pointer"
                             title="Edit User"
                           >
-                            <Edit2 size={13} />
+                            <Edit2 size={12} />
                           </button>
                           <button
                             onClick={() => handleDelete(u.id)}
-                            className="w-7 h-7 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-lg flex items-center justify-center transition-all cursor-pointer flex-shrink-0"
+                            className="w-6 h-6 bg-[#edf0f2] hover:bg-rose-600 text-[#374151] hover:text-white rounded flex items-center justify-center transition-all cursor-pointer"
                             title="Delete User"
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </td>
@@ -321,55 +441,6 @@ export default function AdminUsers() {
                   ))}
                 </tbody>
               </table>
-            </div>
-
-            {/* Mobile Cards View */}
-            <div className="block sm:hidden divide-y divide-slate-100">
-              {sorted.map(u => (
-                <div key={u.id} className="p-4 flex flex-col gap-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[14px] font-semibold text-slate-800 truncate">{u.name}</p>
-                      <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                    <span className="font-semibold text-slate-500 font-mono">{u.rollNumber || u.id}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border uppercase tracking-wider ${
-                        u.role === 'hod' ? 'bg-purple-50 text-purple-600 border-purple-200' :
-                        u.role === 'faculty' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                        'bg-orange-50 text-orange-600 border-orange-200'
-                      }`}>
-                        {u.role}
-                      </span>
-                      <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-500 rounded border border-slate-200">
-                        {u.department}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-slate-400 font-medium">Quick Actions</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleOpenEdit(u)}
-                        className="px-3.5 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg text-[12px] font-bold flex items-center gap-1.5 transition-all active:bg-orange-500 active:text-white"
-                      >
-                        <Edit2 size={12} />
-                        <span>Edit</span>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(u.id)}
-                        className="px-3.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-[12px] font-bold flex items-center gap-1.5 transition-all active:bg-rose-500 active:text-white"
-                      >
-                        <Trash2 size={12} />
-                        <span>Delete</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -632,10 +703,175 @@ export default function AdminUsers() {
             )}
 
             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 mt-1">
-              <Button type="button" variant="secondary" onClick={() => setShowFormModal(false)}>Cancel</Button>
-              <Button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6">
+              <button
+                type="button"
+                onClick={() => setShowFormModal(false)}
+                className="h-[38px] px-4 bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#374151] text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="h-[38px] px-5 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[13px] font-medium rounded-lg shadow-xs transition-all cursor-pointer"
+              >
                 {editingUser ? 'Save Updates' : 'Add User'}
-              </Button>
+              </button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Bulk Import Students Modal */}
+        <Modal
+          isOpen={showImportModal}
+          onClose={() => {
+            setShowImportModal(false);
+            setImportResult(null);
+            setImportFile(null);
+          }}
+          title="Upload Students Data (CSV / Excel)"
+        >
+          <form onSubmit={handleImportSubmit} className="space-y-4">
+            <p className="text-[13px] text-[#6b7280]">
+              Upload a <code className="bg-[#edf0f2] px-1.5 py-0.5 rounded text-[#18181b] font-medium">.csv</code> file containing: <strong className="text-[#18181b]">Register Number, Student Name, Year, Branch, Section, Role</strong> to directly populate or update the database.
+            </p>
+
+            {/* Template Download Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-[#edf0f2] border border-slate-200/80 rounded-xl">
+              <div className="flex items-center gap-2.5">
+                <FileSpreadsheet className="text-[#18181b] shrink-0" size={18} />
+                <div>
+                  <p className="text-[13px] font-semibold text-[#18181b]">Standard CSV Format</p>
+                  <p className="text-[11px] text-[#6b7280] font-mono">Register Number, Student Name, Year, Branch, Section, Role</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleDownloadSampleCsv}
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-[#18181b] bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+              >
+                <Download size={13} />
+                <span>Download Sample</span>
+              </button>
+            </div>
+
+            {/* Dropzone with Native File Input Label & Drag-and-Drop */}
+            <label
+              htmlFor="student-csv-input"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  setImportFile(e.dataTransfer.files[0]);
+                  setImportResult(null);
+                  setImportError('');
+                }
+              }}
+              className={`block border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
+                importFile
+                  ? 'border-[#18181b] bg-slate-50'
+                  : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50/60'
+              }`}
+            >
+              <input
+                id="student-csv-input"
+                type="file"
+                accept=".csv, .xlsx, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                className="hidden"
+                onClick={(e) => {
+                  (e.target as HTMLInputElement).value = '';
+                }}
+                onChange={e => {
+                  if (e.target.files && e.target.files[0]) {
+                    setImportFile(e.target.files[0]);
+                    setImportResult(null);
+                    setImportError('');
+                  }
+                }}
+              />
+              <UploadCloud size={32} className={`mx-auto mb-2 ${importFile ? 'text-[#18181b]' : 'text-[#88929e]'}`} />
+              {importFile ? (
+                <div>
+                  <p className="text-[13.5px] font-semibold text-[#18181b]">{importFile.name}</p>
+                  <p className="text-[11px] text-[#6b7280] mt-0.5">{(importFile.size / 1024).toFixed(1)} KB</p>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-[#18181b] font-medium text-[11.5px] rounded-md border border-slate-200 mt-2 pointer-events-none">
+                    <UploadCloud size={12} />
+                    <span>Choose Different File</span>
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-[13.5px] font-semibold text-[#18181b]">Click to choose file or drag & drop CSV here</p>
+                  <p className="text-[12px] text-[#88929e] mt-0.5 mb-2.5">Supports <span className="font-medium text-[#374151]">.csv</span> and <span className="font-medium text-[#374151]">.xlsx</span> files</p>
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#18181b] hover:bg-[#27272a] text-white font-medium text-[12px] rounded-lg shadow-xs transition-all pointer-events-none">
+                    <UploadCloud size={13} />
+                    <span>Browse CSV File</span>
+                  </span>
+                </div>
+              )}
+            </label>
+
+            {/* Error state */}
+            {importError && (
+              <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-100 rounded-lg text-[12px] text-rose-600 font-medium">
+                <AlertCircle size={15} className="shrink-0" />
+                <span>{importError}</span>
+              </div>
+            )}
+
+            {/* Success Report */}
+            {importResult && (
+              <div className="p-4 bg-emerald-50/80 border border-emerald-100 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 text-emerald-800 font-bold text-[13px]">
+                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                  <span>Import Completed!</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-emerald-100/80">
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">New Added</span>
+                    <span className="text-[16px] font-extrabold text-emerald-600">{importResult.inserted}</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Updated / Synced</span>
+                    <span className="text-[16px] font-extrabold text-sky-600">{importResult.upserted || importResult.skipped || 0}</span>
+                  </div>
+                </div>
+                {importResult.failed && importResult.failed.length > 0 && importResult.failed.some(f => !f.reason.includes('skipped')) && (
+                  <div className="pt-2 text-[11px] text-slate-600">
+                    <p className="font-semibold text-rose-600 mb-1">Warnings / Errors:</p>
+                    <ul className="list-disc pl-4 space-y-0.5 text-slate-500 max-h-24 overflow-y-auto">
+                      {importResult.failed.filter(f => !f.reason.includes('skipped')).map((f, idx) => (
+                        <li key={idx}>Row {f.row || '?'}: {f.reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 mt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportResult(null);
+                  setImportFile(null);
+                }}
+                className="h-[38px] px-4 bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#374151] text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+              >
+                {importResult ? 'Close' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleImportSubmit}
+                disabled={!importFile || isUploading}
+                className="h-[38px] px-5 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[13px] font-medium rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {isUploading ? 'Importing...' : 'Upload to Database'}
+              </button>
             </div>
           </form>
         </Modal>

@@ -521,6 +521,55 @@ export async function resetUserPassword(id: string, newPassword: string): Promis
   });
 }
 
+export interface ImportReport {
+  inserted: number;
+  skipped: number;
+  upserted: number;
+  failed: Array<{ row?: number; rollNumber?: string; reason: string }>;
+}
+
+export async function importStudentsFile(file: File): Promise<ImportReport> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = getStoredToken();
+  const headers: Record<string, string> = {
+    'x-role-override': 'admin',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const bases = [BASE, '', 'http://localhost:3000', 'http://localhost:3001'].filter((v, i, a) => a.indexOf(v) === i);
+  let lastError: any = null;
+  let response: Response | null = null;
+
+  for (const b of bases) {
+    try {
+      const res = await fetch(`${b}/api/admin/students/import`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      if (res.status === 404) continue;
+      response = res;
+      break;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  if (!response) {
+    throw lastError || new Error('Failed to connect to backend server');
+  }
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to import students file');
+  }
+  return data.import;
+}
+
 // ─── Attendance API ──────────────────────────────────────────────────────────
 
 export interface AttendanceRecordItem {

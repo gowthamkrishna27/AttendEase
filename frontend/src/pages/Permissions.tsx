@@ -534,25 +534,31 @@ const PermissionGrid = React.memo(({
 
             {/* Non-stretching fixed grid container */}
             <div className="p-4 sm:p-6 bg-slate-50/20">
-              <div className="flex flex-wrap justify-center gap-3 sm:gap-3.5 max-w-[680px] mx-auto">
-                {rollNumbers.map(numStr => {
-                  const req = permissionMap.get(numStr);
-                  const dbRecord = submissionRecordsMap[numStr];
-                  const isDbMarked = Boolean(dbRecord);
-                  const marked = dbRecord ? dbRecord.status : markedAttendance[numStr];
-                  return (
-                    <RollButton
-                      key={numStr}
-                      rollNo={numStr}
-                      request={req}
-                      markedStatus={marked}
-                      isDbMarked={isDbMarked}
-                      markedByName={dbRecord?.markedByName}
-                      onClick={() => onRollClick(numStr, req, isDbMarked, dbRecord?.markedByName, dbRecord?.status)}
-                    />
-                  );
-                })}
-              </div>
+              {rollNumbers.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-[12px] font-medium">
+                  No registered students found for this section in the database.
+                </div>
+              ) : (
+                <div className="flex flex-wrap justify-center gap-3 sm:gap-3.5 max-w-[680px] mx-auto">
+                  {rollNumbers.map(numStr => {
+                    const req = permissionMap.get(numStr);
+                    const dbRecord = submissionRecordsMap[numStr];
+                    const isDbMarked = Boolean(dbRecord);
+                    const marked = dbRecord ? dbRecord.status : markedAttendance[numStr];
+                    return (
+                      <RollButton
+                        key={numStr}
+                        rollNo={numStr}
+                        request={req}
+                        markedStatus={marked}
+                        isDbMarked={isDbMarked}
+                        markedByName={dbRecord?.markedByName}
+                        onClick={() => onRollClick(numStr, req, isDbMarked, dbRecord?.markedByName, dbRecord?.status)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -691,11 +697,11 @@ export default function PermissionsPage() {
   const todayStr = getTodayDateString();
   const effectiveDate = dateMode === 'today' ? todayStr : dateMode === 'custom' ? customDate : undefined;
 
-  // Query Dynamic Sections List from Database for the academic year
+  // Query Dynamic Sections List from Database for the academic year (Live DB Sync)
   const { data: dbSections = [] } = useQuery<api.PublicSectionItem[]>({
     queryKey: ['public-sections', selectedYear],
-    queryFn: () => api.getPublicSections(selectedYear || undefined),
-    staleTime: 10000,
+    queryFn: () => api.getPublicSections(selectedYear || '3rd Year'),
+    refetchInterval: 3000,
     refetchOnWindowFocus: true,
   });
 
@@ -717,39 +723,52 @@ export default function PermissionsPage() {
     ];
   }, [dbSections]);
 
-  // Section Roll Numbers Map from DB
+  // Normalized Section Roll Numbers Map from DB
   const sectionRollNumbersMap = useMemo(() => {
     const map: Record<string, string[]> = {};
+    const norm = (str: string) => (str || '').toUpperCase().replace(/[—–\s-]/g, '').replace(/SECTION/g, 'SEC');
+
     dbSections.forEach(s => {
       if (s.rollNumbers && s.rollNumbers.length > 0) {
         map[s.key] = s.rollNumbers;
         map[s.value] = s.rollNumbers;
         map[s.key.replace(/[—–]/g, '-')] = s.rollNumbers;
         map[s.key.replace(/-/g, '—')] = s.rollNumbers;
+        map[norm(s.key)] = s.rollNumbers;
+        map[norm(s.value)] = s.rollNumbers;
       }
     });
     return map;
   }, [dbSections]);
 
   const getDynamicSectionRollNumbers = useCallback((sectionKey: string): string[] => {
-    const norm = sectionKey.replace(/[—–]/g, '-');
+    const normKey = (sectionKey || '').toUpperCase().replace(/[—–\s-]/g, '').replace(/SECTION/g, 'SEC');
     if (sectionRollNumbersMap[sectionKey] && sectionRollNumbersMap[sectionKey].length > 0) {
       return sectionRollNumbersMap[sectionKey];
     }
-    if (sectionRollNumbersMap[norm] && sectionRollNumbersMap[norm].length > 0) {
-      return sectionRollNumbersMap[norm];
+    if (sectionRollNumbersMap[normKey] && sectionRollNumbersMap[normKey].length > 0) {
+      return sectionRollNumbersMap[normKey];
     }
-    return getSectionRollNumbers(sectionKey);
-  }, [sectionRollNumbersMap]);
+    // Also try matching against dbSections directly
+    const foundSec = dbSections.find(s => {
+      const sNorm = (s.key || '').toUpperCase().replace(/[—–\s-]/g, '').replace(/SECTION/g, 'SEC');
+      const vNorm = (s.value || '').toUpperCase().replace(/[—–\s-]/g, '').replace(/SECTION/g, 'SEC');
+      return sNorm === normKey || vNorm === normKey || s.key === sectionKey;
+    });
+    if (foundSec && foundSec.rollNumbers && foundSec.rollNumbers.length > 0) {
+      return foundSec.rollNumbers;
+    }
+    return [];
+  }, [sectionRollNumbersMap, dbSections]);
 
-  // Query Backend Requests from Database (Always active for selected date)
+  // Query Backend Requests from Database (Live DB Sync)
   const { data: apiRequests = [], isLoading } = useQuery({
     queryKey: ['public-approved-requests', effectiveDate, dateMode],
     queryFn: () => api.getPublicApprovedRequests({
       date: effectiveDate,
     }),
-    staleTime: 5000,
-    retry: 2,
+    refetchInterval: 3000,
+    refetchOnWindowFocus: true,
   });
 
   // Query Faculty Attendance Submissions for selected date (Always active for selected date)
@@ -812,19 +831,23 @@ export default function PermissionsPage() {
         rollNo.toLowerCase().includes(search.toLowerCase()) ||
         req.reasonLabel.toLowerCase().includes(search.toLowerCase());
 
-      // Year Filter
+      // Year Filter (Prioritize explicit student.year record from DB)
       let matchesYear = true;
       if (selectedYear) {
         const targetDigit = (selectedYear.match(/([1-4])/) || [])[1] || '3';
-        const sem = req.student?.semester;
-        if (sem && typeof sem === 'number') {
-          matchesYear = String(Math.ceil(sem / 2)) === targetDigit;
+        if (req.student?.year) {
+          const digitMatch = req.student.year.match(/([1-4])/);
+          if (digitMatch) matchesYear = digitMatch[1] === targetDigit;
+        } else if (req.student?.semester && typeof req.student.semester === 'number') {
+          matchesYear = String(Math.ceil(req.student.semester / 2)) === targetDigit;
         } else {
           const upperRoll = rollNo.toUpperCase();
-          if (targetDigit === '3') matchesYear = upperRoll.startsWith('24B') || upperRoll.startsWith('25B95A');
-          else if (targetDigit === '2') matchesYear = upperRoll.startsWith('25B');
-          else if (targetDigit === '1') matchesYear = upperRoll.startsWith('26B');
-          else if (targetDigit === '4') matchesYear = upperRoll.startsWith('23B');
+          const isLateralEntry = upperRoll.includes('95A') || upperRoll.includes('LE') || /LE\d+$/i.test(upperRoll);
+
+          if (targetDigit === '3') matchesYear = upperRoll.startsWith('24B') || (upperRoll.startsWith('25B') && isLateralEntry);
+          else if (targetDigit === '2') matchesYear = upperRoll.startsWith('25B') && !isLateralEntry;
+          else if (targetDigit === '1') matchesYear = upperRoll.startsWith('26B') && !isLateralEntry;
+          else if (targetDigit === '4') matchesYear = upperRoll.startsWith('23B') || (upperRoll.startsWith('24B') && isLateralEntry);
         }
       }
 
@@ -1146,8 +1169,8 @@ export default function PermissionsPage() {
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${viewMode === 'grid'
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-orange-500 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                     }`}
                   title="Grid View (Roll 1-72)"
                 >
@@ -1157,8 +1180,8 @@ export default function PermissionsPage() {
                 <button
                   onClick={() => setViewMode('list')}
                   className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${viewMode === 'list'
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-orange-500 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                     }`}
                   title="List View"
                 >
@@ -1190,8 +1213,8 @@ export default function PermissionsPage() {
                     showToast(`Showing Today's Permissions (${todayStr})`);
                   }}
                   className={`px-2.5 py-1 rounded-lg cursor-pointer transition-all ${dateMode === 'today'
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-orange-500 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                     }`}
                 >
                   Today ({getTodayFormattedDate()})
@@ -1200,8 +1223,8 @@ export default function PermissionsPage() {
                 {/* Calendar Symbol Icon Button with Date Picker Functionality */}
                 <div
                   className={`relative flex items-center justify-center px-2 py-1 rounded-lg cursor-pointer transition-all ${dateMode === 'custom'
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-orange-500 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                     }`}
                   title={dateMode === 'custom' ? `Selected Date: ${customDate} (Click to change)` : 'Pick a date from calendar'}
                 >
@@ -1252,8 +1275,8 @@ export default function PermissionsPage() {
                     }}
                     title={yr.value}
                     className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${selectedYear === yr.value
-                        ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-500/20 scale-105'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
+                      ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-500/20 scale-105'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
                       }`}
                   >
                     {yr.label}
@@ -1282,9 +1305,9 @@ export default function PermissionsPage() {
                           : sectionFilter === 'none'
                             ? 'Choose Section...'
                             : (sectionOptions.find(opt => opt.value === sectionFilter)?.key ||
-                               sectionOptions.find(opt => opt.value === sectionFilter)?.label ||
-                               sectionFilter ||
-                               'Choose Section...')}
+                              sectionOptions.find(opt => opt.value === sectionFilter)?.label ||
+                              sectionFilter ||
+                              'Choose Section...')}
                   </span>
                 </div>
                 <ChevronDown size={16} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
@@ -1414,8 +1437,8 @@ export default function PermissionsPage() {
                     type="button"
                     onClick={() => setSelectedSubmissionId('combined')}
                     className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer ${selectedSubmissionId === 'combined'
-                        ? 'bg-orange-500 text-white shadow-2xs'
-                        : 'bg-orange-500/10 text-orange-800 hover:bg-orange-500/20 border border-orange-200/60'
+                      ? 'bg-orange-500 text-white shadow-2xs'
+                      : 'bg-orange-500/10 text-orange-800 hover:bg-orange-500/20 border border-orange-200/60'
                       }`}
                   >
                     Combined Overview
@@ -1426,8 +1449,8 @@ export default function PermissionsPage() {
                       type="button"
                       onClick={() => setSelectedSubmissionId(sub.id)}
                       className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${selectedSubmissionId === sub.id
-                          ? 'bg-orange-500 text-white shadow-2xs'
-                          : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
+                        ? 'bg-orange-500 text-white shadow-2xs'
+                        : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                         }`}
                     >
                       <span>{sub.markedBy?.name}:</span>
