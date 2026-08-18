@@ -763,31 +763,30 @@ export default function AdminUsers() {
               transition={{ duration: 0.15 }}
               style={{
                 position: 'fixed', inset: 0, zIndex: 300,
-                background: 'rgba(0,0,0,0.6)',
-                backdropFilter: 'blur(10px)',
+                background: 'rgba(0,0,0,0.35)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexDirection: 'column', gap: 16,
+                pointerEvents: 'none',
               }}
             >
               <motion.div
-                animate={{ scale: [1, 1.08, 1] }}
-                transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 25 }}
                 style={{
-                  width: 80, height: 80, borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.15)',
-                  backdropFilter: 'blur(8px)',
-                  border: '2px solid rgba(255,255,255,0.35)',
+                  width: 68, height: 68, borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.18)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1.5px solid rgba(255,255,255,0.35)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
                 }}
               >
-                <FileSpreadsheet size={36} color="#fff" />
+                <Plus size={36} color="#ffffff" strokeWidth={2.5} />
               </motion.div>
-              <p style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: -0.3 }}>
-                Drop to Import
-              </p>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', margin: 0 }}>
-                CSV or Excel file
-              </p>
             </motion.div>
           )}
         </AnimatePresence>
