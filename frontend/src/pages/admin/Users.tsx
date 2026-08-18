@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
-import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet, Download, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -20,11 +21,10 @@ export default function AdminUsers() {
   const [editingUser, setEditingUser]     = useState<api.AuthUser | null>(null);
 
   // Bulk Import state
-  const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile]           = useState<File | null>(null);
-  const [importResult, setImportResult]       = useState<api.ImportReport | null>(null);
   const [isUploading, setIsUploading]         = useState(false);
-  const [importError, setImportError]         = useState('');
+  const [isDraggingOver, setIsDraggingOver]   = useState(false);
+  const dragCounterRef = useRef(0);
 
   // Form state
   const [formId, setFormId]         = useState('');
@@ -47,6 +47,41 @@ export default function AdminUsers() {
   });
 
   const facultyList = usersList.filter(u => u.role === 'faculty' || u.role === 'hod');
+
+  // ── Global window drag-and-drop for CSV/Excel ────────────────────────────────
+  useEffect(() => {
+    const onDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current += 1;
+      if (dragCounterRef.current === 1) setIsDraggingOver(true);
+    };
+    const onDragOver = (e: DragEvent) => { e.preventDefault(); };
+    const onDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current -= 1;
+      if (dragCounterRef.current === 0) setIsDraggingOver(false);
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDraggingOver(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.type.includes('csv') || file.type.includes('spreadsheet'))) {
+        handleAutoUpload(file);
+      }
+    };
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('drop', onDrop);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const createMutation = useMutation({
     mutationFn: (data: api.CreateUserPayload) => api.createUser(data),
@@ -101,13 +136,6 @@ export default function AdminUsers() {
     setShowFormModal(true);
   };
 
-  const handleOpenImport = () => {
-    setImportFile(null);
-    setImportResult(null);
-    setImportError('');
-    setShowImportModal(true);
-  };
-
   const handleDownloadSampleCsv = () => {
     const csvContent =
       'Register Number,Student Name,Year,Branch,Section,Role\n' +
@@ -127,23 +155,30 @@ export default function AdminUsers() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImportSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!importFile) {
-      setImportError('Please select a .csv or .xlsx file to upload.');
-      return;
-    }
-    setImportError('');
+  // Called directly from header file-input or window drop — auto-uploads and shows alert
+  const handleAutoUpload = async (file: File) => {
+    setImportFile(file);
     setIsUploading(true);
     try {
-      const report = await api.importStudentsFile(importFile);
-      setImportResult(report);
+      const report = await api.importStudentsFile(file);
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['public-sections'] });
+      const failedCount = report.failed?.length || 0;
+      const failedLines = failedCount > 0
+        ? '\n\nFailed rows:\n' + report.failed.map(f => `  Row ${f.row ?? '?'}: ${f.reason}`).join('\n')
+        : '';
+      window.alert(
+        `✅ Import Complete — ${file.name}\n\n` +
+        `  ➕ New added : ${report.inserted}\n` +
+        `  🔄 Updated  : ${report.upserted || report.skipped || 0}\n` +
+        `  ❌ Failed   : ${failedCount}` +
+        failedLines
+      );
     } catch (err: any) {
-      setImportError(err.message || 'Failed to upload student file.');
+      window.alert(`❌ Import Failed\n\n${err.message || 'Failed to upload student file.'}`);
     } finally {
       setIsUploading(false);
+      setImportFile(null);
     }
   };
 
@@ -269,11 +304,8 @@ export default function AdminUsers() {
                 }}
                 onChange={e => {
                   if (e.target.files && e.target.files[0]) {
-                    const selected = e.target.files[0];
-                    setImportFile(selected);
-                    setImportResult(null);
-                    setImportError('');
-                    setShowImportModal(true);
+                    handleAutoUpload(e.target.files[0]);
+                    (e.target as HTMLInputElement).value = '';
                   }
                 }}
               />
@@ -720,163 +752,48 @@ export default function AdminUsers() {
           </form>
         </Modal>
 
-        {/* Bulk Import Students Modal */}
-        <Modal
-          isOpen={showImportModal}
-          onClose={() => {
-            setShowImportModal(false);
-            setImportResult(null);
-            setImportFile(null);
-          }}
-          title="Upload Students Data (CSV / Excel)"
-        >
-          <form onSubmit={handleImportSubmit} className="space-y-4">
-            <p className="text-[13px] text-[#6b7280]">
-              Upload a <code className="bg-[#edf0f2] px-1.5 py-0.5 rounded text-[#18181b] font-medium">.csv</code> file containing: <strong className="text-[#18181b]">Register Number, Student Name, Year, Branch, Section, Role</strong> to directly populate or update the database.
-            </p>
-
-            {/* Template Download Banner */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-[#edf0f2] border border-slate-200/80 rounded-xl">
-              <div className="flex items-center gap-2.5">
-                <FileSpreadsheet className="text-[#18181b] shrink-0" size={18} />
-                <div>
-                  <p className="text-[13px] font-semibold text-[#18181b]">Standard CSV Format</p>
-                  <p className="text-[11px] text-[#6b7280] font-mono">Register Number, Student Name, Year, Branch, Section, Role</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleDownloadSampleCsv}
-                className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-[#18181b] bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all cursor-pointer shadow-xs whitespace-nowrap"
-              >
-                <Download size={13} />
-                <span>Download Sample</span>
-              </button>
-            </div>
-
-            {/* Dropzone with Native File Input Label & Drag-and-Drop */}
-            <label
-              htmlFor="student-csv-input"
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
+        {/* ── Global drag-over overlay ─────────────────────────────────── */}
+        <AnimatePresence>
+          {isDraggingOver && (
+            <motion.div
+              key="drag-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 300,
+                background: 'rgba(0,0,0,0.6)',
+                backdropFilter: 'blur(10px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexDirection: 'column', gap: 16,
               }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                  setImportFile(e.dataTransfer.files[0]);
-                  setImportResult(null);
-                  setImportError('');
-                }
-              }}
-              className={`block border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
-                importFile
-                  ? 'border-[#18181b] bg-slate-50'
-                  : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50/60'
-              }`}
             >
-              <input
-                id="student-csv-input"
-                type="file"
-                accept=".csv, .xlsx, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                className="hidden"
-                onClick={(e) => {
-                  (e.target as HTMLInputElement).value = '';
+              <motion.div
+                animate={{ scale: [1, 1.08, 1] }}
+                transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}
+                style={{
+                  width: 80, height: 80, borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.15)',
+                  backdropFilter: 'blur(8px)',
+                  border: '2px solid rgba(255,255,255,0.35)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
-                onChange={e => {
-                  if (e.target.files && e.target.files[0]) {
-                    setImportFile(e.target.files[0]);
-                    setImportResult(null);
-                    setImportError('');
-                  }
-                }}
-              />
-              <UploadCloud size={32} className={`mx-auto mb-2 ${importFile ? 'text-[#18181b]' : 'text-[#88929e]'}`} />
-              {importFile ? (
-                <div>
-                  <p className="text-[13.5px] font-semibold text-[#18181b]">{importFile.name}</p>
-                  <p className="text-[11px] text-[#6b7280] mt-0.5">{(importFile.size / 1024).toFixed(1)} KB</p>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-[#18181b] font-medium text-[11.5px] rounded-md border border-slate-200 mt-2 pointer-events-none">
-                    <UploadCloud size={12} />
-                    <span>Choose Different File</span>
-                  </span>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-[13.5px] font-semibold text-[#18181b]">Click to choose file or drag & drop CSV here</p>
-                  <p className="text-[12px] text-[#88929e] mt-0.5 mb-2.5">Supports <span className="font-medium text-[#374151]">.csv</span> and <span className="font-medium text-[#374151]">.xlsx</span> files</p>
-                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#18181b] hover:bg-[#27272a] text-white font-medium text-[12px] rounded-lg shadow-xs transition-all pointer-events-none">
-                    <UploadCloud size={13} />
-                    <span>Browse CSV File</span>
-                  </span>
-                </div>
-              )}
-            </label>
-
-            {/* Error state */}
-            {importError && (
-              <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-100 rounded-lg text-[12px] text-rose-600 font-medium">
-                <AlertCircle size={15} className="shrink-0" />
-                <span>{importError}</span>
-              </div>
-            )}
-
-            {/* Success Report */}
-            {importResult && (
-              <div className="p-4 bg-emerald-50/80 border border-emerald-100 rounded-xl space-y-2">
-                <div className="flex items-center gap-2 text-emerald-800 font-bold text-[13px]">
-                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                  <span>Import Completed!</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-emerald-100/80">
-                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">New Added</span>
-                    <span className="text-[16px] font-extrabold text-emerald-600">{importResult.inserted}</span>
-                  </div>
-                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Updated / Synced</span>
-                    <span className="text-[16px] font-extrabold text-sky-600">{importResult.upserted || importResult.skipped || 0}</span>
-                  </div>
-                </div>
-                {importResult.failed && importResult.failed.length > 0 && importResult.failed.some(f => !f.reason.includes('skipped')) && (
-                  <div className="pt-2 text-[11px] text-slate-600">
-                    <p className="font-semibold text-rose-600 mb-1">Warnings / Errors:</p>
-                    <ul className="list-disc pl-4 space-y-0.5 text-slate-500 max-h-24 overflow-y-auto">
-                      {importResult.failed.filter(f => !f.reason.includes('skipped')).map((f, idx) => (
-                        <li key={idx}>Row {f.row || '?'}: {f.reason}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 mt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowImportModal(false);
-                  setImportResult(null);
-                  setImportFile(null);
-                }}
-                className="h-[38px] px-4 bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#374151] text-[13px] font-medium rounded-lg transition-all cursor-pointer"
               >
-                {importResult ? 'Close' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                onClick={handleImportSubmit}
-                disabled={!importFile || isUploading}
-                className="h-[38px] px-5 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[13px] font-medium rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
-              >
-                {isUploading ? 'Importing...' : 'Upload to Database'}
-              </button>
-            </div>
-          </form>
-        </Modal>
+                <FileSpreadsheet size={36} color="#fff" />
+              </motion.div>
+              <p style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: -0.3 }}>
+                Drop to Import
+              </p>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', margin: 0 }}>
+                CSV or Excel file
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
     </PageWrapper>
   );
 }
+

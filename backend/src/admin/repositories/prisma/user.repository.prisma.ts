@@ -19,7 +19,6 @@ import type { CreateUserBody, UpdateUserBody } from '../../types/user.types.js';
 
 export async function listAllUsers(): ReturnType<IUserRepository['listAllUsers']> {
   const records = await prisma.user.findMany({
-    where:   { isActive: true },
     orderBy: [{ role: 'asc' }, { name: 'asc' }],
     omit:    { password: true },
   });
@@ -30,7 +29,6 @@ export async function findUserByUserId(userId: string): ReturnType<IUserReposito
   const record = await prisma.user.findFirst({
     where: {
       OR: [{ userId }, { id: userId }],
-      isActive: true,
     },
     omit:  { password: true },
   });
@@ -39,7 +37,7 @@ export async function findUserByUserId(userId: string): ReturnType<IUserReposito
 
 export async function findUserByEmail(email: string): ReturnType<IUserRepository['findUserByEmail']> {
   const record = await prisma.user.findFirst({
-    where: { email: email.toLowerCase(), isActive: true },
+    where: { email: email.toLowerCase() },
     omit:  { password: true },
   });
   return record as Record<string, unknown> | null;
@@ -104,15 +102,14 @@ export async function softDeleteUser(userId: string): ReturnType<IUserRepository
     const existing = await prisma.user.findFirst({
       where: {
         OR: [{ userId }, { id: userId }],
-        isActive: true,
       },
       select: { id: true },
     });
     if (!existing) return false;
 
-    await prisma.user.update({
+    // Hard delete — permanently removes the user record from the DB
+    await prisma.user.delete({
       where: { id: existing.id },
-      data:  { isActive: false },
     });
     return true;
   } catch {
