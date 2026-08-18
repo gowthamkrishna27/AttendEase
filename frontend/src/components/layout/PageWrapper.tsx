@@ -9,7 +9,8 @@ import {
   CheckSquare, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import logo from '../../assets/logo.png';
+import attendEaseLogo from '../../assets/logo.png';
+const srkrLogo = '/srkr-emblem.png';
 
 interface PageWrapperProps {
   children: ReactNode;
@@ -26,29 +27,29 @@ const studentNav = [
   { to: '/student/profile', label: 'Profile', icon: User },
 ];
 const facultyNav = [
-  { to: '/faculty',          label: 'Dashboard',     icon: Home          },
+  { to: '/faculty', label: 'Dashboard', icon: Home },
   { to: '/faculty/attendance', label: 'Mark Attendance', icon: CheckSquare },
-  { to: '/faculty/requests', label: 'Requests',      icon: ClipboardList },
-  { to: '/faculty/students', label: 'Students',      icon: Users         },
-  { to: '/faculty/reports',  label: 'Reports',       icon: BarChart2     },
-  { to: '/faculty/settings', label: 'Settings',      icon: Settings      },
+  { to: '/faculty/requests', label: 'Requests', icon: ClipboardList },
+  { to: '/faculty/students', label: 'Students', icon: Users },
+  { to: '/faculty/reports', label: 'Reports', icon: BarChart2 },
+  { to: '/faculty/settings', label: 'Settings', icon: Settings },
 ];
 
 const hodNav = [
-  { to: '/hod',          label: 'Overview',     icon: Home          },
-  { to: '/hod/requests', label: 'All Requests',  icon: ClipboardList },
-  { to: '/hod/faculty',  label: 'Faculty',       icon: Users         },
-  { to: '/hod/reports',  label: 'Reports',       icon: BarChart2     },
-  { to: '/permissions',  label: 'Permissions',   icon: Shield        },
-  { to: '/hod/settings', label: 'Settings',      icon: Settings      },
+  { to: '/hod', label: 'Overview', icon: Home },
+  { to: '/hod/requests', label: 'All Requests', icon: ClipboardList },
+  { to: '/hod/faculty', label: 'Faculty', icon: Users },
+  { to: '/hod/reports', label: 'Reports', icon: BarChart2 },
+  { to: '/permissions', label: 'Permissions', icon: Shield },
+  { to: '/hod/settings', label: 'Settings', icon: Settings },
 ];
 
 const adminNav = [
-  { to: '/admin',            label: 'Dashboard',           icon: Home          },
-  { to: '/admin/users',      label: 'Accounts & Students', icon: Users         },
-  { to: '/admin/counseling', label: 'Counseling',          icon: UserCheck     },
-  { to: '/admin/requests',   label: 'Request Logs',        icon: ClipboardList },
-  { to: '/admin/settings',   label: 'Settings',            icon: Settings      },
+  { to: '/admin', label: 'Dashboard', icon: Home },
+  { to: '/admin/users', label: 'Accounts & Students', icon: Users },
+  { to: '/admin/counseling', label: 'Counseling', icon: UserCheck },
+  { to: '/admin/requests', label: 'Request Logs', icon: ClipboardList },
+  { to: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
 /* Bottom tab bar items (mobile) */
@@ -125,10 +126,21 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         padding: '0 24px',
       }}>
         <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
-          <img src={logo} alt="SRKR" style={{ width: 34, height: 34, objectFit: 'contain' }} />
+          <img
+            src={attendEaseLogo}
+            alt="AttendEase"
+            style={{
+              width: 40, height: 40,
+              objectFit: 'contain',
+              background: 'transparent',
+            }}
+          />
           <div style={{ lineHeight: 1.15 }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#18181b', margin: 0, letterSpacing: '-0.01em' }}>SRKR Engineering College</p>
-            <p style={{ fontSize: 12, fontWeight: 500, color: '#6b7280', margin: 0 }}>CSD &amp; CSIT</p>
+            <p style={{ fontSize: 16, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+              <span style={{ color: '#18181b' }}>Attend</span>
+              <span style={{ color: '#EA580C' }}>Ease</span>
+            </p>
+            <p style={{ fontSize: 11, fontWeight: 500, color: '#6b7280', margin: 0 }}>Permission Portal</p>
           </div>
         </Link>
 
@@ -140,12 +152,31 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               title={user.role === 'admin' ? 'Add User' : 'Settings'}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 34, height: 34, borderRadius: 8, background: '#edf0f2',
-                color: '#18181b', textDecoration: 'none',
+                width: 34, height: 34, borderRadius: 8,
+                background: user.role === 'admin' ? '#edf0f2' : '#FFF7ED',
+                border: user.role === 'admin' ? '1px solid #e2e6e9' : '1px solid #FED7AA',
+                color: user.role === 'admin' ? '#18181b' : '#EA580C',
+                textDecoration: 'none',
                 transition: 'all 0.15s ease',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#e2e6e9'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; }}
+              onMouseEnter={e => {
+                if (user.role === 'admin') {
+                  e.currentTarget.style.background = '#e2e6e9';
+                } else {
+                  e.currentTarget.style.background = '#EA580C';
+                  e.currentTarget.style.color = '#ffffff';
+                  e.currentTarget.style.borderColor = '#EA580C';
+                }
+              }}
+              onMouseLeave={e => {
+                if (user.role === 'admin') {
+                  e.currentTarget.style.background = '#edf0f2';
+                } else {
+                  e.currentTarget.style.background = '#FFF7ED';
+                  e.currentTarget.style.color = '#EA580C';
+                  e.currentTarget.style.borderColor = '#FED7AA';
+                }
+              }}
             >
               {user.role === 'admin' ? <Plus size={16} /> : <Settings size={15} />}
             </Link>
@@ -157,13 +188,22 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               to="/login"
               style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '6px 14px', fontSize: 13, fontWeight: 600,
-                color: '#ffffff', background: '#18181b',
+                padding: '6px 14px', fontSize: 12.5, fontWeight: 600,
+                color: '#EA580C', background: '#FFF7ED',
+                border: '1px solid #FED7AA',
                 borderRadius: 8, textDecoration: 'none',
                 transition: 'all 0.15s ease',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#27272a'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#18181b'; }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#EA580C';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = '#EA580C';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = '#FFF7ED';
+                e.currentTarget.style.color = '#EA580C';
+                e.currentTarget.style.borderColor = '#FED7AA';
+              }}
             >
               <LogIn size={14} />
               <span>Login</span>
@@ -177,15 +217,24 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                     style={{
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
-                      color: '#18181b', background: '#edf0f2',
+                      color: '#EA580C', background: '#FFF7ED',
+                      border: '1px solid #FED7AA',
                       borderRadius: 8, textDecoration: 'none',
                       transition: 'all 0.15s ease',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#e2e6e9'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#EA580C';
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.borderColor = '#EA580C';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = '#FFF7ED';
+                      e.currentTarget.style.color = '#EA580C';
+                      e.currentTarget.style.borderColor = '#FED7AA';
+                    }}
                   >
                     <Home size={14} />
-                    <span>{user.role === 'student' ? 'Student Portal' : user.role === 'faculty' ? 'Faculty Portal' : 'HOD Portal'}</span>
+                    <span>Dashboard</span>
                   </Link>
                 ) : (
                   <Link
@@ -193,12 +242,21 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                     style={{
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
-                      color: '#18181b', background: '#edf0f2',
+                      color: '#EA580C', background: '#FFF7ED',
+                      border: '1px solid #FED7AA',
                       borderRadius: 8, textDecoration: 'none',
                       transition: 'all 0.15s ease',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#e2e6e9'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#EA580C';
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.borderColor = '#EA580C';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = '#FFF7ED';
+                      e.currentTarget.style.color = '#EA580C';
+                      e.currentTarget.style.borderColor = '#FED7AA';
+                    }}
                   >
                     <Shield size={14} />
                     <span>View Permissions</span>
@@ -211,6 +269,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
                     color: '#18181b', background: '#edf0f2',
+                    border: '1px solid #e2e6e9',
                     borderRadius: 8, textDecoration: 'none',
                     transition: 'all 0.15s ease',
                   }}
@@ -253,10 +312,21 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
       }}>
         {/* Left: logo + brand */}
         <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-          <img src={logo} alt="SRKR" style={{ width: 30, height: 30, objectFit: 'contain' }} />
+          <img
+            src={attendEaseLogo}
+            alt="AttendEase"
+            style={{
+              width: 28, height: 28,
+              objectFit: 'contain',
+              background: 'transparent',
+            }}
+          />
           <div style={{ lineHeight: 1.15 }}>
-            <p style={{ fontSize: 13.5, fontWeight: 700, color: '#18181b', margin: 0 }}>SRKR Engineering</p>
-            <p style={{ fontSize: 10.5, fontWeight: 500, color: '#6b7280', margin: 0 }}>CSD &amp; CSIT</p>
+            <p style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
+              <span style={{ color: '#18181b' }}>Attend</span>
+              <span style={{ color: '#EA580C' }}>Ease</span>
+            </p>
+            <p style={{ fontSize: 10, fontWeight: 500, color: '#6b7280', margin: 0 }}>Permission Portal</p>
           </div>
         </Link>
 
@@ -267,8 +337,11 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
               title={user.role === 'admin' ? 'Add User' : 'Settings'}
               style={{
-                width: 32, height: 32, borderRadius: 8, background: '#edf0f2',
-                color: '#18181b', textDecoration: 'none',
+                width: 32, height: 32, borderRadius: 8,
+                background: user.role === 'admin' ? '#edf0f2' : '#FFF7ED',
+                border: user.role === 'admin' ? '1px solid #e2e6e9' : '1px solid #FED7AA',
+                color: user.role === 'admin' ? '#18181b' : '#EA580C',
+                textDecoration: 'none',
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}
             >
@@ -281,8 +354,9 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               to="/login"
               style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                padding: '5px 10px', fontSize: 12, fontWeight: 600,
-                color: '#ffffff', background: '#18181b',
+                padding: '5px 12px', fontSize: 11.5, fontWeight: 600,
+                color: '#EA580C', background: '#FFF7ED',
+                border: '1px solid #FED7AA',
                 borderRadius: 7, textDecoration: 'none',
                 transition: 'all 0.15s ease',
               }}
@@ -297,12 +371,13 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                 style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                   padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
-                  color: '#18181b', background: '#edf0f2',
+                  color: '#EA580C', background: '#FFF7ED',
+                  border: '1px solid #FED7AA',
                   borderRadius: 7, textDecoration: 'none',
                 }}
               >
                 <Home size={13} />
-                <span>{user.role === 'student' ? 'Student' : user.role === 'faculty' ? 'Faculty' : 'HOD'}</span>
+                <span>Dashboard</span>
               </Link>
             ) : (
               <Link
@@ -310,7 +385,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                 style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                   padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
-                  color: '#18181b', background: '#edf0f2',
+                  color: '#EA580C', background: '#FFF7ED',
+                  border: '1px solid #FED7AA',
                   borderRadius: 7, textDecoration: 'none',
                 }}
               >
@@ -325,6 +401,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                 padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
                 color: '#18181b', background: '#edf0f2',
+                border: '1px solid #e2e6e9',
                 borderRadius: 7, textDecoration: 'none',
               }}
             >
@@ -352,8 +429,9 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             overflowY: 'auto',
           }}>
             <div style={{ padding: '0 18px 16px' }}>
-              <p style={{ fontSize: 16, fontWeight: 700, color: '#18181b', margin: '0 0 2px', letterSpacing: '-0.02em' }}>
-                AttendEase
+              <p style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', letterSpacing: '-0.02em' }}>
+                <span style={{ color: '#18181b' }}>Attend</span>
+                <span style={{ color: '#EA580C' }}>Ease</span>
               </p>
               <p style={{ fontSize: 11, color: '#88929e', margin: 0 }}>Attendance Permission Portal</p>
             </div>
@@ -370,8 +448,13 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                       display: 'flex', alignItems: 'center', gap: 10,
                       padding: '8.5px 12px', borderRadius: 8, marginBottom: 3,
                       fontSize: 13.5, fontWeight: isActive ? 600 : 500,
-                      color: isActive ? '#ffffff' : '#6b7280',
-                      background: isActive ? '#18181b' : 'transparent',
+                      color: isActive
+                        ? role === 'admin' ? '#ffffff' : '#EA580C'
+                        : '#64748B',
+                      background: isActive
+                        ? role === 'admin' ? '#18181b' : '#FFF7ED'
+                        : 'transparent',
+                      border: isActive && role !== 'admin' ? '1px solid #FED7AA' : '1px solid transparent',
                       textDecoration: 'none',
                       transition: 'all 0.15s ease',
                     })}
@@ -391,7 +474,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                     padding: '8.5px 12px', borderRadius: 8,
                     marginTop: 20,
                     fontSize: 13.5, fontWeight: 500,
-                    color: '#6b7280', background: 'transparent',
+                    color: '#64748B', background: 'transparent',
                     border: 'none',
                     cursor: 'pointer', width: '100%',
                     transition: 'all 0.15s ease',
@@ -401,7 +484,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                     e.currentTarget.style.background = '#fef2f2';
                   }}
                   onMouseLeave={e => {
-                    e.currentTarget.style.color = '#6b7280';
+                    e.currentTarget.style.color = '#64748B';
                     e.currentTarget.style.background = 'transparent';
                   }}
                 >
@@ -411,9 +494,22 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               )}
             </nav>
 
-            <div style={{ margin: '12px 10px 0', background: '#f8f9fa', border: '1px solid #edf0f2', borderRadius: 10, padding: '12px', textAlign: 'center' }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: '#18181b', margin: '0 0 2px' }}>CSD &amp; CSIT</p>
-              <p style={{ fontSize: 10.5, color: '#88929e', margin: 0 }}>Learn • Build • Lead</p>
+            <div style={{
+              margin: '12px 10px 0',
+              background: role === 'admin' ? '#f8f9fa' : '#FFF7ED',
+              border: role === 'admin' ? '1px solid #edf0f2' : '1px solid #FED7AA',
+              borderRadius: 12, padding: '12px 10px', textAlign: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            }}>
+              <img
+                src={srkrLogo}
+                alt="SRKR Engineering College"
+                style={{ width: 36, height: 36, objectFit: 'contain', background: 'transparent' }}
+              />
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: role === 'admin' ? '#18181b' : '#C2410C', margin: '0 0 2px' }}>CSD &amp; CSIT</p>
+                <p style={{ fontSize: 10.5, color: role === 'admin' ? '#88929e' : '#EA580C', margin: 0 }}>SRKR Engineering College</p>
+              </div>
             </div>
           </aside>
         )}
@@ -430,24 +526,13 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         >
           {/* Greeting header — only on non-admin dashboard home pages */}
           {role !== 'admin' && (routerLocation.pathname === '/student' || routerLocation.pathname === '/student/' || routerLocation.pathname === '/faculty' || routerLocation.pathname === '/faculty/' || routerLocation.pathname === '/hod' || routerLocation.pathname === '/hod/') && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-              <div>
-                <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
-                  {greeting}, {user?.name || firstName}
-                </h1>
-                <p style={{ fontSize: 13.5, color: '#64748B', margin: 0, fontWeight: 500 }}>
-                  Welcome to AttendEase • SRKR Engineering College
-                </p>
-              </div>
-              <span className="student-portal-badge" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '5px 12px', borderRadius: 8,
-                background: '#edf0f2', border: '1px solid #e2e6e9',
-                fontSize: 12, fontWeight: 600, color: '#18181b',
-              }}>
-                <GraduationCap size={13} />
-                {role === 'student' ? 'Student Portal' : role === 'faculty' ? 'Faculty Portal' : 'HOD Portal'}
-              </span>
+            <div style={{ marginBottom: 24 }}>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
+                {greeting}, {user?.name || firstName}
+              </h1>
+              <p style={{ fontSize: 13.5, color: '#64748B', margin: 0, fontWeight: 500 }}>
+                Welcome to AttendEase • SRKR Engineering College
+              </p>
             </div>
           )}
 

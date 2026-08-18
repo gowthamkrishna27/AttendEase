@@ -591,9 +591,9 @@ export default function LoginPortal() {
           <button
             type="button"
             onClick={() => navigate('/permissions')}
-            className="w-full h-[42px] rounded-lg bg-slate-100 text-slate-700 text-[13px] font-medium border border-slate-200/80 cursor-pointer flex items-center justify-center gap-1.5 transition-all duration-150 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-600 hover:scale-[1.005] active:scale-[0.98]"
+            className="w-full h-[42px] rounded-lg bg-orange-50/80 hover:bg-orange-100/90 text-orange-700 text-[13px] font-semibold border border-orange-200/80 cursor-pointer flex items-center justify-center gap-2 transition-all duration-150 hover:scale-[1.005] active:scale-[0.98] shadow-2xs"
           >
-            <Shield size={14} className="text-orange-500" />
+            <Shield size={14} className="text-orange-600" />
             <span>View Approved Permissions</span>
           </button>
 

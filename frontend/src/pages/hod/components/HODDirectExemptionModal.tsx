@@ -357,7 +357,35 @@ export function HODDirectExemptionModal({ open, onClose }: HODDirectExemptionMod
           <button
             type="submit"
             disabled={grantMutation.isPending}
-            className="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white font-bold text-[13px] rounded-xl flex items-center gap-2 shadow-md shadow-orange-500/20 transition-all cursor-pointer disabled:opacity-50"
+            style={{
+              padding: '10px 18px',
+              background: grantMutation.isPending ? '#FED7AA' : '#FFF7ED',
+              border: '1px solid #FED7AA',
+              color: '#EA580C',
+              fontSize: 13,
+              fontWeight: 700,
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: grantMutation.isPending ? 'not-allowed' : 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => {
+              if (!grantMutation.isPending) {
+                e.currentTarget.style.background = '#EA580C';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = '#EA580C';
+              }
+            }}
+            onMouseLeave={e => {
+              if (!grantMutation.isPending) {
+                e.currentTarget.style.background = '#FFF7ED';
+                e.currentTarget.style.color = '#EA580C';
+                e.currentTarget.style.borderColor = '#FED7AA';
+              }
+            }}
+            className="shadow-sm"
           >
             {grantMutation.isPending ? (
               <>

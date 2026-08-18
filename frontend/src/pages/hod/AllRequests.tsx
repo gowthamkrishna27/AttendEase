@@ -104,9 +104,36 @@ export default function HODAllRequests() {
 
           <button
             onClick={() => setIsExemptionModalOpen(true)}
-            className="h-[42px] px-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-[13px] rounded-xl flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
+            style={{
+              height: 40,
+              padding: '0 16px',
+              background: '#FFF7ED',
+              border: '1px solid #FED7AA',
+              color: '#EA580C',
+              fontSize: 13,
+              fontWeight: 700,
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#EA580C';
+              e.currentTarget.style.color = '#ffffff';
+              e.currentTarget.style.borderColor = '#EA580C';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#FFF7ED';
+              e.currentTarget.style.color = '#EA580C';
+              e.currentTarget.style.borderColor = '#FED7AA';
+            }}
+            className="self-start sm:self-auto shadow-sm"
           >
-            <ShieldCheck size={17} />
+            <ShieldCheck size={16} />
             <span>Grant Direct Exemption</span>
           </button>
         </motion.div>
@@ -161,6 +188,17 @@ export default function HODAllRequests() {
                 <option value="4th Year">4th Year</option>
               </select>
 
+              <select
+                value={tab}
+                onChange={e => setTab(e.target.value as TabValue)}
+                className="w-full sm:w-auto h-[42px] px-3 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
+              >
+                <option value="all">All Statuses ({requestsList.length})</option>
+                <option value="pending">Pending ({requestsList.filter(r => r.status === 'pending').length})</option>
+                <option value="approved">Approved ({requestsList.filter(r => r.status === 'approved').length})</option>
+                <option value="rejected">Rejected ({requestsList.filter(r => r.status === 'rejected').length})</option>
+              </select>
+
               {(search || department || yearFilter || tab !== 'all') && (
                 <button
                   onClick={() => { setSearch(''); setDept(''); setYearFilter(''); setTab('all'); }}
@@ -172,22 +210,6 @@ export default function HODAllRequests() {
                 </button>
               )}
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 sm:pb-0 mb-4 no-scrollbar">
-            {STATUS_TABS.map(t => (
-              <button
-                key={t.value}
-                onClick={() => setTab(t.value)}
-                className={`px-3.5 sm:px-4 py-1.5 text-[12px] sm:text-[13px] font-semibold rounded-full whitespace-nowrap transition-all duration-150 ${
-                  tab === t.value
-                    ? tabActiveClass[t.value] + ' shadow-subtle'
-                    : 'bg-white text-slate-500 border border-slate-200 hover:border-orange-300 hover:text-orange-600'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
           </div>
         </motion.div>
 

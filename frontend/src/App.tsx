@@ -95,8 +95,9 @@ function AppRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         {/* Public */}
-        <Route path="/" element={<PermissionsPage />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/home" element={<LandingPage />} />
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<LoginPortal />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 

@@ -995,65 +995,178 @@ export default function FacultyAttendance() {
         {/* Printable / Detail Permission Slip Modal (on Long Press of Yellow PERM Number) */}
         <AnimatePresence>
           {selectedPass && (
-            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 print:static print:bg-white print:p-0 print:inset-auto print:z-auto">
+            <div className="fixed inset-0 z-50 bg-orange-950/20 backdrop-blur-sm flex items-center justify-center p-3 print:static print:bg-white print:p-0 print:inset-auto print:z-auto">
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-xl max-w-md w-full p-4 shadow-2xl border border-slate-200 print:hidden"
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 247, 237, 0.90) 100%)',
+                  backdropFilter: 'blur(24px) saturate(190%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+                  border: '1px solid rgba(254, 215, 170, 0.75)',
+                  boxShadow: '0 24px 60px -10px rgba(249, 115, 22, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.8) inset',
+                }}
+                className="rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl print:hidden"
               >
-                <div className="text-center pb-3 border-b-2 border-slate-900">
-                  <p className="text-[10px] font-extrabold uppercase text-slate-500">SRKR Engineering College</p>
-                  <h2 className="text-[17px] font-black text-slate-900 uppercase">Permission Slip</h2>
-                  <p className="text-[10px] text-orange-600 font-bold bg-orange-50 inline-block px-2 py-0.5 rounded-full border border-orange-200 mt-1">
-                    APPROVED • #{selectedPass.id.toUpperCase()}
-                  </p>
+                <div className="flex items-start justify-between pb-3.5 border-b border-orange-500/25 gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-extrabold uppercase text-orange-600/80 tracking-wider">SRKR Engineering College</p>
+                    <h2 className="text-[20px] font-black text-slate-900 uppercase leading-tight mt-0.5">Permission Slip</h2>
+                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                      <span
+                        style={{
+                          background: 'rgba(249, 115, 22, 0.12)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(249, 115, 22, 0.35)',
+                          color: '#EA580C',
+                        }}
+                        className="text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full"
+                      >
+                        APPROVED
+                      </span>
+                      <span
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.75)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(254, 215, 170, 0.6)',
+                          color: '#C2410C',
+                        }}
+                        className="text-[10.5px] font-mono font-bold px-2 py-0.5 rounded-full"
+                      >
+                        #{selectedPass.id.toUpperCase().slice(-8)}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedPass(null)}
+                    style={{
+                      background: 'rgba(255, 247, 237, 0.9)',
+                      backdropFilter: 'blur(8px)',
+                      border: '1px solid rgba(254, 215, 170, 0.8)',
+                      color: '#EA580C',
+                    }}
+                    className="w-8 h-8 rounded-full hover:bg-orange-600 hover:text-white flex items-center justify-center transition-all cursor-pointer text-sm font-bold shrink-0 shadow-xs"
+                    title="Close slip"
+                  >
+                    ✕
+                  </button>
                 </div>
 
-                <div className="py-4 space-y-2 text-[12px]">
-                  <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200/60">
+                <div className="py-3.5 space-y-3 text-[12px]">
+                  <div
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.80)',
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(254, 215, 170, 0.65)',
+                      boxShadow: '0 4px 16px rgba(249, 115, 22, 0.05)',
+                    }}
+                    className="flex items-center gap-3 p-3.5 rounded-2xl"
+                  >
                     <img
                       src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${selectedPass.student?.rollNumber || selectedPass.studentId}.jpg`}
                       alt="Student Avatar"
-                      className="w-12 h-14 object-cover rounded-md border border-slate-300 shrink-0"
+                      className="w-13 h-15 sm:w-14 sm:h-16 object-cover rounded-xl border border-orange-200/80 shrink-0 shadow-xs"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=0F172A&color=fff`;
+                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=EA580C&color=fff`;
                       }}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] text-slate-500 font-mono">Roll Number:</p>
-                      <p className="font-mono font-bold text-slate-900 text-[14px]">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</p>
-                      <p className="font-bold text-slate-800 text-[12px] truncate mt-0.5">{selectedPass.student?.name ?? selectedPass.studentId}</p>
+                      <p className="text-[10px] text-orange-600 font-bold uppercase tracking-wider">Student Name &amp; Roll</p>
+                      <p className="font-extrabold text-slate-900 text-[14px] truncate leading-snug">{selectedPass.student?.name ?? selectedPass.studentId}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="font-mono font-black text-slate-900 text-[13px]">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</span>
+                        <span
+                          style={{
+                            background: 'rgba(249, 115, 22, 0.12)',
+                            border: '1px solid rgba(249, 115, 22, 0.28)',
+                            color: '#EA580C',
+                          }}
+                          className="px-2 py-0.5 rounded-md font-bold text-[10px]"
+                        >
+                          {selectedPass.student?.department || 'CSIT'}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Reason / Category:</span>
-                    <span className="font-bold text-orange-600">{selectedPass.reasonLabel}</span>
+
+                  <div
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.65)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(254, 215, 170, 0.55)',
+                    }}
+                    className="space-y-2.5 p-3.5 rounded-2xl text-[12px]"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500 font-semibold">Category / Reason:</span>
+                      <span
+                        style={{
+                          background: 'rgba(249, 115, 22, 0.14)',
+                          border: '1px solid rgba(249, 115, 22, 0.3)',
+                          color: '#EA580C',
+                        }}
+                        className="font-extrabold px-2.5 py-0.5 rounded-lg text-[11.5px]"
+                      >
+                        {selectedPass.reasonLabel}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500 font-semibold">Date &amp; Time Slot:</span>
+                      <span className="font-bold text-slate-800">{selectedPass.date} ({formatTime(selectedPass.startTime)} - {formatTime(selectedPass.endTime)})</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500 font-semibold">Approved By:</span>
+                      <span className="font-bold text-slate-900 truncate max-w-[200px] text-right">{selectedPass.finalDecisionName || selectedPass.faculty?.name || 'Faculty Advisor'}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Date &amp; Time Slot:</span>
-                    <span className="font-bold text-slate-800">{selectedPass.date} ({formatTime(selectedPass.startTime)} - {formatTime(selectedPass.endTime)})</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Approved By:</span>
-                    <span className="font-bold text-slate-900">{selectedPass.finalDecisionName || selectedPass.faculty?.name || 'Faculty Advisor'}</span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-lg text-[11px] text-slate-600 italic">
-                    "{selectedPass.description}"
-                  </div>
+
+                  {selectedPass.description && (
+                    <div
+                      style={{
+                        background: 'rgba(255, 247, 237, 0.85)',
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(254, 215, 170, 0.75)',
+                      }}
+                      className="p-3.5 rounded-2xl text-[11.5px] text-orange-950 leading-relaxed"
+                    >
+                      <span className="font-bold text-orange-800 block mb-1 text-[10px] uppercase tracking-wider">Purpose / Description:</span>
+                      "{selectedPass.description}"
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-4 flex items-center gap-2">
+                <div className="pt-3 flex flex-col sm:flex-row items-center gap-2">
                   <button
                     onClick={() => window.print()}
-                    className="flex-1 h-9 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[12px] rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.95) 0%, rgba(234, 88, 12, 1) 100%)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255, 255, 255, 0.4)',
+                      boxShadow: '0 8px 24px -4px rgba(249, 115, 22, 0.45)',
+                    }}
+                    className="w-full sm:flex-1 h-10.5 text-white font-extrabold text-[12.5px] rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
                   >
-                    <Printer size={13} />
+                    <Printer size={15} />
                     <span>Print Letter Format</span>
                   </button>
                   <button
                     onClick={() => setSelectedPass(null)}
-                    className="h-9 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] rounded-lg cursor-pointer"
+                    style={{
+                      background: 'rgba(255, 247, 237, 0.85)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(254, 215, 170, 0.8)',
+                      color: '#EA580C',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#EA580C';
+                      e.currentTarget.style.color = '#ffffff';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(255, 247, 237, 0.85)';
+                      e.currentTarget.style.color = '#EA580C';
+                    }}
+                    className="w-full sm:w-auto h-10.5 px-5 font-extrabold text-[12px] rounded-xl cursor-pointer transition-colors shadow-xs"
                   >
                     Close
                   </button>

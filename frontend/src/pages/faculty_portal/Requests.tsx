@@ -127,24 +127,18 @@ export default function FacultyRequests() {
                 <option value="3rd Year">3rd Year</option>
                 <option value="4th Year">4th Year</option>
               </select>
-            </div>
-          </div>
 
-          {/* Status pill tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 sm:pb-0 no-scrollbar">
-            {STATUS_TABS.map(t => (
-              <button
-                key={t.value}
-                onClick={() => setTab(t.value)}
-                className={`px-3.5 sm:px-4 py-1.5 text-[12px] sm:text-[13px] font-semibold rounded-full whitespace-nowrap transition-all duration-150 ${
-                  tab === t.value
-                    ? tabActiveClass[t.value] + ' shadow-subtle'
-                    : 'bg-white text-slate-500 border border-slate-200 hover:border-orange-300 hover:text-orange-600'
-                }`}
+              <select
+                value={tab}
+                onChange={e => setTab(e.target.value as TabValue)}
+                className="w-full sm:w-auto h-[42px] px-3 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
               >
-                {t.label}
-              </button>
-            ))}
+                <option value="all">All Statuses ({requestsList.length})</option>
+                <option value="pending">Pending ({requestsList.filter(r => r.status === 'pending').length})</option>
+                <option value="approved">Approved ({requestsList.filter(r => r.status === 'approved').length})</option>
+                <option value="rejected">Rejected ({requestsList.filter(r => r.status === 'rejected').length})</option>
+              </select>
+            </div>
           </div>
         </motion.div>
 
