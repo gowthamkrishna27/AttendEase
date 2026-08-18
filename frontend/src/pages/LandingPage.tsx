@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import './landing.css';
 import logoImg from '../assets/logo.png';
+import { sendChatMessage } from '../lib/api';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -67,22 +68,12 @@ export default function LandingPage() {
     setIsLoadingMsg(true);
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: updatedMessages }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const replyText = data.reply || 'Thank you for reaching out! How else can I assist you?';
-        setMessages(prev => [...prev, { role: 'assistant', content: replyText }]);
-      } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'I encountered a temporary connection issue. Please try again.' }]);
-      }
+      const data = await sendChatMessage(updatedMessages);
+      const replyText = data.reply || 'Thank you for reaching out! How else can I assist you?';
+      setMessages(prev => [...prev, { role: 'assistant', content: replyText }]);
     } catch (err) {
       console.error('Chat request error:', err);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Unable to connect to AttendEase AI Assistant right now.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Unable to connect to AttendEase AI Assistant right now. Please try again in a moment.' }]);
     } finally {
       setIsLoadingMsg(false);
     }

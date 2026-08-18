@@ -4,7 +4,7 @@
  * Attaches JWT from localStorage to every authenticated request
  */
 
-const getApiBase = (): string => {
+export const getApiBase = (): string => {
   // If running in browser on localhost / 127.0.0.1, always target local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:3000';
@@ -17,7 +17,7 @@ const getApiBase = (): string => {
   return 'https://attendease-apuw.onrender.com';
 };
 
-const BASE = getApiBase();
+export const BASE = getApiBase();
 
 const TOKEN_KEY = 'attendease_token';
 
@@ -733,5 +733,17 @@ export async function changePin(currentPin: string, newPin: string): Promise<{ s
   });
 }
 
+export async function sendChatMessage(messages: { role: string; content: string }[]): Promise<{ reply?: string; error?: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+  });
 
+  if (!res.ok) {
+    throw new Error(`Chat server returned status ${res.status}`);
+  }
 
+  return res.json();
+}
