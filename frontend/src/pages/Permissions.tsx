@@ -109,8 +109,8 @@ export const getSectionRollNumbers = (sectionKey: string): string[] => {
     for (let i = 0; i <= 9; i++) list.push(`C${i}`);
     // D0 to D1
     list.push('D0', 'D1');
-    // LE1 to LE12
-    for (let i = 1; i <= 12; i++) list.push(`LE${i}`);
+    // LE1 to LE13
+    for (let i = 1; i <= 13; i++) list.push(`LE${i}`);
     return list;
   }
 
@@ -122,18 +122,18 @@ export const extractRollSuffix = (rawRoll: string): string => {
   if (!rawRoll) return '';
   const str = rawRoll.trim().toUpperCase();
 
-  // 1. Explicit LE prefix/infix (e.g. "24B91A07LE1", "24B91A07LE05")
-  const leMatch = str.match(/LE0*([1-9]|1[0-2])$/i);
+  // 1. Explicit LE prefix/infix (e.g. "24B91A07LE1", "24B91A07LE13")
+  const leMatch = str.match(/LE0*([1-9]|[12][0-9]|30)$/i);
   if (leMatch) {
     return `LE${parseInt(leMatch[1], 10)}`;
   }
 
-  // 2. Lateral Entry scheme: 95A code (e.g. "25B95A0701" -> "LE1", "25B95A0712" -> "LE12")
+  // 2. Lateral Entry scheme: 95A code (e.g. "25B95A0701" -> "LE1", "25B95A0713" -> "LE13")
   if (str.includes('95A')) {
     const numMatch = str.match(/(\d{1,2})$/);
     if (numMatch) {
       const num = parseInt(numMatch[1], 10);
-      if (num >= 1 && num <= 12) {
+      if (num >= 1 && num <= 30) {
         return `LE${num}`;
       }
     }

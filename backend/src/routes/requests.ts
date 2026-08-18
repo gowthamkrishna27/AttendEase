@@ -904,7 +904,7 @@ router.post('/', async (req: Request, res: Response) => {
           publicId,
           studentId:        studentUser.userId,
           primaryFacultyId: primaryFaculty?.userId ?? null,
-          reason:           safeReason,
+          reason:           safeReason as any,
           reasonLabel:      REASON_LABELS[safeReason] ?? String(reason),
           date,
           ...(endDate && { endDate }),

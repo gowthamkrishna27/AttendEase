@@ -14,6 +14,7 @@ import userRoutes         from './routes/users.js';
 import notificationRoutes  from './routes/notifications.js';
 import attendanceRoutes    from './routes/attendance.js';
 import adminRouter from './admin/index.js';
+import chatRoutes from './routes/chat.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
 
@@ -33,6 +34,7 @@ app.use('/api/users',         userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/attendance',    attendanceRoutes);
 app.use('/api/admin',         adminRouter);
+app.use('/api/chat',          chatRoutes);
 
 // ── Root & Health check ───────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
