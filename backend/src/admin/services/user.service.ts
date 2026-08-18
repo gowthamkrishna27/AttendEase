@@ -54,6 +54,8 @@ function toResponse(doc: Record<string, unknown>): UserResponse {
     department: doc['department'] as string,
     isActive:   (doc['isActive'] as boolean) ?? true,
     ...(doc['rollNumber'] ? { rollNumber: doc['rollNumber'] as string } : {}),
+    ...(doc['year']       ? { year:       doc['year'] as string       } : {}),
+    ...(doc['section']    ? { section:    doc['section'] as string    } : {}),
     ...(doc['semester']   ? { semester:   doc['semester'] as number   } : {}),
     ...(doc['avatarUrl']  ? { avatarUrl:  doc['avatarUrl'] as string  } : {}),
   };
@@ -126,6 +128,28 @@ export async function deleteUser(userId: string): Promise<void> {
 
   const deleted = await userRepo.softDeleteUser(userId);
   if (!deleted) throw new UserNotFoundError(userId);
+}
+
+export async function deleteMultipleUsers(userIds: string[]): Promise<{ deletedCount: number }> {
+  if (!userIds || userIds.length === 0) return { deletedCount: 0 };
+
+  // Guard against deleting all admins if any admins are in userIds
+  const adminCount = await userRepo.countActiveAdmins();
+  let adminInSelection = 0;
+  for (const id of userIds) {
+    const target = await userRepo.findUserByUserId(id);
+    const asRecord = target as unknown as Record<string, unknown> | null;
+    if (asRecord && asRecord['role'] === 'admin') {
+      adminInSelection++;
+    }
+  }
+
+  if (adminInSelection > 0 && adminInSelection >= adminCount) {
+    throw new LastAdminError();
+  }
+
+  const deletedCount = await userRepo.deleteMultipleUsers(userIds);
+  return { deletedCount };
 }
 
 export async function changeSelfPassword(

@@ -514,6 +514,14 @@ export async function deleteUser(id: string): Promise<void> {
   await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
 }
 
+export async function deleteMultipleUsers(ids: string[]): Promise<{ success: boolean; deletedCount: number }> {
+  return apiFetch<{ success: boolean; deletedCount: number }>('/api/admin/users/batch-delete', {
+    method: 'POST',
+    body: JSON.stringify({ userIds: ids }),
+  });
+}
+
+
 export async function resetUserPassword(id: string, newPassword: string): Promise<void> {
   await apiFetch(`/api/admin/users/${id}/password`, {
     method: 'PATCH',

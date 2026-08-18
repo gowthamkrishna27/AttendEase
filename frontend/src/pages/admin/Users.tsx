@@ -29,6 +29,9 @@ export default function AdminUsers() {
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingUser, setEditingUser]     = useState<api.AuthUser | null>(null);
 
+  // Multi-select Batch Delete state
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
   // Bulk Import & Preview state
   const [importFile, setImportFile]           = useState<File | null>(null);
   const [previewData, setPreviewData]         = useState<PreviewData | null>(null);
@@ -124,9 +127,40 @@ export default function AdminUsers() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (err: any) => {
-      alert(err.message || 'Failed to delete user');
+      window.alert(err.message || 'Failed to delete user');
     }
   });
+
+  const deleteMultipleMutation = useMutation({
+    mutationFn: (ids: string[]) => api.deleteMultipleUsers(ids),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setSelectedUserIds([]);
+      window.alert(`✅ Successfully deleted ${data.deletedCount} account(s) from the database.`);
+    },
+    onError: (err: any) => {
+      window.alert(`❌ Failed to delete selected accounts: ${err.message || 'Unknown error'}`);
+    },
+  });
+
+  const handleDelete = (id: string, name?: string) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete ${name ? `"${name}"` : 'this account'} from the database?`
+    );
+    if (confirmed) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedUserIds.length === 0) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete ${selectedUserIds.length} selected user account(s) from the database?`
+    );
+    if (confirmed) {
+      deleteMultipleMutation.mutate(selectedUserIds);
+    }
+  };
 
   const resetForm = () => {
     setEditingUser(null);
@@ -341,6 +375,24 @@ export default function AdminUsers() {
 
   const sorted = [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
+  const allVisibleIds = sorted.map(u => u.id || u.userId || '').filter(Boolean);
+  const isAllSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedUserIds.includes(id));
+  const isSomeSelected = selectedUserIds.length > 0 && !isAllSelected;
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(allVisibleIds);
+    }
+  };
+
+  const handleToggleSelectUser = (id: string) => {
+    setSelectedUserIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
   return (
     <PageWrapper role="admin">
       <div className="max-w-4xl mx-auto">
@@ -387,22 +439,21 @@ export default function AdminUsers() {
           </div>
         </div>
 
-        {/* Toggle Option Tabs */}
-        <div className="flex overflow-x-auto bg-[#edf0f2] p-1 rounded-lg mb-4">
+        {/* Role Filter Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-[#edf0f2] rounded-lg w-fit mb-4">
           {[
-            { id: 'all', label: 'All Accounts' },
+            { id: 'all',     label: 'All Users' },
             { id: 'student', label: 'Students' },
             { id: 'faculty', label: 'Faculty' },
-            { id: 'hod', label: 'HODs' },
-            { id: 'admin', label: 'Admins' },
+            { id: 'hod',     label: 'HODs' },
+            { id: 'admin',   label: 'Admins' },
           ].map(tab => (
             <button
               key={tab.id}
-              type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 py-1.5 px-3 min-w-[85px] text-center font-medium text-[12.5px] transition-all rounded-[6px] cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 text-[12.5px] font-medium rounded-md transition-all cursor-pointer ${
                 activeTab === tab.id
-                  ? 'bg-[#18181b] text-white shadow-xs'
+                  ? 'bg-white text-[#18181b] shadow-2xs font-semibold'
                   : 'text-[#6b7280] hover:text-[#18181b]'
               }`}
             >
@@ -412,7 +463,7 @@ export default function AdminUsers() {
         </div>
 
         {/* Filter Toolbar */}
-        <div className="flex gap-3 mb-5">
+        <div className="flex gap-3 mb-4">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#88929e]" />
             <input
@@ -424,6 +475,44 @@ export default function AdminUsers() {
             />
           </div>
         </div>
+
+        {/* Multi-select Batch Actions Bar */}
+        <AnimatePresence>
+          {selectedUserIds.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ duration: 0.15 }}
+              className="flex items-center justify-between gap-3 p-3 bg-[#18181b] text-white rounded-xl shadow-md mb-4 border border-slate-800"
+            >
+              <div className="flex items-center gap-2.5 pl-1.5 text-[13px] font-medium">
+                <span className="w-6 h-6 rounded-md bg-white/20 text-white flex items-center justify-center font-bold text-[11.5px]">
+                  {selectedUserIds.length}
+                </span>
+                <span>account{selectedUserIds.length > 1 ? 's' : ''} selected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserIds([])}
+                  className="px-3 py-1.5 text-[12px] font-medium bg-white/10 hover:bg-white/20 active:bg-white/30 text-white rounded-lg transition-colors cursor-pointer"
+                >
+                  Clear Selection
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteMultipleMutation.isPending}
+                  onClick={handleBatchDelete}
+                  className="px-3.5 py-1.5 text-[12px] font-semibold bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                >
+                  <Trash2 size={13} />
+                  <span>{deleteMultipleMutation.isPending ? 'Deleting...' : `Delete Selected (${selectedUserIds.length})`}</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Users Table */}
         {isLoading ? (
@@ -450,7 +539,17 @@ export default function AdminUsers() {
               <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
                   <tr className="bg-[#edf0f2] text-[#374151] border-b border-slate-200">
-                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 w-10">#</th>
+                    <th className="px-3 py-2.5 text-center border-r border-slate-200 w-10">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                        onChange={handleToggleSelectAll}
+                        className="w-4 h-4 rounded border-slate-300 text-[#18181b] focus:ring-0 cursor-pointer accent-[#18181b]"
+                        title="Select All Accounts"
+                      />
+                    </th>
+                    <th className="px-2.5 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 w-10">#</th>
                     <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 w-14">Photo</th>
                     <th className="px-3.5 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Register No.</th>
                     <th className="px-4 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Full Name</th>
@@ -463,81 +562,95 @@ export default function AdminUsers() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((u, index) => (
-                    <tr
-                      key={u.id}
-                      className={`border-b border-slate-200 hover:bg-[#f0f4f8] transition-colors ${
-                        index % 2 === 0 ? 'bg-white' : 'bg-[#fafbfc]'
-                      }`}
-                    >
-                      {/* Serial Number */}
-                      <td className="px-3 py-2 text-center text-[#88929e] font-mono text-[12px] border-r border-slate-200 w-10">
-                        {index + 1}
-                      </td>
+                  {sorted.map((u, index) => {
+                    const uKey = u.id || u.userId || '';
+                    const isSelected = selectedUserIds.includes(uKey);
+                    return (
+                      <tr
+                        key={u.id}
+                        className={`border-b border-slate-200 hover:bg-[#f0f4f8] transition-colors ${
+                          isSelected ? 'bg-orange-50/60 hover:bg-orange-50' : index % 2 === 0 ? 'bg-white' : 'bg-[#fafbfc]'
+                        }`}
+                      >
+                        {/* Checkbox */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 w-10">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectUser(uKey)}
+                            className="w-4 h-4 rounded border-slate-300 text-[#18181b] focus:ring-0 cursor-pointer accent-[#18181b]"
+                          />
+                        </td>
 
-                      {/* Photo Avatar */}
-                      <td className="px-2 py-2 text-center border-r border-slate-200 w-14">
-                        <div className="flex items-center justify-center">
-                          <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} className="rounded-full shadow-2xs border border-slate-200/80" />
-                        </div>
-                      </td>
+                        {/* Serial Number */}
+                        <td className="px-2.5 py-2 text-center text-[#88929e] font-mono text-[12px] border-r border-slate-200 w-10">
+                          {index + 1}
+                        </td>
 
-                      {/* Register Number */}
-                      <td className="px-3.5 py-2 font-mono font-medium text-[#18181b] border-r border-slate-200 whitespace-nowrap">
-                        {u.rollNumber || '—'}
-                      </td>
+                        {/* Photo Avatar */}
+                        <td className="px-2 py-2 text-center border-r border-slate-200 w-14">
+                          <div className="flex items-center justify-center">
+                            <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} className="rounded-full shadow-2xs border border-slate-200/80" />
+                          </div>
+                        </td>
 
-                      {/* Name */}
-                      <td className="px-4 py-2 font-semibold text-[#18181b] border-r border-slate-200 whitespace-nowrap">
-                        {u.name}
-                      </td>
+                        {/* Register Number */}
+                        <td className="px-3.5 py-2 font-mono font-medium text-[#18181b] border-r border-slate-200 whitespace-nowrap">
+                          {u.rollNumber || '—'}
+                        </td>
 
-                      {/* Email */}
-                      <td className="px-4 py-2 text-[#6b7280] border-r border-slate-200 whitespace-nowrap text-[12.5px]">
-                        {u.email}
-                      </td>
+                        {/* Name */}
+                        <td className="px-4 py-2 font-semibold text-[#18181b] border-r border-slate-200 whitespace-nowrap">
+                          {u.name}
+                        </td>
 
-                      {/* Role */}
-                      <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151] capitalize">
-                        {u.role === 'hod' ? 'HOD' : u.role}
-                      </td>
+                        {/* Email */}
+                        <td className="px-4 py-2 text-[#6b7280] border-r border-slate-200 whitespace-nowrap text-[12.5px]">
+                          {u.email}
+                        </td>
 
-                      {/* Year */}
-                      <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12px] text-[#374151]">
-                        {u.year || '—'}
-                      </td>
+                        {/* Role */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151] capitalize">
+                          {u.role === 'hod' ? 'HOD' : u.role}
+                        </td>
 
-                      {/* Section */}
-                      <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12px] font-medium text-[#374151]">
-                        {u.section ? `Sec ${u.section}` : '—'}
-                      </td>
+                        {/* Year */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12px] font-medium text-[#374151]">
+                          {u.year || '—'}
+                        </td>
 
-                      {/* Branch / Department */}
-                      <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap font-medium text-[12px] text-[#374151]">
-                        {u.department}
-                      </td>
+                        {/* Section */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12px] font-medium text-[#374151]">
+                          {u.section ? (u.section.toUpperCase().startsWith('SEC') || u.section.includes('-') ? u.section : `Sec ${u.section}`) : '—'}
+                        </td>
 
-                      {/* Actions */}
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => handleOpenEdit(u)}
-                            className="w-6 h-6 bg-[#edf0f2] hover:bg-[#18181b] text-[#374151] hover:text-white rounded flex items-center justify-center transition-all cursor-pointer"
-                            title="Edit User"
-                          >
-                            <Edit2 size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(u.id)}
-                            className="w-6 h-6 bg-[#edf0f2] hover:bg-rose-600 text-[#374151] hover:text-white rounded flex items-center justify-center transition-all cursor-pointer"
-                            title="Delete User"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        {/* Branch / Department */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap font-medium text-[12px] text-[#374151]">
+                          {u.department}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleOpenEdit(u)}
+                              className="w-6 h-6 bg-[#edf0f2] hover:bg-[#18181b] text-[#374151] hover:text-white rounded flex items-center justify-center transition-all cursor-pointer"
+                              title="Edit User"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(u.id, u.name)}
+                              className="w-6 h-6 bg-[#edf0f2] hover:bg-rose-600 text-[#374151] hover:text-white rounded flex items-center justify-center transition-all cursor-pointer"
+                              title="Delete User"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

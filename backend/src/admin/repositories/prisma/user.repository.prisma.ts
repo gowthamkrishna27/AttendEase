@@ -117,6 +117,23 @@ export async function softDeleteUser(userId: string): ReturnType<IUserRepository
   }
 }
 
+export async function deleteMultipleUsers(userIds: string[]): ReturnType<IUserRepository['deleteMultipleUsers']> {
+  try {
+    if (!userIds || userIds.length === 0) return 0;
+    const result = await prisma.user.deleteMany({
+      where: {
+        OR: [
+          { userId: { in: userIds } },
+          { id: { in: userIds } },
+        ],
+      },
+    });
+    return result.count;
+  } catch {
+    return 0;
+  }
+}
+
 export async function updateUserPassword(
   userId: string,
   hashedPassword: string,
