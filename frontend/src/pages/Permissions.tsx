@@ -691,17 +691,17 @@ export default function PermissionsPage() {
   const todayStr = getTodayDateString();
   const effectiveDate = dateMode === 'today' ? todayStr : dateMode === 'custom' ? customDate : undefined;
 
-  // Query Dynamic Sections List from Database for the selected academic year
+  // Query Dynamic Sections List from Database for the academic year
   const { data: dbSections = [] } = useQuery<api.PublicSectionItem[]>({
     queryKey: ['public-sections', selectedYear],
-    queryFn: () => api.getPublicSections(selectedYear),
-    enabled: Boolean(selectedYear),
-    staleTime: 30000,
+    queryFn: () => api.getPublicSections(selectedYear || undefined),
+    staleTime: 10000,
+    refetchOnWindowFocus: true,
   });
 
   // Dynamic Section Options for Dropdown
   const sectionOptions = useMemo(() => {
-    if (Boolean(selectedYear) && dbSections.length > 0) {
+    if (dbSections.length > 0) {
       const opts = dbSections.map(s => ({
         label: s.label,
         value: s.value,
@@ -709,8 +709,13 @@ export default function PermissionsPage() {
       }));
       return [...opts, { label: 'All Sections', value: 'all', key: 'All Sections' }];
     }
-    return [];
-  }, [dbSections, selectedYear]);
+    return [
+      { label: 'CSD - Sec A', value: 'CSD-A', key: 'CSD — Section A' },
+      { label: 'CSIT - Sec A', value: 'CSIT-A', key: 'CSIT — Section A' },
+      { label: 'CSIT - Sec B', value: 'CSIT-B', key: 'CSIT — Section B' },
+      { label: 'All Sections', value: 'all', key: 'All Sections' },
+    ];
+  }, [dbSections]);
 
   // Section Roll Numbers Map from DB
   const sectionRollNumbersMap = useMemo(() => {
@@ -719,14 +724,20 @@ export default function PermissionsPage() {
       if (s.rollNumbers && s.rollNumbers.length > 0) {
         map[s.key] = s.rollNumbers;
         map[s.value] = s.rollNumbers;
+        map[s.key.replace(/[—–]/g, '-')] = s.rollNumbers;
+        map[s.key.replace(/-/g, '—')] = s.rollNumbers;
       }
     });
     return map;
   }, [dbSections]);
 
   const getDynamicSectionRollNumbers = useCallback((sectionKey: string): string[] => {
+    const norm = sectionKey.replace(/[—–]/g, '-');
     if (sectionRollNumbersMap[sectionKey] && sectionRollNumbersMap[sectionKey].length > 0) {
       return sectionRollNumbersMap[sectionKey];
+    }
+    if (sectionRollNumbersMap[norm] && sectionRollNumbersMap[norm].length > 0) {
+      return sectionRollNumbersMap[norm];
     }
     return getSectionRollNumbers(sectionKey);
   }, [sectionRollNumbersMap]);
@@ -846,11 +857,9 @@ export default function PermissionsPage() {
   const { sectionsMap, sectionKeys } = useMemo(() => {
     const map: Record<string, ExtendedAttendanceRequest[]> = {};
 
-    if (dbSections.length === 0 || sectionFilter === 'none') {
-      return { sectionsMap: {}, sectionKeys: [] };
-    }
-
-    const availableKeys = dbSections.map(s => s.key);
+    const availableKeys = dbSections.length > 0
+      ? dbSections.map(s => s.key)
+      : ['CSD — Section A', 'CSIT — Section A', 'CSIT — Section B'];
 
     availableKeys.forEach(k => {
       map[k] = [];
@@ -858,16 +867,31 @@ export default function PermissionsPage() {
 
     filteredApproved.forEach(req => {
       const key = getStudentSectionKey(req);
-      if (!map[key]) map[key] = [];
-      map[key].push(req as ExtendedAttendanceRequest);
+      const matchedKey = availableKeys.find(k =>
+        k === key ||
+        k.replace(/[—–\s]/g, '') === key.replace(/[—–\s]/g, '')
+      ) || key;
+
+      if (!map[matchedKey]) map[matchedKey] = [];
+      map[matchedKey].push(req as ExtendedAttendanceRequest);
     });
 
     let keys = Object.keys(map).sort();
 
-    if (sectionFilter !== 'all') {
+    if (sectionFilter !== 'all' && sectionFilter !== 'none') {
       const matchedSecObj = dbSections.find(s => s.value === sectionFilter);
       if (matchedSecObj) {
-        keys = keys.filter(k => k === matchedSecObj.key);
+        keys = keys.filter(k =>
+          k === matchedSecObj.key ||
+          k.replace(/[—–\s]/g, '') === matchedSecObj.key.replace(/[—–\s]/g, '')
+        );
+      } else {
+        keys = keys.filter(k => {
+          if (sectionFilter === 'CSD-A') return k.includes('CSD');
+          if (sectionFilter === 'CSIT-A') return k.includes('CSIT') && k.includes('A');
+          if (sectionFilter === 'CSIT-B') return k.includes('CSIT') && k.includes('B');
+          return true;
+        });
       }
     }
 

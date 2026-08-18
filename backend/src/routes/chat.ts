@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { Router, Request, Response } from 'express';
-import pdf from 'pdf-parse';
 
 const router = Router();
 
@@ -12,9 +11,19 @@ async function initKnowledgeBase() {
     const pdfPath = path.resolve(process.cwd(), 'knowledge-base.pdf');
     if (fs.existsSync(pdfPath)) {
       const dataBuffer = fs.readFileSync(pdfPath);
-      const parsed = await (pdf as any)(dataBuffer);
-      knowledgeBaseText = String(parsed.text || '').trim();
-      console.log(`🤖 Chatbot loaded knowledge base (${knowledgeBaseText.length} chars)`);
+      let pdfParser: any = null;
+      try {
+        // @ts-ignore
+        const mod = await import('pdf-parse');
+        pdfParser = (mod as any).default || mod;
+      } catch (e) {
+        console.warn('pdf-parse module not loaded, fallback to plain text parsing if needed');
+      }
+      if (typeof pdfParser === 'function') {
+        const parsed = await pdfParser(dataBuffer);
+        knowledgeBaseText = String(parsed.text || '').trim();
+        console.log(`🤖 Chatbot loaded knowledge base (${knowledgeBaseText.length} chars)`);
+      }
     } else {
       console.warn('⚠️ knowledge-base.pdf not found in backend directory');
     }
