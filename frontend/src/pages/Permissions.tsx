@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Printer, Calendar, RefreshCw, Info,
   ChevronDown, ChevronUp, LayoutGrid, List, CheckCircle2,
-  GraduationCap, Building2, Copy, Check, Lock
+  GraduationCap, Building2, Copy, Check
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import * as api from '../lib/api';
@@ -201,7 +201,7 @@ interface RollButtonProps {
   onClick: () => void;
 }
 
-const RollButton = React.memo(({ rollNo, request, markedStatus, isDbMarked, markedByName, onClick }: RollButtonProps) => {
+const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollButtonProps) => {
   const isPermission = Boolean(request);
   const isPresent = markedStatus === 'present' && !isPermission;
   const isAbsent = markedStatus === 'absent' && !isPermission;
@@ -305,36 +305,6 @@ const PermissionGrid = React.memo(({
     return getSectionRollNumbers(sectionKey);
   }, [customRollNumbers, sectionKey]);
   const totalStudents = rollNumbers.length;
-
-  // Check if any submission exists for this section and currently active period filters
-  const hasDbSubmission = useMemo(() => {
-    let relevant = selectedSubmissionId === 'combined'
-      ? attendanceSubmissions
-      : attendanceSubmissions.filter(s => s.id === selectedSubmissionId);
-
-    if (selectedPeriodFilters.length > 0) {
-      relevant = relevant.filter(sub => {
-        const subPeriods = parseSubmissionPeriods(sub.periods);
-        return selectedPeriodFilters.some(p => subPeriods.includes(p));
-      });
-    }
-    return relevant.length > 0;
-  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters]);
-
-  const activeSubmitterNames = useMemo(() => {
-    let relevant = selectedSubmissionId === 'combined'
-      ? attendanceSubmissions
-      : attendanceSubmissions.filter(s => s.id === selectedSubmissionId);
-
-    if (selectedPeriodFilters.length > 0) {
-      relevant = relevant.filter(sub => {
-        const subPeriods = parseSubmissionPeriods(sub.periods);
-        return selectedPeriodFilters.some(p => subPeriods.includes(p));
-      });
-    }
-    const names = Array.from(new Set(relevant.map(s => s.markedBy?.name).filter(Boolean)));
-    return names.join(', ');
-  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters]);
 
   // Compute records map from faculty submissions for this section
   const hasSelectedPeriods = selectedPeriodFilters.length > 0 || (selectedSubmissionId !== 'combined' && Boolean(selectedSubmissionId));
@@ -650,7 +620,7 @@ export default function PermissionsPage() {
   const [sectionFilter, setSectionFilter] = useState<string>('all');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>('combined');
   const [selectedPeriodFilters, setSelectedPeriodFilters] = useState<number[]>([]);
-  const [dateMode, setDateMode] = useState<'today' | 'custom'>('today');
+  const [dateMode, setDateMode] = useState<'today' | 'custom' | 'all'>('today');
   const [customDate, setCustomDate] = useState<string>(getTodayDateString());
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');

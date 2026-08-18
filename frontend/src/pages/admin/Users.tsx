@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { PageWrapper } from '../../components/layout/PageWrapper';
@@ -21,7 +21,6 @@ interface PreviewData {
 
 export default function AdminUsers() {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch]   = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'student' | 'faculty' | 'hod' | 'admin'>('all');
 
@@ -301,12 +300,6 @@ export default function AdminUsers() {
     setShowFormModal(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this account? This will revoke login access.')) {
-      deleteMutation.mutate(id);
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -429,6 +422,15 @@ export default function AdminUsers() {
                 }}
               />
             </label>
+            <button
+              type="button"
+              onClick={handleDownloadSampleCsv}
+              title="Download sample CSV format template"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer"
+            >
+              <Download size={14} />
+              <span className="hidden sm:inline">Template</span>
+            </button>
             <button
               onClick={handleOpenAdd}
               className="flex items-center justify-center gap-1.5 h-[38px] px-4 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white font-medium text-[13px] rounded-lg shadow-xs transition-all cursor-pointer flex-1 sm:flex-initial"

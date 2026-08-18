@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Users, Settings, ArrowRight, UserCheck, ShieldCheck, FileSpreadsheet } from 'lucide-react';
+import { Users, Settings, ArrowRight, UserCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import logo from '../../assets/logo.png';
