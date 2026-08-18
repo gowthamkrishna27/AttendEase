@@ -74,7 +74,7 @@ router.get('/public-sections', async (req: Request, res: Response) => {
     const yearLabel = `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`;
 
     // Fetch all student users from DB
-    const students = await prisma.user.findMany({
+    const students = (await prisma.user.findMany({
       where: {
         role: 'student',
         isActive: true,
@@ -87,14 +87,23 @@ router.get('/public-sections', async (req: Request, res: Response) => {
         year: true,
         section: true,
         semester: true,
-      },
+      } as any,
       orderBy: { rollNumber: 'asc' },
-    });
+    })) as unknown as Array<{
+      userId: string;
+      name: string;
+      rollNumber: string | null;
+      department: string;
+      year?: string | null;
+      section?: string | null;
+      semester: number | null;
+    }>;
 
     // Filter students by academic year (prioritizing explicit DB year record)
     const yearStudents = students.filter(s => {
-      if (s.year) {
-        const digitMatch = s.year.match(/([1-4])/);
+      const studentYear = (s as any).year as string | undefined;
+      if (studentYear) {
+        const digitMatch = studentYear.match(/([1-4])/);
         if (digitMatch) return digitMatch[1] === targetDigit;
       }
       const sem = s.semester;
@@ -174,7 +183,8 @@ router.get('/public-sections', async (req: Request, res: Response) => {
       let secLabel = '';
       let secLetter = 'A';
 
-      const explicitSec = (s.section || '').toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
+      const rawSec = ((s as any).section || '') as string;
+      const explicitSec = rawSec.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
       if (explicitSec === 'A' || explicitSec === 'B' || explicitSec === 'C' || explicitSec === 'D') {
         secLetter = explicitSec;
         secKey = `${dept} — Section ${explicitSec}`;
