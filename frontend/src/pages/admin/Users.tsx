@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as XLSX from 'xlsx';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -9,6 +10,14 @@ import { Modal } from '../../components/shared/Modal';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
+
+interface PreviewData {
+  fileName: string;
+  fileSize: number;
+  headers: string[];
+  rows: Record<string, string>[];
+  totalRows: number;
+}
 
 export default function AdminUsers() {
   const queryClient = useQueryClient();
@@ -20,8 +29,10 @@ export default function AdminUsers() {
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingUser, setEditingUser]     = useState<api.AuthUser | null>(null);
 
-  // Bulk Import state
+  // Bulk Import & Preview state
   const [importFile, setImportFile]           = useState<File | null>(null);
+  const [previewData, setPreviewData]         = useState<PreviewData | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [isUploading, setIsUploading]         = useState(false);
   const [isDraggingOver, setIsDraggingOver]   = useState(false);
   const dragCounterRef = useRef(0);
@@ -66,8 +77,8 @@ export default function AdminUsers() {
       dragCounterRef.current = 0;
       setIsDraggingOver(false);
       const file = e.dataTransfer?.files?.[0];
-      if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.type.includes('csv') || file.type.includes('spreadsheet'))) {
-        handleAutoUpload(file);
+      if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.type.includes('csv') || file.type.includes('spreadsheet') || file.type.includes('excel'))) {
+        handleFileSelectForPreview(file);
       }
     };
     window.addEventListener('dragenter', onDragEnter);
@@ -111,6 +122,9 @@ export default function AdminUsers() {
     mutationFn: (id: string) => api.deleteUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => {
+      alert(err.message || 'Failed to delete user');
     }
   });
 
@@ -155,20 +169,73 @@ export default function AdminUsers() {
     URL.revokeObjectURL(url);
   };
 
-  // Called directly from header file-input or window drop — auto-uploads and shows alert
-  const handleAutoUpload = async (file: File) => {
-    setImportFile(file);
+  // Parses dropped or selected CSV/Excel file to display preview before upload
+  const handleFileSelectForPreview = async (file: File) => {
+    try {
+      setImportFile(file);
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) {
+        window.alert('No sheets found in the file.');
+        return;
+      }
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
+      
+      if (!jsonData || jsonData.length === 0) {
+        window.alert('The selected file appears to be empty.');
+        return;
+      }
+
+      const rawHeaders = (jsonData[0] as any[]).map(h => String(h ?? '').trim()).filter(Boolean);
+      const rawRows = jsonData.slice(1) as any[][];
+      
+      const formattedRows: Record<string, string>[] = rawRows
+        .filter(r => Array.isArray(r) && r.some(cell => String(cell ?? '').trim() !== ''))
+        .map(row => {
+          const obj: Record<string, string> = {};
+          rawHeaders.forEach((h, i) => {
+            obj[h] = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
+          });
+          return obj;
+        });
+
+      if (formattedRows.length === 0) {
+        window.alert('No valid student data rows found in this file.');
+        return;
+      }
+
+      setPreviewData({
+        fileName: file.name,
+        fileSize: file.size,
+        headers: rawHeaders,
+        rows: formattedRows,
+        totalRows: formattedRows.length,
+      });
+      setShowPreviewModal(true);
+    } catch (err: any) {
+      window.alert(`Could not parse file preview: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  // Called when user clicks "Upload to Database" in preview modal
+  const handleConfirmUpload = async () => {
+    if (!importFile) return;
     setIsUploading(true);
     try {
-      const report = await api.importStudentsFile(file);
+      const report = await api.importStudentsFile(importFile);
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['public-sections'] });
+      setShowPreviewModal(false);
+      setPreviewData(null);
+      
       const failedCount = report.failed?.length || 0;
       const failedLines = failedCount > 0
         ? '\n\nFailed rows:\n' + report.failed.map(f => `  Row ${f.row ?? '?'}: ${f.reason}`).join('\n')
         : '';
       window.alert(
-        `✅ Import Complete — ${file.name}\n\n` +
+        `✅ Import Complete — ${importFile.name}\n\n` +
         `  ➕ New added : ${report.inserted}\n` +
         `  🔄 Updated  : ${report.upserted || report.skipped || 0}\n` +
         `  ❌ Failed   : ${failedCount}` +
@@ -304,7 +371,7 @@ export default function AdminUsers() {
                 }}
                 onChange={e => {
                   if (e.target.files && e.target.files[0]) {
-                    handleAutoUpload(e.target.files[0]);
+                    handleFileSelectForPreview(e.target.files[0]);
                     (e.target as HTMLInputElement).value = '';
                   }
                 }}
@@ -750,6 +817,99 @@ export default function AdminUsers() {
               </button>
             </div>
           </form>
+        {/* ── CSV / Excel Preview Modal ───────────────────────────────── */}
+        <Modal
+          open={showPreviewModal}
+          onClose={() => {
+            if (!isUploading) {
+              setShowPreviewModal(false);
+              setPreviewData(null);
+              setImportFile(null);
+            }
+          }}
+          title="Import Preview"
+          size="xl"
+        >
+          {previewData && (
+            <div className="space-y-4">
+              {/* File Info Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-[#edf0f2] border border-slate-200/80 rounded-xl">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#18181b] flex items-center justify-center shrink-0">
+                    <FileSpreadsheet size={16} color="#fff" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13.5px] font-semibold text-[#18181b] truncate">{previewData.fileName}</p>
+                    <p className="text-[11px] text-[#6b7280]">{(previewData.fileSize / 1024).toFixed(1)} KB • {previewData.totalRows} records found</p>
+                  </div>
+                </div>
+                <span className="text-[11.5px] font-semibold bg-white text-[#18181b] px-2.5 py-1 rounded-md border border-slate-200 shadow-xs">
+                  {previewData.totalRows} {previewData.totalRows === 1 ? 'Record' : 'Records'}
+                </span>
+              </div>
+
+              {/* Data Preview Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-[360px] overflow-y-auto">
+                <table className="w-full text-left text-[12px] border-collapse">
+                  <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10.5px] tracking-wider z-10">
+                    <tr>
+                      <th className="py-2.5 px-3 w-10 text-center text-slate-400">#</th>
+                      {previewData.headers.map((h, i) => (
+                        <th key={i} className="py-2.5 px-3 font-semibold text-[#18181b] whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {previewData.rows.map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2 px-3 text-center text-[11px] text-slate-400 font-mono">
+                          {rIdx + 1}
+                        </td>
+                        {previewData.headers.map((h, cIdx) => (
+                          <td key={cIdx} className="py-2 px-3 text-slate-700 whitespace-nowrap max-w-[200px] truncate">
+                            {row[h] || <span className="text-slate-300 italic">—</span>}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() => {
+                    setShowPreviewModal(false);
+                    setPreviewData(null);
+                    setImportFile(null);
+                  }}
+                  className="h-[38px] px-4 bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#374151] text-[13px] font-medium rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={handleConfirmUpload}
+                  className="h-[38px] px-5 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[13px] font-medium rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isUploading ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Importing...</span>
+                    </>
+                  ) : (
+                    <span>Upload to Database ({previewData.totalRows})</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
         </Modal>
 
         {/* ── Global drag-over overlay ─────────────────────────────────── */}

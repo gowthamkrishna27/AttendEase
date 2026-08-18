@@ -8,7 +8,7 @@ interface ModalProps {
   title: string;
   description?: string;
   children?: ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 export function Modal({ open, onClose, title, description, children, size = 'md' }: ModalProps) {
@@ -51,7 +51,7 @@ export function Modal({ open, onClose, title, description, children, size = 'md'
               position: 'relative',
               zIndex: 101,
               width: '100%',
-              maxWidth: size === 'sm' ? 400 : size === 'lg' ? 620 : 520,
+              maxWidth: size === 'sm' ? 400 : size === 'xl' ? 840 : size === 'lg' ? 620 : 520,
               maxHeight: '90vh',
               overflowY: 'auto',
               background: '#ffffff',
