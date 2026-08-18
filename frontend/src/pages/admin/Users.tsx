@@ -817,6 +817,8 @@ export default function AdminUsers() {
               </button>
             </div>
           </form>
+        </Modal>
+
         {/* ── CSV / Excel Preview Modal ───────────────────────────────── */}
         <Modal
           open={showPreviewModal}
