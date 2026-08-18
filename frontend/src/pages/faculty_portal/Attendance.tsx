@@ -3,13 +3,46 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, Building2, ChevronDown, CheckCircle2, AlertCircle,
-  Calendar, Clock, Save, Lock, Check, RefreshCw
+  Calendar, Clock, Save, Lock, Check, RefreshCw, Printer, X
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import * as api from '../../lib/api';
 import type { AttendanceSubmissionItem } from '../../lib/api';
 import { getPeriodsFromRequest, extractRollSuffix } from '../../lib/utils';
+
+const formatTime = (timeStr?: string) => {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':');
+  let hour = parseInt(h, 10);
+  if (isNaN(hour)) return timeStr;
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12;
+  return `${hour}:${m || '00'} ${ampm}`;
+};
+
+const getFullRollNumber = (roll: string, year: string, sectionFilter?: string): string => {
+  if (roll.length > 5) return roll.toUpperCase();
+  const yearDigit = year.replace(/[^0-9]/g, '') || '3';
+  
+  // Department code: CSIT -> '07', CSD -> '62'
+  const isCSIT = sectionFilter ? sectionFilter.includes('CSIT') : true;
+  const deptCode = isCSIT ? '07' : '62';
+
+  const prefix = yearDigit === '3' ? `24B91A${deptCode}` : yearDigit === '2' ? `25B91A${deptCode}` : yearDigit === '4' ? `23B91A${deptCode}` : `26B91A${deptCode}`;
+  const lePrefix = yearDigit === '3' ? `25B95A${deptCode}` : yearDigit === '2' ? `26B95A${deptCode}` : yearDigit === '4' ? `24B95A${deptCode}` : `27B95A${deptCode}`;
+
+  if (/^LE\d+$/i.test(roll)) {
+    const leNum = roll.replace(/LE/i, '').padStart(2, '0');
+    return `${lePrefix}${leNum}`;
+  }
+  return `${prefix}${roll.padStart(2, '0')}`;
+};
+
+const getStudentPhotoUrl = (roll: string, year: string, sectionFilter?: string): string => {
+  const fullRoll = getFullRollNumber(roll, year, sectionFilter);
+  return `https://srkrexams.in/SRKR/photo/${fullRoll.toUpperCase()}.jpg`;
+};
 
 // Period Definition with 45-min slots and 12:00 - 1:30 PM Lunch Break
 export interface PeriodSlot {
@@ -18,6 +51,86 @@ export interface PeriodSlot {
   timeRange: string;
   startTime: string;
   endTime: string;
+}
+
+interface FacultyRollButtonProps {
+  roll: string;
+  hasPermission: boolean;
+  permissionReq?: api.AttendanceRequest;
+  btnStyle: string;
+  isOwner: boolean;
+  onClick: (roll: string) => void;
+  onSelectPass: (req: api.AttendanceRequest) => void;
+  onSelectStudent: (roll: string) => void;
+}
+
+function FacultyRollButton({
+  roll,
+  hasPermission,
+  permissionReq,
+  btnStyle,
+  isOwner,
+  onClick,
+  onSelectPass,
+  onSelectStudent,
+}: FacultyRollButtonProps) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPressRef = useRef(false);
+
+  const startPress = () => {
+    isLongPressRef.current = false;
+    timerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      if (hasPermission && permissionReq) {
+        onSelectPass(permissionReq);
+      } else {
+        onSelectStudent(roll);
+      }
+    }, 400); // 400ms long press threshold
+  };
+
+  const cancelPress = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const handleClick = () => {
+    if (isLongPressRef.current) {
+      isLongPressRef.current = false;
+      return;
+    }
+    onClick(roll);
+  };
+
+  return (
+    <button
+      type="button"
+      onMouseDown={startPress}
+      onMouseUp={cancelPress}
+      onMouseLeave={cancelPress}
+      onTouchStart={startPress}
+      onTouchEnd={cancelPress}
+      onClick={handleClick}
+      disabled={!isOwner}
+      title={
+        hasPermission
+          ? `Roll #${roll}: Approved Permission — Press & Hold to view slip details`
+          : `Roll #${roll}: Press & Hold to view student photo card`
+      }
+      className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex flex-col items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none relative ${btnStyle} ${
+        !isOwner ? 'cursor-not-allowed opacity-90' : ''
+      }`}
+    >
+      {hasPermission && (
+        <span className="absolute -top-1 px-1 py-0.2 bg-amber-500 text-white text-[7px] font-black rounded-full uppercase shadow-2xs">
+          PERM
+        </span>
+      )}
+      <span>{roll}</span>
+    </button>
+  );
 }
 
 const PERIOD_SLOTS: PeriodSlot[] = [
@@ -60,6 +173,7 @@ export default function FacultyAttendance() {
   
   // Toast Notification
   const [toastMsg, setToastMsg] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [selectedPass, setSelectedPass] = useState<api.AttendanceRequest | null>(null);
 
   const showToast = useCallback((text: string, isError = false) => {
     setToastMsg({ text, isError });
@@ -147,6 +261,34 @@ export default function FacultyAttendance() {
     return set;
   }, [approvedStudentRollsSet]);
 
+  const permissionMap = useMemo(() => {
+    const map = new Map<string, api.AttendanceRequest>();
+    if (selectedPeriodIds.length === 0) return map;
+
+    approvedRequests.forEach(req => {
+      if (req.status === 'approved' && req.date?.slice(0, 10) === selectedDate) {
+        const reqPeriods = getPeriodsFromRequest(req);
+        const hasOverlap = selectedPeriodIds.some(pId => reqPeriods.includes(pId));
+        if (hasOverlap) {
+          const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
+          if (rollStr) {
+            map.set(rollStr, req);
+            const suffix = extractRollSuffix(rollStr);
+            if (suffix) {
+              map.set(suffix, req);
+              const num = parseInt(suffix, 10);
+              if (!isNaN(num)) {
+                map.set(String(num), req);
+                map.set(String(num).padStart(2, '0'), req);
+              }
+            }
+          }
+        }
+      }
+    });
+    return map;
+  }, [approvedRequests, selectedDate, selectedPeriodIds]);
+
   // Derive a stable primitive string from the Set so useEffect can use it as a dep
   // without firing on every render due to Set object reference changes.
   const permissionRollsKey = useMemo(
@@ -232,7 +374,7 @@ export default function FacultyAttendance() {
         for (let i = 0; i <= 9; i++) rolls.push(`${prefix}${i}`);
       });
       rolls.push('D0', 'D1');
-      for (let i = 1; i <= 12; i++) rolls.push(`LE${i}`);
+      for (let i = 1; i <= 13; i++) rolls.push(`LE${i}`);
       return rolls;
     }
     // Section A (CSD, CSD-A, CSIT-A, CSIT A)
@@ -259,6 +401,44 @@ export default function FacultyAttendance() {
       return { ...prev, [roll]: markMode };
     });
   }, [isOwner, markMode, currentSubmission, showToast]);
+
+  // Student Photo Card Modal state & preview trigger for non-permission roll long-press
+  const [selectedStudentModal, setSelectedStudentModal] = useState<{
+    rollNo: string;
+    fullRollNo: string;
+    department: string;
+    section: string;
+    year: string;
+    avatarUrl: string;
+    status?: 'present' | 'absent' | 'unmarked';
+  } | null>(null);
+
+  const handleSelectStudentForPreview = useCallback((roll: string) => {
+    const fullRoll = getFullRollNumber(roll, selectedYear, sectionFilter);
+    const avatarUrl = getStudentPhotoUrl(roll, selectedYear, sectionFilter);
+
+    const rawStatus = markedAttendance[roll];
+    const hasPermission = permissionStudentsSet.has(roll);
+
+    let effectiveStatus: 'present' | 'absent' | 'unmarked' = 'unmarked';
+    if (rawStatus) {
+      effectiveStatus = rawStatus;
+    } else if (hasPermission) {
+      effectiveStatus = 'present';
+    } else if (Object.keys(markedAttendance).length > 0) {
+      effectiveStatus = markMode === 'present' ? 'absent' : 'present';
+    }
+
+    setSelectedStudentModal({
+      rollNo: roll,
+      fullRollNo: fullRoll,
+      department: sectionFilter.startsWith('CSD') ? 'CSD' : 'CSIT',
+      section: sectionFilter,
+      year: selectedYear,
+      avatarUrl,
+      status: effectiveStatus,
+    });
+  }, [selectedYear, sectionFilter, markedAttendance, permissionStudentsSet, markMode]);
 
   // Period Slot Toggle
   const togglePeriodSlot = (id: number) => {
@@ -648,6 +828,7 @@ export default function FacultyAttendance() {
                   {currentRollNumbers.map(roll => {
                     const rawStatus = markedAttendance[roll];
                     const hasPermission = permissionStudentsSet.has(roll);
+                    const permissionReq = permissionMap.get(roll);
 
                     let effectiveStatus = rawStatus;
                     if (!rawStatus) {
@@ -673,23 +854,17 @@ export default function FacultyAttendance() {
                     }
 
                     return (
-                      <button
+                      <FacultyRollButton
                         key={roll}
-                        type="button"
-                        onClick={() => handleRollClick(roll)}
-                        disabled={!isOwner}
-                        title={hasPermission ? `Roll #${roll}: Has Approved Out-Pass Permission` : `Roll #${roll}`}
-                        className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex flex-col items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none relative ${btnStyle} ${
-                          !isOwner ? 'cursor-not-allowed opacity-90' : ''
-                        }`}
-                      >
-                        {hasPermission && (
-                          <span className="absolute -top-1 px-1 py-0.2 bg-amber-500 text-white text-[7px] font-black rounded-full uppercase shadow-2xs">
-                            PERM
-                          </span>
-                        )}
-                        <span>{roll}</span>
-                      </button>
+                        roll={roll}
+                        hasPermission={hasPermission}
+                        permissionReq={permissionReq}
+                        btnStyle={btnStyle}
+                        isOwner={isOwner}
+                        onClick={handleRollClick}
+                        onSelectPass={setSelectedPass}
+                        onSelectStudent={handleSelectStudentForPreview}
+                      />
                     );
                   })}
                 </div>
@@ -723,6 +898,150 @@ export default function FacultyAttendance() {
             </div>
           </>
         )}
+
+        {/* Student Photo Preview Card Modal (on Long Press of Regular Student Number) */}
+        <AnimatePresence>
+          {selectedStudentModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-2xl max-w-xs sm:max-w-sm w-full p-5 shadow-2xl border border-slate-200 text-center space-y-4 relative overflow-hidden"
+              >
+                <button
+                  onClick={() => setSelectedStudentModal(null)}
+                  className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+
+                {/* Student Photo */}
+                <div className="w-28 h-36 rounded-2xl border-2 border-orange-500 bg-slate-100 overflow-hidden mx-auto shadow-md relative group">
+                  <img
+                    src={selectedStudentModal.avatarUrl}
+                    alt={`Student ${selectedStudentModal.fullRollNo}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentModal.fullRollNo)}&background=F97316&color=fff&size=128`;
+                    }}
+                  />
+                </div>
+
+                {/* Student Info */}
+                <div className="space-y-1">
+                  <span className="px-2.5 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[10px] font-extrabold uppercase tracking-wider">
+                    SRKR Student Profile
+                  </span>
+                  <h3 className="text-lg font-extrabold text-slate-900 font-mono pt-1">
+                    {selectedStudentModal.fullRollNo}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-bold">
+                    {selectedStudentModal.year} • {selectedStudentModal.section}
+                  </p>
+                </div>
+
+                {/* Attendance Status Badge */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-500">Period {periodsKey} Status:</span>
+                  {selectedStudentModal.status === 'present' ? (
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 font-extrabold flex items-center gap-1">
+                      <CheckCircle2 size={13} className="text-emerald-600" />
+                      Present
+                    </span>
+                  ) : selectedStudentModal.status === 'absent' ? (
+                    <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 border border-rose-300 font-extrabold flex items-center gap-1">
+                      <AlertCircle size={13} className="text-rose-600" />
+                      Absent
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-extrabold">
+                      Unmarked
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setSelectedStudentModal(null)}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  Close Preview
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Printable / Detail Permission Slip Modal (on Long Press of Yellow PERM Number) */}
+        <AnimatePresence>
+          {selectedPass && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 print:static print:bg-white print:p-0 print:inset-auto print:z-auto">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-xl max-w-md w-full p-4 shadow-2xl border border-slate-200 print:hidden"
+              >
+                <div className="text-center pb-3 border-b-2 border-slate-900">
+                  <p className="text-[10px] font-extrabold uppercase text-slate-500">SRKR Engineering College</p>
+                  <h2 className="text-[17px] font-black text-slate-900 uppercase">Permission Slip</h2>
+                  <p className="text-[10px] text-orange-600 font-bold bg-orange-50 inline-block px-2 py-0.5 rounded-full border border-orange-200 mt-1">
+                    APPROVED • #{selectedPass.id.toUpperCase()}
+                  </p>
+                </div>
+
+                <div className="py-4 space-y-2 text-[12px]">
+                  <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200/60">
+                    <img
+                      src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${selectedPass.student?.rollNumber || selectedPass.studentId}.jpg`}
+                      alt="Student Avatar"
+                      className="w-12 h-14 object-cover rounded-md border border-slate-300 shrink-0"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=0F172A&color=fff`;
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] text-slate-500 font-mono">Roll Number:</p>
+                      <p className="font-mono font-bold text-slate-900 text-[14px]">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</p>
+                      <p className="font-bold text-slate-800 text-[12px] truncate mt-0.5">{selectedPass.student?.name ?? selectedPass.studentId}</p>
+                    </div>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Reason / Category:</span>
+                    <span className="font-bold text-orange-600">{selectedPass.reasonLabel}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Date &amp; Time Slot:</span>
+                    <span className="font-bold text-slate-800">{selectedPass.date} ({formatTime(selectedPass.startTime)} - {formatTime(selectedPass.endTime)})</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Approved By:</span>
+                    <span className="font-bold text-slate-900">{selectedPass.finalDecisionName || selectedPass.faculty?.name || 'Faculty Advisor'}</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-lg text-[11px] text-slate-600 italic">
+                    "{selectedPass.description}"
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    onClick={() => window.print()}
+                    className="flex-1 h-9 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[12px] rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all"
+                  >
+                    <Printer size={13} />
+                    <span>Print Letter Format</span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedPass(null)}
+                    className="h-9 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] rounded-lg cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
       </div>
     </PageWrapper>

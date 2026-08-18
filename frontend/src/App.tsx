@@ -47,6 +47,7 @@ import AdminSettings from './pages/admin/Settings';
 
 // Shared / Admin — permissions
 import PermissionsPage from './pages/Permissions';
+import LandingPage from './pages/LandingPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,34 +59,30 @@ const queryClient = new QueryClient({
 function ProtectedRoute({
   children,
   role,
+  allowPasswordChange = false,
 }: {
   children: React.ReactNode;
   role: UserRole;
+  allowPasswordChange?: boolean;
 }) {
-  const { user, isLoading } = useAuth();
-  const location = useLocation();
+  const { user, isAuthenticated } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94A3B8' }}>
-        Loading...
-      </div>
-    );
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
   }
 
-  if (!user) {
-    return <Navigate to={role === 'admin' ? '/admin/login' : '/login'} state={{ from: location }} replace />;
+  if ((user as any)?.mustChangePassword && !allowPasswordChange) {
+    return <Navigate to="/change-password" replace />;
   }
 
-  if (user.role !== role && user.role !== 'admin') {
-    const roleRedirectMap: Record<string, string> = {
+  if (user?.role !== role) {
+    const roleHomeMap: Record<UserRole, string> = {
       student: '/student',
       faculty: '/faculty',
-      hod:     '/hod',
-      admin:   '/admin',
+      hod: '/hod',
+      admin: '/admin',
     };
-    const target = roleRedirectMap[user.role] || '/login';
-    return <Navigate to={target} replace />;
+    return <Navigate to={roleHomeMap[user?.role as UserRole] ?? '/'} replace />;
   }
 
   return <>{children}</>;
@@ -99,6 +96,7 @@ function AppRoutes() {
       <Routes location={location} key={location.pathname}>
         {/* Public */}
         <Route path="/" element={<PermissionsPage />} />
+        <Route path="/home" element={<LandingPage />} />
         <Route path="/login" element={<LoginPortal />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 
