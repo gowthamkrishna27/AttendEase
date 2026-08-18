@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bell, Shield, Eye, Moon, Globe, LogOut } from 'lucide-react';
+import { Bell, Shield, Eye, Globe, LogOut, Download, Loader2, Check } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import * as api from '../../lib/api';
+import { CURRENT_APP_VERSION, LATEST_RELEASE_PAGE, checkAppUpdate } from '../../lib/appUpdate';
 
 type Toggle = {
   id: string;
@@ -37,6 +38,8 @@ export default function HODSettings() {
   );
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
 
   const handleToggle = (id: string) => {
     setStates(prev => ({ ...prev, [id]: !prev[id] }));
@@ -190,27 +193,27 @@ export default function HODSettings() {
           </div>
         </motion.div>
 
-        {/* ── Security & Passkey Management Card ── */}
+        {/* ── Security Management Card ── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.12 }}
-          className="card px-6 py-5 mb-6 border border-orange-200/80 bg-white"
+          className="card px-6 py-5 mb-4 border border-orange-200/80 bg-white"
         >
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 <Shield size={18} className="text-orange-600" />
-                <h2 className="text-[15px] font-bold text-slate-900">Security &amp; Device Passkeys</h2>
+                <h2 className="text-[15px] font-bold text-slate-900">Security &amp; PIN Settings</h2>
               </div>
               <p className="text-[12px] text-slate-500">
-                Manage registered devices (Touch ID, Face ID, Windows Hello) and change your 4-digit PIN.
+                Change your 4-digit HOD login PIN code securely.
               </p>
             </div>
           </div>
 
           {/* Change PIN Section */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 mb-4">
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4">
             <h3 className="text-[13px] font-bold text-slate-800 mb-2">Change 4-Digit PIN Code</h3>
             <div className="flex flex-wrap items-center gap-3">
               <input
@@ -251,58 +254,102 @@ export default function HODSettings() {
               </button>
             </div>
           </div>
+        </motion.div>
 
-          {/* Register Device Button */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-            <div>
-              <p className="text-[13px] font-bold text-slate-800">Biometric Passkey / Device Pair</p>
-              <p className="text-[11px] text-slate-400">Register Touch ID, Face ID, or Windows Hello on this device</p>
+        {/* ── In-App Updates & Version Card ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.14 }}
+          className="card px-6 py-5 mb-6 border border-slate-200/80 bg-white"
+        >
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3.5">
+              <a
+                href={LATEST_RELEASE_PAGE}
+                target="_blank"
+                rel="noreferrer"
+                title="View Latest Release on GitHub"
+                className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200/80 flex items-center justify-center text-orange-600 shrink-0 hover:bg-orange-100 transition-colors"
+              >
+                <Download size={20} />
+              </a>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-[15px] font-bold text-slate-900">App Updates &amp; Version</h2>
+                  <span className="px-2 py-0.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/70 rounded-md">
+                    {CURRENT_APP_VERSION}
+                  </span>
+                </div>
+                <p className="text-[12px] text-slate-500">
+                  AttendEase Android App · Follows GitHub release tag
+                </p>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const userEmail = user?.email || '';
-                  const challengeRes = await api.registerPasskeyChallenge(userEmail);
-                  const challengeBytes = new Uint8Array(32);
-                  window.crypto.getRandomValues(challengeBytes);
-                  const userIdBytes = new TextEncoder().encode(userEmail);
 
-                  const cred = (await navigator.credentials.create({
-                    publicKey: {
-                      challenge: challengeBytes,
-                      rp: { name: 'SRKR AttendEase', id: window.location.hostname },
-                      user: {
-                        id: userIdBytes,
-                        name: userEmail,
-                        displayName: user?.name || userEmail.split('@')[0],
-                      },
-                      pubKeyCredParams: [
-                        { alg: -7, type: 'public-key' },
-                        { alg: -257, type: 'public-key' },
-                      ],
-                      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'preferred' },
-                      timeout: 60000,
-                    },
-                  })) as PublicKeyCredential | null;
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isCheckingUpdate}
+                onClick={async () => {
+                  setIsCheckingUpdate(true);
+                  setUpdateMessage(null);
+                  try {
+                    const info = await checkAppUpdate();
+                    if (info.hasUpdate) {
+                      setUpdateMessage(`🎉 New version ${info.latestVersion} available!`);
+                    } else {
+                      setUpdateMessage(`✅ You're on the latest release (${info.latestVersion})`);
+                    }
+                  } catch {
+                    setUpdateMessage(`✅ Running latest release (${CURRENT_APP_VERSION})`);
+                  } finally {
+                    setIsCheckingUpdate(false);
+                    setTimeout(() => setUpdateMessage(null), 5000);
+                  }
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-orange-50 text-slate-700 hover:text-orange-600 hover:border-orange-200 border border-slate-200 rounded-xl font-bold text-[12.5px] transition-all cursor-pointer flex items-center gap-2 disabled:opacity-60 shadow-2xs active:scale-95"
+              >
+                {isCheckingUpdate ? (
+                  <Loader2 size={15} className="animate-spin text-orange-600" />
+                ) : (
+                  <Download size={15} className="text-orange-600" />
+                )}
+                <span>{isCheckingUpdate ? 'Checking...' : 'Check for Updates'}</span>
+              </button>
 
-                  if (cred?.id) {
-                    const deviceName = `${navigator.platform || 'Device'} — ${new Date().toLocaleDateString()}`;
-                    await api.registerPasskey(cred.id, cred.id, deviceName, userEmail);
-                    localStorage.setItem(`attendease_device_passkey_${userEmail}`, 'true');
-                    alert('✅ Device Passkey registered in PostgreSQL successfully!');
-                  }
-                } catch (err: any) {
-                  if (err?.name !== 'NotAllowedError' && err?.name !== 'AbortError') {
-                    alert(err?.message || 'Passkey registration cancelled / failed.');
-                  }
-                }
-              }}
-              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-[12px] rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
-            >
-              <span>👆 Add / Register Device</span>
-            </button>
+              <a
+                href={LATEST_RELEASE_PAGE}
+                target="_blank"
+                rel="noreferrer"
+                title="Download Latest APK from GitHub Releases"
+                className="p-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-xs flex items-center justify-center cursor-pointer"
+              >
+                <Download size={16} />
+              </a>
+            </div>
           </div>
+
+          {updateMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3.5 px-3 py-2 text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <Check size={14} className="text-emerald-600 shrink-0" />
+                <span>{updateMessage}</span>
+              </div>
+              <a
+                href={LATEST_RELEASE_PAGE}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-bold text-orange-600 underline hover:text-orange-700"
+              >
+                Open Releases &rarr;
+              </a>
+            </motion.div>
+          )}
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 10 }}

@@ -3,13 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, BookOpen, ShieldCheck,
-  Eye, EyeOff, Lock, User, Fingerprint, KeyRound,
+  Eye, EyeOff, Lock, User, KeyRound,
   ArrowRight, Info, Shield, Clock, Users, Sun, Moon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../context/AuthContext';
 import logo from '../../assets/logo.png';
-import { RegisterPasskeyModal } from '../../components/auth/RegisterPasskeyModal';
 import * as api from '../../lib/api';
 
 type Tab = 'student' | 'faculty' | 'hod';
@@ -161,88 +160,6 @@ export default function LoginPortal() {
     document.getElementById(`pin-box-${nextIdx}`)?.focus();
   };
 
-  const [passkeyLoading, setPasskeyLoading] = useState(false);
-  const [showRegisterPasskeyModal, setShowRegisterPasskeyModal] = useState(false);
-  const [pendingLoginUser, setPendingLoginUser] = useState<{ email: string; name: string; role: UserRole } | null>(null);
-
-  const handlePasskeyLogin = async () => {
-    setError('');
-    const targetIdentifier = identifier.trim();
-
-    if (!targetIdentifier) {
-      if (activeTab === 'faculty') {
-        setError('Please select your Faculty name from the dropdown before using Passkey / Fingerprint.');
-      } else if (activeTab === 'hod') {
-        setError('Please select your HOD name from the dropdown before using Passkey / Fingerprint.');
-      } else {
-        setError('Please enter your Registered Number before using Passkey / Fingerprint.');
-      }
-      return;
-    }
-
-    setPasskeyLoading(true);
-
-    try {
-      if (!window.PublicKeyCredential || typeof navigator.credentials?.get !== 'function') {
-        throw new Error('Passkey authentication is not supported on this browser/device.');
-      }
-
-      // 1. Fetch challenge & allowed credential IDs from PostgreSQL for this user
-      const challengeRes = await api.loginPasskeyChallenge(targetIdentifier);
-
-      if (!challengeRes.hasPasskey || !challengeRes.allowCredentials || challengeRes.allowCredentials.length === 0) {
-        setError('No passkey registered for this account on this device yet. Please enter your PIN / Password to log in first.');
-        setPasskeyLoading(false);
-        return;
-      }
-
-      // 2. Convert base64url challenge bytes
-      const challengeBytes = new Uint8Array(32);
-      window.crypto.getRandomValues(challengeBytes);
-
-      // Convert stored credential IDs
-      const allowCredentials = challengeRes.allowCredentials.map((c: any) => {
-        try {
-          const raw = atob(c.id.replace(/-/g, '+').replace(/_/g, '/'));
-          const arr = new Uint8Array(raw.length);
-          for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-          return { id: arr, type: 'public-key' as const };
-        } catch {
-          return { id: new TextEncoder().encode(c.id), type: 'public-key' as const };
-        }
-      });
-
-      // 3. Trigger native WebAuthn get prompt with explicit allowCredentials filter
-      const credential = (await navigator.credentials.get({
-        publicKey: {
-          challenge: challengeBytes,
-          rpId: window.location.hostname,
-          allowCredentials,
-          timeout: 30000,
-          userVerification: 'preferred',
-        },
-      })) as PublicKeyCredential | null;
-
-      // 4. Send verified assertion to backend to authenticate against PostgreSQL UserPasskey records
-      const { token, user: u } = await api.verifyPasskeyLogin(targetIdentifier, credential?.id);
-      api.setStoredToken(token, rememberMe);
-      setUser(u);
-      setError('');
-
-      navigate(getPostLoginTarget(activeTab), { replace: true });
-    } catch (err: unknown) {
-      console.warn('Passkey login error:', err);
-      const msg = err instanceof Error ? err.message : 'Passkey authentication failed.';
-      if (msg.includes('cancel') || (err as any)?.name === 'AbortError') {
-        setError('Passkey authentication was cancelled by user.');
-      } else {
-        setError('No passkey registered for this account on this device yet. Please enter your PIN / Password to log in.');
-      }
-    } finally {
-      setPasskeyLoading(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -255,7 +172,7 @@ export default function LoginPortal() {
     const enteredPin = pin.join('');
     if (activeTab === 'faculty' || activeTab === 'hod') {
       if (enteredPin.length === 0 && !password) {
-        setError('Please enter your 4-digit PIN code or tap the Fingerprint icon.');
+        setError('Please enter your 4-digit PIN code.');
         return;
       }
       if (enteredPin.length > 0 && enteredPin.length < 4) {
@@ -277,15 +194,7 @@ export default function LoginPortal() {
       api.setStoredToken(res.token, rememberMe);
       setUser(res.user);
 
-      const devicePasskeyRegistered = localStorage.getItem(`attendease_device_passkey_${res.user.email}`);
-
-      // If user logged in via PIN and has no registered device passkey, prompt to register device passkey
-      if ((role === 'faculty' || role === 'hod') && !res.hasPasskey && !devicePasskeyRegistered && window.PublicKeyCredential) {
-        setPendingLoginUser({ email: res.user.email, name: res.user.name, role });
-        setShowRegisterPasskeyModal(true);
-      } else {
-        navigate(getPostLoginTarget(role), { replace: true });
-      }
+      navigate(getPostLoginTarget(role), { replace: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed. Please check your credentials.';
       setError(msg);
@@ -516,21 +425,6 @@ export default function LoginPortal() {
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
-
-                {/* Fingerprint / Passkey quick button */}
-                <button
-                  type="button"
-                  onClick={handlePasskeyLogin}
-                  disabled={isLoading || passkeyLoading}
-                  title="Fingerprint / Passkey Login"
-                  className="w-[clamp(34px,10vw,42px)] h-[clamp(36px,10vw,42px)] rounded-lg bg-orange-50 border border-orange-200 text-orange-600 flex items-center justify-center shrink-0 transition-all duration-150 hover:bg-orange-500 hover:text-white hover:border-orange-500 hover:scale-105 active:scale-90 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shadow-xs"
-                >
-                  {passkeyLoading ? (
-                    <span className="w-4 h-4 rounded-full border-2 border-current border-t-transparent inline-block animate-spin" />
-                  ) : (
-                    <Fingerprint size={18} className="transition-transform duration-150 hover:rotate-6" />
-                  )}
-                </button>
               </div>
             </div>
           ) : (
@@ -572,7 +466,7 @@ export default function LoginPortal() {
           <button
             id="login-submit-btn"
             type="submit"
-            disabled={isLoading || passkeyLoading}
+            disabled={isLoading}
             className="w-full h-[42px] rounded-lg bg-orange-500 text-white text-sm font-semibold border-none cursor-pointer flex items-center justify-center gap-2 shadow-xs transition-all duration-150 hover:bg-orange-600 hover:shadow-sm hover:scale-[1.005] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed mt-0.5"
           >
             {isLoading ? (
@@ -624,27 +518,6 @@ export default function LoginPortal() {
       <p className="text-xs text-slate-400 mt-5 text-center transition-colors">
         © 2026 Attend<span className="text-orange-600 font-semibold">Ease</span> · SRKREC. All rights reserved.
       </p>
-
-      {/* Post-PIN Login Passkey Registration Modal */}
-      <RegisterPasskeyModal
-        isOpen={showRegisterPasskeyModal}
-        onClose={() => {
-          setShowRegisterPasskeyModal(false);
-          if (pendingLoginUser) {
-            const r = pendingLoginUser.role;
-            navigate(getPostLoginTarget(r), { replace: true });
-          }
-        }}
-        userEmail={pendingLoginUser?.email || ''}
-        userName={pendingLoginUser?.name || ''}
-        onSuccess={() => {
-          setShowRegisterPasskeyModal(false);
-          if (pendingLoginUser) {
-            const r = pendingLoginUser.role;
-            navigate(getPostLoginTarget(r), { replace: true });
-          }
-        }}
-      />
     </div>
   );
 }

@@ -7,8 +7,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import type { UserRole } from './context/AuthContext';
 
 // Pages — public & auth
+import SplashSequence from './components/SplashSequence';
 import LoginPortal from './pages/auth/LoginPortal';
-import AdminLogin from './pages/admin/Login';
 import ShareRedirectPage from './pages/ShareRedirectPage';
 
 // Pages — student
@@ -38,16 +38,8 @@ import HODFaculty from './pages/hod/Faculty';
 import HODReports from './pages/hod/Reports';
 import HODSettings from './pages/hod/Settings';
 
-// Pages — admin
-import AdminDashboard from './pages/admin/Dashboard';
-import AdminUsers from './pages/admin/Users';
-import AdminCounseling from './pages/admin/Counseling';
-import AdminRequests from './pages/admin/Requests';
-import AdminSettings from './pages/admin/Settings';
-
-// Shared / Admin — permissions
+// Shared — permissions
 import PermissionsPage from './pages/Permissions';
-import LandingPage from './pages/LandingPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,9 +72,9 @@ function ProtectedRoute({
       student: '/student',
       faculty: '/faculty',
       hod: '/hod',
-      admin: '/admin',
+      admin: '/login',
     };
-    return <Navigate to={roleHomeMap[user?.role as UserRole] ?? '/'} replace />;
+    return <Navigate to={roleHomeMap[user?.role as UserRole] ?? '/login'} replace />;
   }
 
   return <>{children}</>;
@@ -94,10 +86,10 @@ function AppRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        {/* Public */}
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/home" element={<LandingPage />} />
-        <Route path="/landing" element={<LandingPage />} />
+        {/* App Startup: White -> Animation -> Login */}
+        <Route path="/" element={<SplashSequence />} />
+        <Route path="/home" element={<Navigate to="/" replace />} />
+        <Route path="/landing" element={<Navigate to="/" replace />} />
         <Route path="/login" element={<LoginPortal />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 
@@ -108,7 +100,6 @@ function AppRoutes() {
         <Route path="/student/permissions" element={<PermissionsPage />} />
         <Route path="/faculty/permissions" element={<PermissionsPage />} />
         <Route path="/hod/permissions" element={<PermissionsPage />} />
-        <Route path="/admin/permissions" element={<PermissionsPage />} />
 
         {/* Legacy redirects */}
         <Route path="/login/student" element={<Navigate to="/login" replace />} />
@@ -144,16 +135,8 @@ function AppRoutes() {
         <Route path="/hod/reports" element={<ProtectedRoute role="hod"><HODReports /></ProtectedRoute>} />
         <Route path="/hod/settings" element={<ProtectedRoute role="hod"><HODSettings /></ProtectedRoute>} />
 
-        {/* Admin (protected & standalone login) */}
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/users" element={<ProtectedRoute role="admin"><AdminUsers /></ProtectedRoute>} />
-        <Route path="/admin/counseling" element={<ProtectedRoute role="admin"><AdminCounseling /></ProtectedRoute>} />
-        <Route path="/admin/requests" element={<ProtectedRoute role="admin"><AdminRequests /></ProtectedRoute>} />
-        <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />
-
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </AnimatePresence>
   );

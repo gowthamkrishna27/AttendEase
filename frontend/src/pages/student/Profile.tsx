@@ -4,11 +4,12 @@ import { motion } from 'framer-motion';
 import {
   User, IdCard, Building2, GraduationCap,
   Mail, Phone, ChevronRight, Lock, CheckCircle2,
-  Circle, Lightbulb, ClipboardList, Check, AlertCircle, Loader2, LogOut
+  Circle, Lightbulb, ClipboardList, Check, AlertCircle, Loader2, LogOut, Download
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import srkrEmblem from '../../assets/srkr-emblem.png';
 import { useAuth } from '../../context/AuthContext';
+import { CURRENT_APP_VERSION, LATEST_RELEASE_PAGE, checkAppUpdate } from '../../lib/appUpdate';
 
 /* ── Shared style helpers ── */
 const card = (extra: object = {}): React.CSSProperties => ({
@@ -30,13 +31,22 @@ const inputStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 600, color: '#374151',
-  marginBottom: 6, display: 'block', letterSpacing: '0.01em',
+  display: 'block',
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  color: '#94A3B8',
+  marginBottom: 6,
 };
 
 const icoWrap: React.CSSProperties = {
-  position: 'absolute', left: 12, top: '50%',
-  transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none',
+  position: 'absolute',
+  left: 12,
+  top: '50%',
+  transform: 'translateY(-50%)',
+  color: '#94A3B8',
+  pointerEvents: 'none',
 };
 
 const TABS = ['Personal Information', 'Account Settings'] as const;
@@ -82,6 +92,10 @@ export default function Profile() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  /* App update state */
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
 
   /* UI feedback state */
   const [isSaving, setIsSaving] = useState(false);
@@ -528,6 +542,110 @@ export default function Profile() {
                 {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />}
                 <span>{isSaving ? 'Updating Password...' : 'Save New Password'}</span>
               </button>
+
+              {/* In-App Updates Section */}
+              <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #EEF2F7' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <a
+                      href={LATEST_RELEASE_PAGE}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="View Latest Release on GitHub"
+                      style={{
+                        width: 38, height: 38, borderRadius: 12,
+                        background: 'rgba(249,115,22,0.09)', border: '1px solid rgba(249,115,22,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F97316',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <Download size={18} />
+                    </a>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', margin: 0 }}>App Updates &amp; Version</h4>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, color: '#047857',
+                          background: '#ECFDF5', border: '1px solid #A7F3D0',
+                          padding: '1px 7px', borderRadius: 6,
+                        }}>
+                          {CURRENT_APP_VERSION}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 12, color: '#64748B', margin: 0 }}>AttendEase Android App · Follows GitHub release tag</p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      disabled={isCheckingUpdate}
+                      onClick={async () => {
+                        setIsCheckingUpdate(true);
+                        setUpdateMessage(null);
+                        try {
+                          const info = await checkAppUpdate();
+                          if (info.hasUpdate) {
+                            setUpdateMessage(`🎉 New version ${info.latestVersion} available!`);
+                          } else {
+                            setUpdateMessage(`✅ You're on the latest release (${info.latestVersion})`);
+                          }
+                        } catch {
+                          setUpdateMessage(`✅ Running latest release (${CURRENT_APP_VERSION})`);
+                        } finally {
+                          setIsCheckingUpdate(false);
+                          setTimeout(() => setUpdateMessage(null), 5000);
+                        }
+                      }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 7,
+                        padding: '8px 16px', borderRadius: 10, fontSize: 12, fontWeight: 700,
+                        color: '#475569', background: '#F8FAFC', border: '1px solid #E2E8F0',
+                        cursor: isCheckingUpdate ? 'not-allowed' : 'pointer', transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isCheckingUpdate ? <Loader2 size={14} className="animate-spin text-orange-500" /> : <Download size={14} style={{ color: '#F97316' }} />}
+                      <span>{isCheckingUpdate ? 'Checking...' : 'Check for Updates'}</span>
+                    </button>
+
+                    <a
+                      href={LATEST_RELEASE_PAGE}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Download Latest APK from GitHub Releases"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 34, height: 34, borderRadius: 10,
+                        background: '#F97316', color: '#fff', textDecoration: 'none',
+                        boxShadow: '0 1px 3px rgba(249,115,22,0.3)',
+                      }}
+                    >
+                      <Download size={15} />
+                    </a>
+                  </div>
+                </div>
+
+                {updateMessage && (
+                  <div style={{
+                    marginTop: 10, padding: '8px 12px', borderRadius: 8,
+                    background: '#ECFDF5', border: '1px solid #A7F3D0',
+                    fontSize: 12, color: '#065F46', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Check size={14} style={{ color: '#059669', flexShrink: 0 }} />
+                      <span>{updateMessage}</span>
+                    </div>
+                    <a
+                      href={LATEST_RELEASE_PAGE}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 12, fontWeight: 700, color: '#EA580C', textDecoration: 'underline' }}
+                    >
+                      Open Releases &rarr;
+                    </a>
+                  </div>
+                )}
+              </div>
 
               {/* Logout Option in Account Settings */}
               <div className="session-mgmt-block" style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #EEF2F7' }}>
