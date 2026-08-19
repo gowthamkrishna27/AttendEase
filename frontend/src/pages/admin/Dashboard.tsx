@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Users, Settings, ArrowRight, UserCheck } from 'lucide-react';
+import { Users, Settings, ArrowRight, UserCheck, Database } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import logo from '../../assets/logo.png';
@@ -35,6 +35,13 @@ export default function AdminDashboard() {
       icon: UserCheck,
       to: '/admin/counseling',
       tag: 'Counseling'
+    },
+    {
+      label: 'Database Explorer (Tables View)',
+      description: 'Inspect live PostgreSQL database tables, rows, schema, and raw data',
+      icon: Database,
+      to: '/admin/database',
+      tag: 'Database'
     },
     {
       label: 'System & Security Settings',

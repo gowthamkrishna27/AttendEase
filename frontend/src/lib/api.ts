@@ -458,6 +458,7 @@ export interface UpdateProfilePayload {
   email?: string;
   avatarUrl?: string;
   phone?: string;
+  designation?: string;
   semester?: number;
   currentPassword?: string;
   password?: string;
@@ -527,6 +528,58 @@ export async function resetUserPassword(id: string, newPassword: string): Promis
     method: 'PATCH',
     body: JSON.stringify({ password: newPassword }),
   });
+}
+
+// ─── Database Explorer API ──────────────────────────────────────────────────
+
+export interface DBTableOverview {
+  name: string;
+  label: string;
+  description: string;
+  count: number;
+  columns: string[];
+}
+
+export interface DBOverviewResponse {
+  success: boolean;
+  database: string;
+  totalTables: number;
+  tables: DBTableOverview[];
+}
+
+export interface DBTableDataResponse {
+  success: boolean;
+  tableName: string;
+  label: string;
+  description: string;
+  page: number;
+  limit: number;
+  totalRows: number;
+  totalPages: number;
+  columns: string[];
+  rows: Record<string, any>[];
+}
+
+export async function getDatabaseOverview(): Promise<DBOverviewResponse> {
+  return apiFetch<DBOverviewResponse>('/api/admin/database/overview');
+}
+
+export async function getDatabaseTableData(
+  tableName: string,
+  params?: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }
+): Promise<DBTableDataResponse> {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.search) query.set('search', params.search);
+  if (params?.sortBy) query.set('sortBy', params.sortBy);
+  if (params?.sortOrder) query.set('sortOrder', params.sortOrder);
+  const qStr = query.toString() ? `?${query.toString()}` : '';
+  return apiFetch<DBTableDataResponse>(`/api/admin/database/tables/${tableName}${qStr}`);
+}
+
+export async function exportDatabaseTable(tableName: string): Promise<any> {
+  return apiFetch<any>(`/api/admin/database/export/${tableName}`);
 }
 
 export interface ImportReport {

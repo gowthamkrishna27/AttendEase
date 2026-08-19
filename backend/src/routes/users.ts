@@ -366,7 +366,7 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, email, phone, avatarUrl, semester, password, currentPassword } = req.body;
+    const { name, email, phone, avatarUrl, semester, designation, password, currentPassword } = req.body;
 
     // Handle password change
     if (password && String(password).trim().length > 0) {
@@ -383,12 +383,13 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
     const updated = await prisma.user.update({
       where: { id: existing.id },
       data: {
-        ...(name      !== undefined && { name      }),
-        ...(email     !== undefined && { email     }),
-        ...(phone     !== undefined && { phone     }),
-        ...(avatarUrl !== undefined && { avatarUrl }),
-        ...(semester  !== undefined && { semester: Number(semester) }),
-        ...(password  !== undefined && { password  }),
+        ...(name        !== undefined && { name        }),
+        ...(email       !== undefined && { email       }),
+        ...(phone       !== undefined && { phone       }),
+        ...(avatarUrl   !== undefined && { avatarUrl   }),
+        ...(semester    !== undefined && { semester: Number(semester) }),
+        ...(designation !== undefined && { designation }),
+        ...(password    !== undefined && { password    }),
       },
     });
 

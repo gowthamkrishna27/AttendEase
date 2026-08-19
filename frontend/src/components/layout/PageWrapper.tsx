@@ -6,7 +6,7 @@ import {
   Home, Clock, User, LogOut, LogIn,
   Bell, GraduationCap, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-  CheckSquare, UserCheck
+  CheckSquare, UserCheck, Database
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import attendEaseLogo from '../../assets/logo.png';
@@ -40,7 +40,6 @@ const hodNav = [
   { to: '/hod/requests', label: 'All Requests', icon: ClipboardList },
   { to: '/hod/faculty', label: 'Faculty', icon: Users },
   { to: '/hod/reports', label: 'Reports', icon: BarChart2 },
-  { to: '/permissions', label: 'Permissions', icon: Shield },
   { to: '/hod/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -49,6 +48,7 @@ const adminNav = [
   { to: '/admin/users', label: 'Accounts & Students', icon: Users },
   { to: '/admin/counseling', label: 'Counseling', icon: UserCheck },
   { to: '/admin/requests', label: 'Request Logs', icon: ClipboardList },
+  { to: '/admin/database', label: 'Database Tables', icon: Database },
   { to: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -81,6 +81,7 @@ const adminMobileBottomNav = [
   { id: 'home', to: '/admin', label: 'Dashboard', icon: Home, type: 'link' },
   { id: 'users', to: '/admin/users', label: 'Accounts', icon: Users, type: 'link' },
   { id: 'counseling', to: '/admin/counseling', label: 'Counseling', icon: UserCheck, type: 'link' },
+  { id: 'database', to: '/admin/database', label: 'Database', icon: Database, type: 'link' },
   { id: 'settings', to: '/admin/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
@@ -210,7 +211,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             </Link>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {user.role === 'student' || user.role === 'faculty' || user.role === 'hod' ? (
+              {user.role === 'student' || user.role === 'faculty' ? (
                 location.pathname === '/permissions' ? (
                   <Link
                     to={`/${user.role}`}
@@ -264,7 +265,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                 )
               ) : (
                 <Link
-                  to={`/${user.role}`}
+                  to={user.role === 'hod' ? '/hod/settings' : `/${user.role}`}
+                  title={user.role === 'hod' ? 'Profile & Settings' : 'Dashboard'}
                   style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
@@ -332,10 +334,10 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
 
         {/* Center/Right: Settings + Login Button (mobile) */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {user && user.role !== 'student' && user.role !== 'hod' && (
+          {user && user.role !== 'student' && (
             <Link
               to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
-              title={user.role === 'admin' ? 'Add User' : 'Settings'}
+              title={user.role === 'admin' ? 'Add User' : 'Settings & Profile'}
               style={{
                 width: 32, height: 32, borderRadius: 8,
                 background: user.role === 'admin' ? '#edf0f2' : '#FFF7ED',
@@ -364,7 +366,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               <LogIn size={13} />
               <span>Login</span>
             </Link>
-          ) : user.role === 'student' || user.role === 'faculty' || user.role === 'hod' ? (
+          ) : user.role === 'student' || user.role === 'faculty' ? (
             location.pathname === '/permissions' ? (
               <Link
                 to={`/${user.role}`}
@@ -396,7 +398,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             )
           ) : (
             <Link
-              to={`/${user.role}`}
+              to={user.role === 'hod' ? '/hod/settings' : `/${user.role}`}
+              title={user.role === 'hod' ? 'Profile & Settings' : 'Dashboard'}
               style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                 padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
@@ -428,14 +431,6 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             position: 'sticky', top: 56, height: 'calc(100vh - 56px)',
             overflowY: 'auto',
           }}>
-            <div style={{ padding: '0 18px 16px' }}>
-              <p style={{ fontSize: 16, fontWeight: 700, margin: '0 0 2px', letterSpacing: '-0.02em' }}>
-                <span style={{ color: '#18181b' }}>Attend</span>
-                <span style={{ color: '#EA580C' }}>Ease</span>
-              </p>
-              <p style={{ fontSize: 11, color: '#88929e', margin: 0 }}>Attendance Permission Portal</p>
-            </div>
-
             <nav style={{ flex: 1, padding: '0 10px' }}>
               {navLinks.map(link => {
                 const Icon = link.icon;

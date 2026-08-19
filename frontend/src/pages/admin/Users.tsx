@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet, Download } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet, Download, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { PageWrapper } from '../../components/layout/PageWrapper';
@@ -54,12 +54,24 @@ export default function AdminUsers() {
   const [formCounselorId, setFormCounselorId] = useState('');
   const [formError, setFormError]   = useState('');
 
+  // Dropdown filter states
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterDept, setFilterDept]           = useState('all');
+  const [filterYear, setFilterYear]           = useState('all');
+  const [filterSection, setFilterSection]     = useState('all');
+
   const { data: usersList = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => api.getUsers(),
   });
 
   const facultyList = usersList.filter(u => u.role === 'faculty' || u.role === 'hod');
+
+  // Dynamic filter options
+  const departmentList = Array.from(new Set(usersList.map(u => u.department).filter(Boolean))).sort();
+  const yearList = Array.from(new Set(usersList.map(u => u.year).filter(Boolean))).sort();
+  const sectionList = Array.from(new Set(usersList.map(u => u.section).filter(Boolean))).sort();
+  const activeFilterCount = (filterDept !== 'all' ? 1 : 0) + (filterYear !== 'all' ? 1 : 0) + (filterSection !== 'all' ? 1 : 0);
 
   // ── Global window drag-and-drop for CSV/Excel ────────────────────────────────
   useEffect(() => {
@@ -202,6 +214,37 @@ export default function AdminUsers() {
     URL.revokeObjectURL(url);
   };
 
+  // Export in Excel / CSV with ONLY Registered Number, Name, Year, Department, Section
+  const handleExportExcelOnly5Columns = (format: 'xlsx' | 'csv' = 'xlsx') => {
+    const exportRows = sorted.map(u => ({
+      'Register Number': u.rollNumber || u.userId || '',
+      'Name': u.name || '',
+      'Year': u.year || '',
+      'Department': u.department || '',
+      'Section': u.section || '',
+    }));
+
+    if (exportRows.length === 0) {
+      window.alert('No records available to export with current filters.');
+      return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Students_Accounts');
+
+    worksheet['!cols'] = [
+      { wch: 18 }, // Register Number
+      { wch: 30 }, // Name
+      { wch: 14 }, // Year
+      { wch: 18 }, // Department
+      { wch: 14 }, // Section
+    ];
+
+    const fileName = `Students_Export_${activeTab !== 'all' ? `${activeTab}_` : ''}${new Date().toISOString().slice(0, 10)}.${format}`;
+    XLSX.writeFile(workbook, fileName, { bookType: format });
+  };
+
   // Parses dropped or selected CSV/Excel file to display preview before upload
   const handleFileSelectForPreview = async (file: File) => {
     try {
@@ -248,7 +291,8 @@ export default function AdminUsers() {
       });
       setShowPreviewModal(true);
     } catch (err: any) {
-      window.alert(`Could not parse file preview: ${err.message || 'Unknown error'}`);
+      console.error('File parsing error:', err);
+      window.alert(`Failed to parse file: ${err.message || 'Check file format'}`);
     }
   };
 
@@ -282,20 +326,20 @@ export default function AdminUsers() {
     }
   };
 
-  const handleOpenEdit = (u: api.AuthUser) => {
-    setEditingUser(u);
-    setFormId(u.id);
-    setFormName(u.name);
-    setFormEmail(u.email);
-    setFormRole(u.role);
-    setFormDept(u.department);
+  const handleOpenEdit = (user: api.AuthUser) => {
+    setEditingUser(user);
+    setFormId(user.id);
+    setFormName(user.name);
+    setFormEmail(user.email);
+    setFormRole(user.role);
+    setFormDept(user.department);
     setFormPass(''); // don't fill password
-    setFormRoll(u.rollNumber || '');
-    setFormSem(u.semester || 6);
-    setFormYear(u.year || '3rd Year');
-    setFormSection(u.section || 'CSIT-A');
-    setFormAvatar(u.avatarUrl || '');
-    setFormCounselorId(u.counselorId || '');
+    setFormRoll(user.rollNumber || '');
+    setFormSem(user.semester || 6);
+    setFormYear(user.year || '3rd Year');
+    setFormSection(user.section || 'CSIT-A');
+    setFormAvatar(user.avatarUrl || '');
+    setFormCounselorId(user.counselorId || '');
     setFormError('');
     setShowFormModal(true);
   };
@@ -363,7 +407,10 @@ export default function AdminUsers() {
       (u.rollNumber ?? u.userId ?? '').toLowerCase().includes(search.toLowerCase()) ||
       (u.department ?? '').toLowerCase().includes(search.toLowerCase());
     const matchesTab = activeTab === 'all' ? true : u.role === activeTab;
-    return matchesSearch && matchesTab;
+    const matchesDept = filterDept === 'all' || u.department === filterDept;
+    const matchesYear = filterYear === 'all' || u.year === filterYear;
+    const matchesSection = filterSection === 'all' || u.section === filterSection;
+    return matchesSearch && matchesTab && matchesDept && matchesYear && matchesSection;
   });
 
   const sorted = [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -388,24 +435,46 @@ export default function AdminUsers() {
 
   return (
     <PageWrapper role="admin">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto space-y-4">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
           <div>
             <span className="text-[11px] font-semibold text-[#18181b] bg-[#edf0f2] px-2 py-0.5 rounded-[5px]">
               ADMIN CONTROL
             </span>
-            <h1 className="text-[22px] font-bold text-[#18181b] tracking-tight mt-1">Manage Accounts</h1>
+            <h1 className="text-[22px] font-bold text-[#18181b] tracking-tight mt-1">Manage Accounts &amp; Students</h1>
             <p className="text-[13px] text-[#6b7280]">Create, edit, delete and bulk upload Student, Faculty, HOD, and Admin accounts</p>
           </div>
-          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+            {/* Export in Excel Button */}
+            <button
+              type="button"
+              onClick={() => handleExportExcelOnly5Columns('xlsx')}
+              title="Export filtered records in Excel (.xlsx) with Registered Number, Name, Year, Department, and Section"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3.5 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer shadow-xs"
+            >
+              <FileSpreadsheet size={15} className="text-emerald-600" />
+              <span>Export in Excel</span>
+            </button>
+
+            {/* Export CSV Button */}
+            <button
+              type="button"
+              onClick={() => handleExportExcelOnly5Columns('csv')}
+              title="Export filtered records in CSV with 5 columns"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer"
+            >
+              <Download size={14} />
+              <span>CSV</span>
+            </button>
+
             <label
               htmlFor="header-csv-file-input"
-              className="inline-flex items-center justify-center gap-2 h-[38px] px-3.5 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer flex-1 sm:flex-initial"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3.5 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer"
             >
               <UploadCloud size={15} />
-              <span>Import CSV / Excel</span>
+              <span>Import</span>
               <input
                 id="header-csv-file-input"
                 type="file"
@@ -422,18 +491,10 @@ export default function AdminUsers() {
                 }}
               />
             </label>
-            <button
-              type="button"
-              onClick={handleDownloadSampleCsv}
-              title="Download sample CSV format template"
-              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer"
-            >
-              <Download size={14} />
-              <span className="hidden sm:inline">Template</span>
-            </button>
+
             <button
               onClick={handleOpenAdd}
-              className="flex items-center justify-center gap-1.5 h-[38px] px-4 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white font-medium text-[13px] rounded-lg shadow-xs transition-all cursor-pointer flex-1 sm:flex-initial"
+              className="flex items-center justify-center gap-1.5 h-[38px] px-4 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white font-medium text-[13px] rounded-lg shadow-xs transition-all cursor-pointer"
             >
               <Plus size={15} />
               <span>Add User</span>
@@ -442,7 +503,7 @@ export default function AdminUsers() {
         </div>
 
         {/* Role Filter Tabs */}
-        <div className="flex items-center gap-1 p-1 bg-[#edf0f2] rounded-lg w-fit mb-4">
+        <div className="flex items-center gap-1 p-1 bg-[#edf0f2] rounded-lg w-fit mb-2">
           {[
             { id: 'all',     label: 'All Users' },
             { id: 'student', label: 'Students' },
@@ -464,8 +525,8 @@ export default function AdminUsers() {
           ))}
         </div>
 
-        {/* Filter Toolbar */}
-        <div className="flex gap-3 mb-4">
+        {/* Filter Toolbar & Filter Button */}
+        <div className="flex gap-2.5 items-center">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#88929e]" />
             <input
@@ -476,7 +537,107 @@ export default function AdminUsers() {
               className="w-full h-[40px] pl-9 pr-4 text-[13.5px] bg-[#edf0f2] text-[#18181b] placeholder:text-[#88929e] rounded-lg outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all"
             />
           </div>
+
+          {/* Filter Button */}
+          <button
+            type="button"
+            onClick={() => setShowFilterPanel(!showFilterPanel)}
+            className={`h-[40px] px-3.5 rounded-lg border font-medium text-[13px] flex items-center gap-1.5 transition-all cursor-pointer ${
+              showFilterPanel || activeFilterCount > 0
+                ? 'bg-[#18181b] text-white border-[#18181b]'
+                : 'bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] border-transparent'
+            }`}
+          >
+            <Filter size={14} />
+            <span className="font-semibold">Filter</span>
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[11px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
         </div>
+
+        {/* Collapsible Dropdown Filter Panel */}
+        <AnimatePresence>
+          {showFilterPanel && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-2xs grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                {/* Department Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider block mb-1">
+                    Department / Branch
+                  </label>
+                  <select
+                    value={filterDept}
+                    onChange={e => setFilterDept(e.target.value)}
+                    className="w-full h-[36px] px-2.5 bg-[#edf0f2] text-[#18181b] rounded-lg text-[13px] font-medium outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="all">All Departments</option>
+                    {departmentList.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Year Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider block mb-1">
+                    Year
+                  </label>
+                  <select
+                    value={filterYear}
+                    onChange={e => setFilterYear(e.target.value)}
+                    className="w-full h-[36px] px-2.5 bg-[#edf0f2] text-[#18181b] rounded-lg text-[13px] font-medium outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="all">All Years</option>
+                    {yearList.map(yr => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Section Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider block mb-1">
+                    Section
+                  </label>
+                  <select
+                    value={filterSection}
+                    onChange={e => setFilterSection(e.target.value)}
+                    className="w-full h-[36px] px-2.5 bg-[#edf0f2] text-[#18181b] rounded-lg text-[13px] font-medium outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="all">All Sections</option>
+                    {sectionList.map(sec => (
+                      <option key={sec} value={sec}>{sec}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Reset Filters */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterDept('all');
+                      setFilterYear('all');
+                      setFilterSection('all');
+                    }}
+                    className="h-[36px] px-3.5 text-[12.5px] font-medium bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] rounded-lg transition-colors cursor-pointer w-full flex items-center justify-center"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Multi-select Batch Actions Bar */}
         <AnimatePresence>
