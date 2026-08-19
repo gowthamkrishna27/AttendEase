@@ -400,4 +400,36 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/users/proxy-image
+ * Proxies remote images (e.g. SRKR exam portal, Cloudinary) to avoid CORS in Excel export
+ */
+router.get('/proxy-image', async (req: Request, res: Response) => {
+  try {
+    const imageUrl = req.query.url as string;
+    if (!imageUrl) {
+      res.status(400).send('Image URL required');
+      return;
+    }
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      },
+    });
+    if (!response.ok) {
+      res.status(response.status).send('Failed to fetch remote image');
+      return;
+    }
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(buffer);
+  } catch (err: any) {
+    console.error('Proxy image error:', err);
+    res.status(500).send(err.message || 'Error proxying image');
+  }
+});
+
 export default router;

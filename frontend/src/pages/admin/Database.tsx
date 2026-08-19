@@ -114,51 +114,157 @@ export default function AdminDatabase() {
     setPage(1);
   };
 
-  // Export in Excel (.xlsx) / CSV with ONLY Registered Number, Name, Year, Department, Section when exporting Users
-  const handleExportExcel = (format: 'xlsx' | 'csv' = 'xlsx') => {
+  // Export in Excel (.xlsx) / CSV with embedded photo thumbnails
+  const handleExportExcel = async (format: 'xlsx' | 'csv' = 'xlsx') => {
     if (!tableData || !tableData.rows.length) {
       window.alert('No records available to export.');
       return;
     }
 
-    let exportRows: any[] = [];
-    let colWidths: { wch: number }[] = [];
-
-    if (selectedTable === 'User') {
-      exportRows = tableData.rows.map(u => ({
-        'Register Number': u.rollNumber || u.userId || '',
-        'Name': u.name || '',
-        'Year': u.year || '',
-        'Department': u.department || '',
-        'Section': u.section || '',
-      }));
-      colWidths = [
-        { wch: 18 },
-        { wch: 30 },
-        { wch: 14 },
-        { wch: 18 },
-        { wch: 14 },
-      ];
-    } else {
-      exportRows = tableData.rows.map(row => {
-        const obj: Record<string, any> = {};
-        tableData.columns.forEach(col => {
-          let val = row[col];
-          if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
-          obj[col] = val ?? '';
+    if (format === 'csv') {
+      let exportRows: any[] = [];
+      if (selectedTable === 'User') {
+        exportRows = tableData.rows.map(u => ({
+          'Register Number': u.rollNumber || u.userId || '',
+          'Name': u.name || '',
+          'Year': u.year || '',
+          'Department': u.department || '',
+          'Section': u.section || '',
+          'Photo URL': u.avatarUrl || (u.rollNumber ? `https://srkrexams.in/SRKR/photo/${u.rollNumber.toUpperCase()}.jpg` : ''),
+        }));
+      } else {
+        exportRows = tableData.rows.map(row => {
+          const obj: Record<string, any> = {};
+          tableData.columns.forEach(col => {
+            let val = row[col];
+            if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+            obj[col] = val ?? '';
+          });
+          return obj;
         });
-        return obj;
-      });
-      colWidths = tableData.columns.map(() => ({ wch: 20 }));
+      }
+      const worksheet = XLSX.utils.json_to_sheet(exportRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, selectedTable);
+      const fileName = `${selectedTable}_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+      XLSX.writeFile(workbook, fileName, { bookType: 'csv' });
+      return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, selectedTable);
-    worksheet['!cols'] = colWidths;
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'AttendEase';
+      const worksheet = workbook.addWorksheet(selectedTable, {
+        views: [{ showGridLines: true }],
+      });
 
-    const fileName = `${selectedTable}_Export_${new Date().toISOString().slice(0, 10)}.${format}`;
-    XLSX.writeFile(workbook, fileName, { bookType: format });
+      if (selectedTable === 'User') {
+        worksheet.columns = [
+          { header: '#', key: 'index', width: 6 },
+          { header: 'Photo', key: 'photo', width: 14 },
+          { header: 'Register Number', key: 'rollNumber', width: 20 },
+          { header: 'Name', key: 'name', width: 32 },
+          { header: 'Year', key: 'year', width: 14 },
+          { header: 'Department', key: 'department', width: 18 },
+          { header: 'Section', key: 'section', width: 14 },
+        ];
+
+        const headerRow = worksheet.getRow(1);
+        headerRow.height = 28;
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF18181B' },
+        };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        for (let i = 0; i < tableData.rows.length; i++) {
+          const u = tableData.rows[i];
+          const rowIndex = i + 2;
+          const row = worksheet.addRow({
+            index: (page - 1) * limit + i + 1,
+            photo: '',
+            rollNumber: u.rollNumber || u.userId || '',
+            name: u.name || '',
+            year: u.year || '',
+            department: u.department || '',
+            section: u.section || '',
+          });
+          row.height = 56;
+          row.alignment = { vertical: 'middle', horizontal: 'left' };
+          row.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' };
+          row.getCell(2).alignment = { vertical: 'middle', horizontal: 'center' };
+          row.getCell(3).alignment = { vertical: 'middle', horizontal: 'center' };
+          row.getCell(5).alignment = { vertical: 'middle', horizontal: 'center' };
+          row.getCell(6).alignment = { vertical: 'middle', horizontal: 'center' };
+          row.getCell(7).alignment = { vertical: 'middle', horizontal: 'center' };
+
+          const photoUrl = u.avatarUrl || (u.rollNumber ? `https://srkrexams.in/SRKR/photo/${u.rollNumber.toUpperCase()}.jpg` : '');
+          if (photoUrl) {
+            try {
+              const proxyUrl = `/api/users/proxy-image?url=${encodeURIComponent(photoUrl)}`;
+              const imgRes = await fetch(proxyUrl);
+              if (imgRes.ok) {
+                const arrayBuf = await imgRes.arrayBuffer();
+                const imageId = workbook.addImage({
+                  buffer: arrayBuf,
+                  extension: 'jpeg',
+                });
+                worksheet.addImage(imageId, {
+                  tl: { col: 1.15, row: rowIndex - 0.88 },
+                  ext: { width: 44, height: 52 },
+                  editAs: 'oneCell',
+                });
+              }
+            } catch (err) {
+              // Ignore single photo failure
+            }
+          }
+        }
+      } else {
+        worksheet.columns = tableData.columns.map(col => ({
+          header: col,
+          key: col,
+          width: 22,
+        }));
+        const headerRow = worksheet.getRow(1);
+        headerRow.height = 28;
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF18181B' },
+        };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        tableData.rows.forEach(r => {
+          const rowObj: Record<string, any> = {};
+          tableData.columns.forEach(c => {
+            let val = r[c];
+            if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+            rowObj[c] = val ?? '';
+          });
+          worksheet.addRow(rowObj);
+        });
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.href = url;
+      downloadAnchor.download = `${selectedTable}_Export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Export Excel failed:', err);
+      window.alert(`Failed to export Excel: ${err?.message || 'Unknown error'}`);
+    }
   };
 
   const handleExportJSON = async () => {

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet, Download, Filter } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet, Download, Filter, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -23,6 +24,10 @@ export default function AdminUsers() {
   const queryClient = useQueryClient();
   const [search, setSearch]   = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'student' | 'faculty' | 'hod' | 'admin'>('all');
+
+  // Export progress state
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [exportProgressText, setExportProgressText] = useState('');
 
   // Modals state
   const [showFormModal, setShowFormModal] = useState(false);
@@ -214,35 +219,144 @@ export default function AdminUsers() {
     URL.revokeObjectURL(url);
   };
 
-  // Export in Excel / CSV with ONLY Registered Number, Name, Year, Department, Section
-  const handleExportExcelOnly5Columns = (format: 'xlsx' | 'csv' = 'xlsx') => {
-    const exportRows = sorted.map(u => ({
-      'Register Number': u.rollNumber || u.userId || '',
-      'Name': u.name || '',
-      'Year': u.year || '',
-      'Department': u.department || '',
-      'Section': u.section || '',
-    }));
-
-    if (exportRows.length === 0) {
+  // Export in Excel (.xlsx) with embedded Photo thumbnails + Register Number, Name, Year, Department, Section
+  const handleExportExcelWithPhotos = async (format: 'xlsx' | 'csv' = 'xlsx') => {
+    if (sorted.length === 0) {
       window.alert('No records available to export with current filters.');
       return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Students_Accounts');
+    if (format === 'csv') {
+      const exportRows = sorted.map(u => ({
+        'Register Number': u.rollNumber || u.userId || '',
+        'Name': u.name || '',
+        'Year': u.year || '',
+        'Department': u.department || '',
+        'Section': u.section || '',
+        'Photo URL': u.avatarUrl || (u.rollNumber ? `https://srkrexams.in/SRKR/photo/${u.rollNumber.toUpperCase()}.jpg` : ''),
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(exportRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+      const fileName = `Students_Export_${activeTab !== 'all' ? `${activeTab}_` : ''}${new Date().toISOString().slice(0, 10)}.csv`;
+      XLSX.writeFile(workbook, fileName, { bookType: 'csv' });
+      return;
+    }
 
-    worksheet['!cols'] = [
-      { wch: 18 }, // Register Number
-      { wch: 30 }, // Name
-      { wch: 14 }, // Year
-      { wch: 18 }, // Department
-      { wch: 14 }, // Section
-    ];
+    try {
+      setIsExportingExcel(true);
+      setExportProgressText('Preparing Excel workbook...');
 
-    const fileName = `Students_Export_${activeTab !== 'all' ? `${activeTab}_` : ''}${new Date().toISOString().slice(0, 10)}.${format}`;
-    XLSX.writeFile(workbook, fileName, { bookType: format });
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'AttendEase';
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet('Students', {
+        views: [{ showGridLines: true }],
+      });
+
+      // Columns definition
+      worksheet.columns = [
+        { header: '#', key: 'index', width: 6 },
+        { header: 'Photo', key: 'photo', width: 14 },
+        { header: 'Register Number', key: 'rollNumber', width: 20 },
+        { header: 'Name', key: 'name', width: 32 },
+        { header: 'Year', key: 'year', width: 14 },
+        { header: 'Department', key: 'department', width: 18 },
+        { header: 'Section', key: 'section', width: 14 },
+      ];
+
+      // Header row styling
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 28;
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF18181B' }, // Dark theme matching AttendEase
+      };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+      // Process rows and embed photos
+      const total = sorted.length;
+      for (let i = 0; i < total; i++) {
+        const u = sorted[i];
+        const rowIndex = i + 2;
+        setExportProgressText(`Processing photos... (${i + 1}/${total})`);
+
+        const row = worksheet.addRow({
+          index: i + 1,
+          photo: '',
+          rollNumber: u.rollNumber || u.userId || '',
+          name: u.name || '',
+          year: u.year || '',
+          department: u.department || '',
+          section: u.section || '',
+        });
+
+        row.height = 56;
+        row.alignment = { vertical: 'middle', horizontal: 'left' };
+        row.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(2).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(3).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(5).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(6).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(7).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Subtle alternating row background
+        if (i % 2 !== 0) {
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF9FAFB' },
+          };
+        }
+
+        // Fetch student photo
+        const photoUrl = u.avatarUrl || (u.rollNumber ? `https://srkrexams.in/SRKR/photo/${u.rollNumber.toUpperCase()}.jpg` : '');
+        if (photoUrl) {
+          try {
+            const proxyUrl = `/api/users/proxy-image?url=${encodeURIComponent(photoUrl)}`;
+            const imgRes = await fetch(proxyUrl);
+            if (imgRes.ok) {
+              const arrayBuf = await imgRes.arrayBuffer();
+              const imageId = workbook.addImage({
+                buffer: arrayBuf,
+                extension: 'jpeg',
+              });
+
+              worksheet.addImage(imageId, {
+                tl: { col: 1.15, row: rowIndex - 0.88 },
+                ext: { width: 44, height: 52 },
+                editAs: 'oneCell',
+              });
+            }
+          } catch (imgErr) {
+            // Ignore single image failure and proceed
+          }
+        }
+      }
+
+      setExportProgressText('Generating .xlsx file...');
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.href = url;
+      downloadAnchor.download = `Students_With_Photos_${activeTab !== 'all' ? `${activeTab}_` : ''}${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Export Excel with photos failed:', err);
+      window.alert(`Failed to export Excel with photos: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setIsExportingExcel(false);
+      setExportProgressText('');
+    }
   };
 
   // Parses dropped or selected CSV/Excel file to display preview before upload
@@ -450,20 +564,26 @@ export default function AdminUsers() {
             {/* Export in Excel Button */}
             <button
               type="button"
-              onClick={() => handleExportExcelOnly5Columns('xlsx')}
-              title="Export filtered records in Excel (.xlsx) with Registered Number, Name, Year, Department, and Section"
-              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3.5 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer shadow-xs"
+              disabled={isExportingExcel}
+              onClick={() => handleExportExcelWithPhotos('xlsx')}
+              title="Export filtered records in Excel (.xlsx) with embedded Photo thumbnails, Register Number, Name, Year, Department, and Section"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3.5 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer shadow-xs disabled:opacity-50"
             >
-              <FileSpreadsheet size={15} className="text-emerald-600" />
-              <span>Export in Excel</span>
+              {isExportingExcel ? (
+                <Loader2 size={15} className="animate-spin text-emerald-600" />
+              ) : (
+                <FileSpreadsheet size={15} className="text-emerald-600" />
+              )}
+              <span>{isExportingExcel ? (exportProgressText || 'Exporting...') : 'Export in Excel'}</span>
             </button>
 
             {/* Export CSV Button */}
             <button
               type="button"
-              onClick={() => handleExportExcelOnly5Columns('csv')}
-              title="Export filtered records in CSV with 5 columns"
-              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer"
+              disabled={isExportingExcel}
+              onClick={() => handleExportExcelWithPhotos('csv')}
+              title="Export filtered records in CSV format"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer disabled:opacity-50"
             >
               <Download size={14} />
               <span>CSV</span>
