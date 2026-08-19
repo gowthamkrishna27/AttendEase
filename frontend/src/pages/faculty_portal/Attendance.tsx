@@ -24,7 +24,7 @@ const formatTime = (timeStr?: string) => {
 const getFullRollNumber = (roll: string, year: string, sectionFilter?: string): string => {
   if (roll.length > 5) return roll.toUpperCase();
   const yearDigit = year.replace(/[^0-9]/g, '') || '3';
-  
+
   // Department code: CSIT -> '07', CSD -> '62'
   const isCSIT = sectionFilter ? sectionFilter.includes('CSIT') : true;
   const deptCode = isCSIT ? '07' : '62';
@@ -119,9 +119,8 @@ function FacultyRollButton({
           ? `Roll #${roll}: Approved Permission — Press & Hold to view slip details`
           : `Roll #${roll}: Press & Hold to view student photo card`
       }
-      className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex flex-col items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none relative ${btnStyle} ${
-        !isOwner ? 'cursor-not-allowed opacity-90' : ''
-      }`}
+      className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex flex-col items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none relative ${btnStyle} ${!isOwner ? 'cursor-not-allowed opacity-90' : ''
+        }`}
     >
       {hasPermission && (
         <span className="absolute -top-1 px-1 py-0.2 bg-amber-500 text-white text-[7px] font-black rounded-full uppercase shadow-2xs">
@@ -161,7 +160,7 @@ export default function FacultyAttendance() {
   const [selectedYear, setSelectedYear] = useState<string>('');
   const [sectionFilter, setSectionFilter] = useState<string>('');
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState<boolean>(false);
-  
+
   // Selected Periods (e.g. [1, 2])
   const [selectedPeriodIds, setSelectedPeriodIds] = useState<number[]>([]);
 
@@ -170,7 +169,7 @@ export default function FacultyAttendance() {
 
   // Marked attendance state: rollNumber -> 'present' | 'absent'
   const [markedAttendance, setMarkedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
-  
+
   // Toast Notification
   const [toastMsg, setToastMsg] = useState<{ text: string; isError?: boolean } | null>(null);
   const [selectedPass, setSelectedPass] = useState<api.AttendanceRequest | null>(null);
@@ -191,7 +190,7 @@ export default function FacultyAttendance() {
     const sorted = [...selectedPeriodIds].sort((a, b) => a - b);
     const slots = sorted.map(id => PERIOD_SLOTS.find(p => p.id === id)).filter(Boolean) as PeriodSlot[];
     if (slots.length === 1) return `${slots[0].label} (${slots[0].timeRange})`;
-    
+
     const first = slots[0];
     const last = slots[slots.length - 1];
     return `Periods ${sorted.join(' & ')} (${first.timeRange.split(' - ')[0]} - ${last.timeRange.split(' - ')[1]})`;
@@ -361,7 +360,7 @@ export default function FacultyAttendance() {
       }
     });
     setMarkedAttendance(initialMap);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSubmission, permissionRollsKey]);
 
   // Roll numbers generator for section
@@ -507,7 +506,7 @@ export default function FacultyAttendance() {
   return (
     <PageWrapper role="faculty">
       <div className="max-w-4xl mx-auto space-y-4">
-        
+
         {/* Toast Alert */}
         <AnimatePresence>
           {toastMsg && (
@@ -515,9 +514,8 @@ export default function FacultyAttendance() {
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-white text-[13px] font-bold ${
-                toastMsg.isError ? 'bg-rose-600' : 'bg-orange-500'
-              }`}
+              className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-white text-[13px] font-bold ${toastMsg.isError ? 'bg-rose-600' : 'bg-orange-500'
+                }`}
             >
               {toastMsg.isError ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
               <span>{toastMsg.text}</span>
@@ -554,7 +552,7 @@ export default function FacultyAttendance() {
 
         {/* ── Year & Section Selector Container ── */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 space-y-3.5 shadow-xs">
-          
+
           {/* Top Row: Year Selection (Square buttons with rounded corners) */}
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1.5 mr-1">
@@ -578,11 +576,10 @@ export default function FacultyAttendance() {
                     setMarkedAttendance({});
                   }}
                   title={yr.value}
-                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${
-                    selectedYear === yr.value
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${selectedYear === yr.value
                       ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-500/20 scale-105'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
-                  }`}
+                    }`}
                 >
                   {yr.label}
                 </button>
@@ -604,14 +601,14 @@ export default function FacultyAttendance() {
                   {!selectedYear
                     ? 'Select Year First...'
                     : !sectionFilter
-                    ? 'Choose Section...'
-                    : sectionFilter === 'CSD-A'
-                    ? 'CSD — Section A'
-                    : sectionFilter === 'CSIT-A'
-                    ? 'CSIT — Section A'
-                    : sectionFilter === 'CSIT-B'
-                    ? 'CSIT — Section B'
-                    : sectionFilter}
+                      ? 'Choose Section...'
+                      : sectionFilter === 'CSD-A'
+                        ? 'CSD — Section A'
+                        : sectionFilter === 'CSIT-A'
+                          ? 'CSIT — Section A'
+                          : sectionFilter === 'CSIT-B'
+                            ? 'CSIT — Section B'
+                            : sectionFilter}
                 </span>
               </div>
               <ChevronDown size={16} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
@@ -642,9 +639,8 @@ export default function FacultyAttendance() {
                           setSectionFilter(sec.value);
                           setIsSectionDropdownOpen(false);
                         }}
-                        className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${
-                          sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
-                        }`}
+                        className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
+                          }`}
                       >
                         <span>{sec.label}</span>
                         {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
@@ -677,8 +673,8 @@ export default function FacultyAttendance() {
                   const pArr = typeof rawP === 'string'
                     ? rawP.split(',').map(n => Number(n.trim()))
                     : Array.isArray(rawP)
-                    ? rawP.map((n: unknown) => Number(n))
-                    : [Number(rawP)];
+                      ? rawP.map((n: unknown) => Number(n))
+                      : [Number(rawP)];
                   return pArr.includes(slot.id);
                 });
                 const currentUid = (user?.id || user?.userId || '').toLowerCase().trim();
@@ -708,13 +704,12 @@ export default function FacultyAttendance() {
                       togglePeriodSlot(slot.id);
                     }}
                     title={isLocked ? `Locked by ${lockedBy}` : slot.timeRange}
-                    className={`px-3 py-2 rounded-xl border text-left flex flex-col justify-between transition-all select-none relative ${
-                      isLocked
+                    className={`px-3 py-2 rounded-xl border text-left flex flex-col justify-between transition-all select-none relative ${isLocked
                         ? 'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed opacity-80'
                         : isSelected
-                        ? 'bg-orange-500 border-orange-500 text-white shadow-sm scale-[1.02] cursor-pointer'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
-                    }`}
+                          ? 'bg-orange-500 border-orange-500 text-white shadow-sm scale-[1.02] cursor-pointer'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
+                      }`}
                   >
                     <div className="flex items-center justify-between w-full font-bold">
                       <span className="flex items-center gap-1">
@@ -730,7 +725,7 @@ export default function FacultyAttendance() {
                 );
               })}
             </div>
-            
+
             {/* Lunch Break Note */}
             <div className="text-[10px] text-slate-400 font-medium text-center pt-0.5">
               🍱 Lunch Break: 12:00 PM – 01:30 PM
@@ -770,11 +765,10 @@ export default function FacultyAttendance() {
 
             {/* ── Submitter Ownership Warning / Status Badge ── */}
             {currentSubmission && (
-              <div className={`p-3 rounded-xl border flex items-center justify-between text-[12px] font-bold ${
-                isOwner
+              <div className={`p-3 rounded-xl border flex items-center justify-between text-[12px] font-bold ${isOwner
                   ? 'bg-orange-50 border-orange-200 text-orange-800'
                   : 'bg-amber-50 border-amber-200 text-amber-900'
-              }`}>
+                }`}>
                 <div className="flex items-center gap-2">
                   {isOwner ? <CheckCircle2 size={16} className="text-orange-600" /> : <Lock size={16} className="text-amber-600" />}
                   <span>
@@ -791,7 +785,7 @@ export default function FacultyAttendance() {
 
             {/* ── Grid Container & Interactive Marking Controls ── */}
             <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-4 shadow-xs">
-              
+
               {/* Click Mode Controls Bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-[12px]">
@@ -799,11 +793,10 @@ export default function FacultyAttendance() {
                     Click Mode:
                   </span>
                   <div className="flex items-center gap-2">
-                    <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${
-                      markMode === 'present'
+                    <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${markMode === 'present'
                         ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 shadow-2xs ring-2 ring-emerald-500/20'
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    }`}>
+                      }`}>
                       <input
                         type="radio"
                         name="markMode"
@@ -815,11 +808,10 @@ export default function FacultyAttendance() {
                       <span>Presentees</span>
                     </label>
 
-                    <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${
-                      markMode === 'absent'
+                    <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${markMode === 'absent'
                         ? 'bg-rose-50/80 border-rose-300 text-rose-900 shadow-2xs ring-2 ring-rose-500/20'
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    }`}>
+                      }`}>
                       <input
                         type="radio"
                         name="markMode"
@@ -896,13 +888,12 @@ export default function FacultyAttendance() {
                   type="button"
                   disabled={!isOwner || submitMutation.isPending}
                   onClick={handleSubmit}
-                  className={`w-full sm:w-auto min-w-[260px] py-3 px-6 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer ${
-                    !isOwner
+                  className={`w-full sm:w-auto min-w-[260px] py-3 px-6 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer ${!isOwner
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
                       : submitMutation.isPending
-                      ? 'bg-orange-400 text-white cursor-wait'
-                      : 'bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white shadow-orange-500/25 ring-2 ring-orange-500/20'
-                  }`}
+                        ? 'bg-orange-400 text-white cursor-wait'
+                        : 'bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white shadow-orange-500/25 ring-2 ring-orange-500/20'
+                    }`}
                 >
                   {submitMutation.isPending ? (
                     <RefreshCw size={18} className="animate-spin" />

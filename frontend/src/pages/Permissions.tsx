@@ -9,6 +9,7 @@ import {
   GraduationCap, Building2, Copy, Check
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
+import { PermissionSlipModal } from '../components/shared/PermissionSlipModal';
 import * as api from '../lib/api';
 import type { AttendanceRequest } from '../types';
 import { formatTime, getPeriodsFromRequest } from '../lib/utils';
@@ -55,6 +56,27 @@ export const sortRollNumbers = (rolls: string[]): string[] => {
 
     return a.localeCompare(b, undefined, { numeric: true });
   });
+};
+
+export const getStudentPhoto = (pass: { student?: { avatarUrl?: string; rollNumber?: string; department?: string; name?: string }; studentId?: string }): string => {
+  if (pass.student?.avatarUrl && (pass.student.avatarUrl.startsWith('http') || pass.student.avatarUrl.startsWith('data:'))) {
+    return pass.student.avatarUrl;
+  }
+  const raw = (pass.student?.rollNumber || pass.studentId || '').trim().toUpperCase();
+  if (!raw || raw.startsWith('STU-') || raw.startsWith('FAC-') || raw.startsWith('ADMIN-')) {
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(pass.student?.name || 'Student')}&background=0F172A&color=fff`;
+  }
+  if (raw.length >= 8 && /^[0-9]{2}[A-Z0-9]+$/i.test(raw)) {
+    return `https://srkrexams.in/SRKR/photo/${raw}.jpg`;
+  }
+  const isLE = /^LE\d+$/i.test(raw);
+  const dept = (pass.student?.department || '').includes('CSD') ? '62' : '07';
+  if (isLE) {
+    const num = raw.replace(/LE/i, '').padStart(2, '0');
+    return `https://srkrexams.in/SRKR/photo/25B95A${dept}${num}.jpg`;
+  }
+  const clean = raw.padStart(2, '0');
+  return `https://srkrexams.in/SRKR/photo/24B91A${dept}${clean}.jpg`;
 };
 
 export const PERIOD_TIMINGS: Record<number, { start: string; end: string }> = {
@@ -1617,7 +1639,52 @@ export default function PermissionsPage() {
         {createPortal(
           <AnimatePresence>
             {selectedPass && (
-              <div className="fixed inset-0 z-[99999] bg-orange-950/20 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print:static print:bg-white print:p-0 print:inset-auto print:z-auto">
+              <div className="attendease-slip-portal fixed inset-0 z-[99999] bg-orange-950/20 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+                <style>{`
+                  @media screen {
+                    .attendease-printable-slip {
+                      display: none !important;
+                    }
+                  }
+                  @media print {
+                    @page {
+                      size: A4 portrait;
+                      margin: 8mm 12mm;
+                    }
+                    body > * {
+                      visibility: hidden !important;
+                    }
+                    .attendease-slip-portal,
+                    .attendease-slip-portal * {
+                      visibility: visible !important;
+                    }
+                    .attendease-slip-portal {
+                      position: absolute !important;
+                      left: 0 !important;
+                      top: 0 !important;
+                      width: 100% !important;
+                      background: #ffffff !important;
+                      padding: 0 !important;
+                      margin: 0 !important;
+                      z-index: 9999999 !important;
+                    }
+                    .attendease-printable-slip {
+                      display: flex !important;
+                      visibility: visible !important;
+                      background: #ffffff !important;
+                      color: #000000 !important;
+                      width: 100% !important;
+                      min-height: 255mm !important;
+                      padding: 6mm 8mm !important;
+                      box-sizing: border-box !important;
+                    }
+                    .attendease-screen-modal {
+                      display: none !important;
+                    }
+                  }
+                `}</style>
+
+                {/* On-screen Modal */}
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1629,7 +1696,7 @@ export default function PermissionsPage() {
                     border: '1px solid rgba(254, 215, 170, 0.75)',
                     boxShadow: '0 24px 60px -10px rgba(249, 115, 22, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.8) inset',
                   }}
-                  className="rounded-3xl max-w-md w-full p-5 sm:p-6 max-h-[92vh] flex flex-col justify-between overflow-y-auto print:hidden"
+                  className="attendease-screen-modal rounded-3xl max-w-md w-full p-5 sm:p-6 max-h-[92vh] flex flex-col justify-between overflow-y-auto"
                 >
                   {/* Modal Top Header with Close Button */}
                   <div>
@@ -1689,7 +1756,7 @@ export default function PermissionsPage() {
                         className="flex items-center gap-3 p-3.5 rounded-2xl"
                       >
                         <img
-                          src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${(selectedPass.student?.rollNumber || selectedPass.studentId).toUpperCase()}.jpg`}
+                          src={getStudentPhoto(selectedPass)}
                           alt="Student Avatar"
                           className="w-13 h-15 sm:w-14 sm:h-16 object-cover rounded-xl border border-orange-200/80 shrink-0 shadow-xs"
                           onError={(e) => {
@@ -1809,7 +1876,7 @@ export default function PermissionsPage() {
                 </motion.div>
 
                 {/* Printable Letter Format */}
-                <div className="hidden print:block bg-white p-6 sm:p-8 text-slate-900 font-sans leading-relaxed w-full min-h-[255mm] flex flex-col justify-between mx-auto text-[12px]">
+                <div className="attendease-printable-slip bg-white p-6 sm:p-8 text-slate-900 font-sans leading-relaxed w-full min-h-[255mm] flex flex-col justify-between mx-auto text-[12px]">
                   <div>
                     <div className="border-b-2 border-slate-900 pb-3 mb-4 text-center">
                       <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
@@ -1836,10 +1903,10 @@ export default function PermissionsPage() {
                         </div>
                       </div>
 
-                      <div className="col-span-3 flex justify-end">
-                        <div className="w-[72px] h-[90px] border-2 border-slate-900 rounded-sm bg-white overflow-hidden flex flex-col items-center justify-center relative shadow-2xs">
+                      <div className="col-span-3 flex flex-col items-end">
+                        <div className="w-[88px] h-[88px] border-2 border-slate-900 rounded-md bg-white overflow-hidden flex flex-col items-center justify-center relative shadow-xs">
                           <img
-                            src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${(selectedPass.student?.rollNumber || selectedPass.studentId).toUpperCase()}.jpg`}
+                            src={getStudentPhoto(selectedPass)}
                             alt="Student Photo"
                             className="w-full h-full object-cover block"
                             onError={(e) => {
@@ -1847,13 +1914,21 @@ export default function PermissionsPage() {
                             }}
                           />
                         </div>
+                        <div className="text-center w-[88px] mt-1 space-y-0.5">
+                          <p className="font-bold text-[10px] text-slate-900 leading-tight truncate">
+                            {selectedPass.student?.name ?? selectedPass.studentId}
+                          </p>
+                          <p className="font-mono font-black text-[9.5px] text-slate-800 uppercase tracking-tight">
+                            {selectedPass.student?.rollNumber ?? selectedPass.studentId}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
                     <div className="text-[12px] font-medium mb-4 space-y-0.5">
                       <p className="font-bold text-slate-900 uppercase text-[11px]">To:</p>
                       <p className="font-bold text-slate-900">The Head of the Department (HOD)</p>
-                      <p className="text-slate-700">Department of {selectedPass.student?.department ?? 'CSD'}</p>
+                      <p className="text-slate-700">Department of {selectedPass.student?.department ?? 'CSD'} &amp; CSIT</p>
                       <p className="text-slate-700">SRKR Engineering College (Autonomous), Bhimavaram</p>
                     </div>
 
@@ -1900,10 +1975,9 @@ export default function PermissionsPage() {
                     </div>
 
                     <div className="flex flex-col items-center justify-center text-center">
-                      <div className="w-20 h-20 border-2 border-orange-500 rounded-full flex flex-col items-center justify-center bg-orange-50/70 shadow-2xs transform -rotate-12 p-1 border-dashed">
-                        <img src={logo} alt="AttendEase Seal" className="w-7 h-7 object-contain mb-0.5 opacity-90" />
-                        <span className="text-[7.5px] font-black uppercase text-orange-600 tracking-tighter leading-none">ATTENDEASE</span>
-                        <span className="text-[6.5px] font-bold uppercase text-slate-700 tracking-tighter leading-none">OFFICIAL SEAL</span>
+                      <div className="w-20 h-20 flex flex-col items-center justify-center bg-transparent transform -rotate-12">
+                        <img src={logo} alt="AttendEase Official Seal" className="w-16 h-16 object-contain bg-transparent" />
+                        <span className="text-[7.5px] font-black uppercase text-orange-600 tracking-wider leading-none mt-1">OFFICIAL SEAL</span>
                       </div>
                     </div>
                   </div>
