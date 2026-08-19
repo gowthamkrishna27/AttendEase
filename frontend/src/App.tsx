@@ -49,6 +49,7 @@ import AdminSettings from './pages/admin/Settings';
 // Shared / Admin — permissions
 import PermissionsPage from './pages/Permissions';
 import LandingPage from './pages/LandingPage';
+import Developers from './pages/Developers';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -100,6 +101,11 @@ function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/home" element={<LandingPage />} />
         <Route path="/landing" element={<LandingPage />} />
+        <Route path="/developers" element={<Developers />} />
+        <Route path="/developer" element={<Navigate to="/developers" replace />} />
+        <Route path="/gowtham" element={<Navigate to="/developers" replace />} />
+        <Route path="/vivek" element={<Navigate to="/developers" replace />} />
+        <Route path="/team" element={<Navigate to="/developers" replace />} />
         <Route path="/login" element={<LoginPortal />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 

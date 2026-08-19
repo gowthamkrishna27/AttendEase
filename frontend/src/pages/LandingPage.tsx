@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, X, Sparkles, Download, CheckCircle2,
   Clock, ArrowRight, Lock, ChevronDown, ChevronUp,
-  FileText, MessageSquareText, Bot, RotateCcw, ArrowUp
+  FileText, MessageSquareText, Bot, RotateCcw, ArrowUp,
+  Code2
 } from 'lucide-react';
 import './landing.css';
 import logoImg from '../assets/logo.png';
