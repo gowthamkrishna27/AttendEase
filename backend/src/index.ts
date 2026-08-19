@@ -72,12 +72,50 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
+// ── Auto-sync Postgres Enums ──────────────────────────────────────────────────
+async function syncDatabaseEnums() {
+  const reasons = [
+    'internship',
+    'startup',
+    'project_development',
+    'medical',
+    'sports',
+    'family_emergency',
+    'competition',
+    'other',
+  ];
+  for (const val of reasons) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "RequestReason" ADD VALUE IF NOT EXISTS '${val}'`);
+    } catch {
+      // Ignore if table/enum not created yet or already exists
+    }
+  }
+
+  const statuses = ['pending', 'approved', 'rejected', 'cancelled'];
+  for (const val of statuses) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "RequestStatus" ADD VALUE IF NOT EXISTS '${val}'`);
+    } catch {}
+  }
+
+  const roles = ['student', 'faculty', 'hod', 'admin'];
+  for (const val of roles) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "Role" ADD VALUE IF NOT EXISTS '${val}'`);
+    } catch {}
+  }
+}
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 async function bootstrap() {
   try {
     // Connect to PostgreSQL
     await prisma.$connect();
     console.log('✅  PostgreSQL connected (Prisma)');
+
+    // Ensure database enums match Prisma schema
+    await syncDatabaseEnums();
 
     let currentPort = Number(PORT);
 
