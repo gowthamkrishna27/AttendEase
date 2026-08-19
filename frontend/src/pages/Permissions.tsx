@@ -9,7 +9,6 @@ import {
   GraduationCap, Building2, Copy, Check
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
-import { PermissionSlipModal } from '../components/shared/PermissionSlipModal';
 import * as api from '../lib/api';
 import type { AttendanceRequest } from '../types';
 import { formatTime, getPeriodsFromRequest } from '../lib/utils';

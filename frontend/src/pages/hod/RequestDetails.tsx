@@ -13,6 +13,7 @@ import { formatDate, formatTime } from '../../lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import { ProofPreviewModal } from '../../components/shared/ProofPreviewModal';
+import NotFound from '../NotFound';
 
 export default function HODRequestDetails() {
   const { id } = useParams<{ id: string }>();
@@ -97,14 +98,10 @@ export default function HODRequestDetails() {
 
   if (!request) {
     return (
-      <PageWrapper role="hod">
-        <div className="max-w-xl mx-auto text-center py-20">
-          <p className="text-[16px] text-[#6B7280]">Request not found.</p>
-          <Button className="mt-4" onClick={() => navigate('/hod')}>
-            Back to Overview
-          </Button>
-        </div>
-      </PageWrapper>
+      <NotFound
+        code="404"
+        title="This attendance request could not be found."
+      />
     );
   }
 

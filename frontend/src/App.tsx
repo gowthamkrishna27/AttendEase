@@ -49,6 +49,7 @@ import AdminSettings from './pages/admin/Settings';
 // Shared / Admin — permissions
 import PermissionsPage from './pages/Permissions';
 import LandingPage from './pages/LandingPage';
+import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -154,8 +155,9 @@ function AppRoutes() {
         <Route path="/admin/database" element={<ProtectedRoute role="admin"><AdminDatabase /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* 404 Error Page */}
+        <Route path="/404" element={<NotFound />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
   );

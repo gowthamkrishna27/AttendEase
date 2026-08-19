@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Home, Clock, User, LogOut, LogIn,
-  Bell, GraduationCap, Plus,
+  Bell, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
   CheckSquare, UserCheck, Database
 } from 'lucide-react';

@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import { formatDate, formatTime, formatSubmittedAt } from '../../lib/utils';
 import { ProofPreviewModal } from '../../components/shared/ProofPreviewModal';
+import NotFound from '../NotFound';
 
 
 export default function FacultyRequestDetails() {
@@ -24,36 +25,22 @@ export default function FacultyRequestDetails() {
     queryFn: async () => {
       try {
         return await api.getRequest(id!);
-      } catch (err) {
-        const cachedList = queryClient.getQueryData<api.AttendanceRequest[]>(['requests']) || [];
-        const cached = cachedList.find(r => r.id === id || (r as any).requestId === id);
-        if (cached) return cached;
-        throw err;
+      } catch {
+        return null;
       }
     },
     enabled: !!id,
   });
 
   const reviewMutation = useMutation({
-    mutationFn: ({ action, reason }: { action: 'approve' | 'reject'; reason?: string }) =>
-      api.reviewRequest(id!, action, reason),
-    onMutate: async ({ action }) => {
-      await queryClient.cancelQueries({ queryKey: ['request', id] });
-      await queryClient.cancelQueries({ queryKey: ['requests'] });
-
-      const newStatus = action === 'approve' ? 'approved' : 'rejected';
-      queryClient.setQueryData<api.AttendanceRequest>(['request', id], old =>
-        old ? { ...old, status: newStatus as any } : old
-      );
-
-      queryClient.setQueryData<api.AttendanceRequest[]>(['requests'], old =>
-        (old || []).map(r => r.id === id ? { ...r, status: newStatus as any } : r)
-      );
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      void queryClient.invalidateQueries({ queryKey: ['request', id] });
+    mutationFn: (payload: { action: 'approve' | 'reject'; reason?: string }) =>
+      api.reviewRequest(id!, payload.action, payload.reason),
+    onSuccess: (updatedReq) => {
+      queryClient.setQueryData(['request', id], updatedReq);
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['facultyRequests'] });
       setConfirmModal(null);
+      setRejectionReason('');
     },
   });
 
@@ -61,7 +48,7 @@ export default function FacultyRequestDetails() {
     return (
       <PageWrapper role="faculty" showGreeting={false}>
         <div className="max-w-xl mx-auto text-center py-20">
-          <p className="text-[16px] text-[#6B7280]">Loading...</p>
+          <p className="text-[14px] text-[#6B7280]">Loading request details...</p>
         </div>
       </PageWrapper>
     );
@@ -69,14 +56,10 @@ export default function FacultyRequestDetails() {
 
   if (isError || !request) {
     return (
-      <PageWrapper role="faculty" showGreeting={false}>
-        <div className="max-w-xl mx-auto text-center py-20">
-          <p className="text-[16px] text-[#6B7280]">Request not found.</p>
-          <Button className="mt-4" onClick={() => navigate('/faculty')}>
-            Back to Dashboard
-          </Button>
-        </div>
-      </PageWrapper>
+      <NotFound
+        code="404"
+        title="This attendance request could not be found."
+      />
     );
   }
 

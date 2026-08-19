@@ -615,7 +615,7 @@ export default function HODSettings() {
               onClick={async () => {
                 try {
                   const userEmail = user?.email || '';
-                  const challengeRes = await api.registerPasskeyChallenge(userEmail);
+                  await api.registerPasskeyChallenge(userEmail);
                   const challengeBytes = new Uint8Array(32);
                   window.crypto.getRandomValues(challengeBytes);
                   const userIdBytes = new TextEncoder().encode(userEmail);

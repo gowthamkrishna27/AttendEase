@@ -53,6 +53,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   department: string;
+  designation?: string;
   rollNumber?: string;
   semester?: number;
   year?: string;

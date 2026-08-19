@@ -613,6 +613,16 @@ export default function AdminUsers() {
             </label>
 
             <button
+              type="button"
+              onClick={handleDownloadSampleCsv}
+              title="Download sample CSV format template"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer"
+            >
+              <Download size={14} />
+              <span className="hidden sm:inline">Template</span>
+            </button>
+
+            <button
               onClick={handleOpenAdd}
               className="flex items-center justify-center gap-1.5 h-[38px] px-4 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white font-medium text-[13px] rounded-lg shadow-xs transition-all cursor-pointer"
             >
