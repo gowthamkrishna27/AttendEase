@@ -4,8 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, X, Sparkles, Download, CheckCircle2,
   Clock, ArrowRight, Lock, ChevronDown, ChevronUp,
-  FileText, MessageSquareText, Bot, RotateCcw, ArrowUp,
-  Code2
+  FileText, MessageSquareText, Bot, RotateCcw, ArrowUp, Code2
 } from 'lucide-react';
 import './landing.css';
 import logoImg from '../assets/logo.png';
@@ -81,16 +80,14 @@ export default function LandingPage() {
   };
 
   return (
-    <div className={`landing-layout-root flex w-full min-h-screen relative overflow-x-hidden transition-colors duration-300 ${
-      isChatOpen ? 'bg-slate-100/80' : 'bg-white'
-    }`}>
+    <div className={`landing-layout-root flex w-full min-h-screen relative overflow-x-hidden transition-colors duration-300 ${isChatOpen ? 'bg-slate-100/80' : 'bg-white'
+      }`}>
       {/* ── Left / Main Content Container (Rounded Corners when AI Chat is open) ── */}
       <main
-        className={`landing-main-canvas flex-1 min-w-0 bg-white transition-all duration-300 ease-in-out ${
-          isChatOpen
-            ? 'lg:my-2.5 lg:ml-2.5 lg:mr-[410px] xl:mr-[450px] lg:rounded-3xl lg:border lg:border-slate-200/90 lg:shadow-xl overflow-hidden'
-            : 'mr-0 rounded-none border-none shadow-none'
-        }`}
+        className={`landing-main-canvas flex-1 min-w-0 bg-white transition-all duration-300 ease-in-out ${isChatOpen
+          ? 'lg:my-2.5 lg:ml-2.5 lg:mr-[410px] xl:mr-[450px] lg:rounded-3xl lg:border lg:border-slate-200/90 lg:shadow-xl overflow-hidden'
+          : 'mr-0 rounded-none border-none shadow-none'
+          }`}
       >
         {/* ── Top Navigation Bar ── */}
         <nav className={`landing-nav ${isChatOpen ? 'lg:rounded-t-3xl' : ''}`}>
@@ -256,6 +253,39 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        {/* ── Landing Page Footer ── */}
+        <footer className="py-8 bg-white border-t border-slate-200/80">
+          <div className="landing-container flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <img src={logoImg} alt="AttendEase" className="w-5 h-5 rounded-md object-contain" />
+              <span className="font-bold text-slate-800">AttendEase</span>
+              <span>•</span>
+              <span>SRKR Engineering College</span>
+            </div>
+
+            <div className="flex items-center gap-5 font-medium">
+              <Link to="/developers" className="text-orange-600 hover:text-orange-700 font-bold flex items-center gap-1">
+                <Code2 size={13} />
+                <span>Meet The Developers</span>
+              </Link>
+              <Link to="/permissions" className="hover:text-slate-900 transition-colors">
+                Public Attendance
+              </Link>
+              <Link to="/login" className="hover:text-slate-900 transition-colors">
+                Portal Login
+              </Link>
+              <a
+                href="https://github.com/gowthamkrishna27/AttendEase"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-slate-900 transition-colors"
+              >
+                GitHub
+              </a>
+            </div>
+          </div>
+        </footer>
       </main>
 
       {/* ── Floating Chatbot Trigger (Visible when panel is closed) ── */}
@@ -329,9 +359,8 @@ export default function LandingPage() {
                       color: msg.role === 'user' ? '#FFFFFF' : '#1E293B',
                       boxShadow: msg.role === 'user' ? '0 4px 12px rgba(249, 115, 22, 0.25)' : '0 2px 8px rgba(249, 115, 22, 0.04)',
                     }}
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed whitespace-pre-wrap ${
-                      msg.role === 'user' ? 'rounded-tr-xs font-medium' : 'rounded-tl-xs'
-                    }`}
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'rounded-tr-xs font-medium' : 'rounded-tl-xs'
+                      }`}
                   >
                     {msg.content}
                   </div>
