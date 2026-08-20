@@ -272,8 +272,20 @@ router.get('/public-approved', async (req: Request, res: Response) => {
 
     const where: Prisma.RequestWhereInput = {
       status: 'approved',
-      ...(date && { date: String(date).trim() }),
     };
+
+    if (date && typeof date === 'string' && date.trim()) {
+      const targetDate = date.trim().slice(0, 10);
+      where.OR = [
+        { date: { startsWith: targetDate } },
+        {
+          AND: [
+            { date: { lte: targetDate } },
+            { endDate: { gte: targetDate } },
+          ],
+        },
+      ];
+    }
 
     const requests = await prisma.request.findMany({
       where,

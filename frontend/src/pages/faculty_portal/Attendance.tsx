@@ -256,13 +256,123 @@ export default function FacultyAttendance() {
     return map;
   }, [allStudents]);
 
-  // Set of unique full roll numbers of students with approved permissions for selectedDate AND matching selectedPeriodIds
+  // Check if an attendance request is valid for the target date (single day or date range)
+  const isRequestOnDate = useCallback((req: api.AttendanceRequest, targetDate: string) => {
+    if (!req.date) return false;
+    const start = req.date.trim().slice(0, 10);
+    const end = (req.endDate ? req.endDate.trim().slice(0, 10) : start);
+    return targetDate >= start && targetDate <= end;
+  }, []);
+
+  // Check if a student belongs to the selected Academic Year and Branch/Section
+  const isStudentInSectionAndYear = useCallback((
+    studentOrRoll: string | api.Student | undefined,
+    targetYear: string,
+    targetSection: string
+  ): boolean => {
+    if (!targetYear || !targetSection) return false;
+
+    let student: api.Student | undefined;
+    let roll = '';
+
+    if (typeof studentOrRoll === 'string') {
+      roll = studentOrRoll.trim();
+      student = studentInfoMap.get(roll.toUpperCase()) || studentInfoMap.get(roll);
+    } else if (studentOrRoll) {
+      student = studentOrRoll;
+      roll = (student.rollNumber || student.id || '').trim();
+    }
+
+    if (!roll && !student) return false;
+
+    // 1. Year Matching
+    const targetDigit = targetYear.replace(/[^1-4]/g, ''); // '1', '2', '3', '4'
+    let studentYearDigit = '';
+
+    if (student?.year) {
+      const match = student.year.match(/([1-4])/);
+      if (match) studentYearDigit = match[1];
+    }
+    if (!studentYearDigit && student?.semester) {
+      studentYearDigit = String(Math.ceil(student.semester / 2));
+    }
+    if (!studentYearDigit && roll) {
+      const upperRoll = roll.toUpperCase();
+      const isLateral = upperRoll.includes('95A') || upperRoll.includes('LE') || /^LE\d+$/i.test(upperRoll);
+      if (upperRoll.startsWith('24B') && !isLateral) studentYearDigit = '3';
+      else if (upperRoll.startsWith('25B') && isLateral) studentYearDigit = '3';
+      else if (upperRoll.startsWith('25B') && !isLateral) studentYearDigit = '2';
+      else if (upperRoll.startsWith('26B') && isLateral) studentYearDigit = '2';
+      else if (upperRoll.startsWith('26B') && !isLateral) studentYearDigit = '1';
+      else if (upperRoll.startsWith('23B') && !isLateral) studentYearDigit = '4';
+      else if (upperRoll.startsWith('24B') && isLateral) studentYearDigit = '4';
+    }
+
+    if (targetDigit && studentYearDigit && targetDigit !== studentYearDigit) {
+      return false;
+    }
+
+    // 2. Section & Department Matching
+    const targetSecUpper = targetSection.toUpperCase().replace(/\s+/g, '');
+    const rollUpper = roll.toUpperCase();
+
+    // Check Department
+    const isTargetCSD = targetSecUpper.includes('CSD');
+    const isTargetCSIT = targetSecUpper.includes('CSIT');
+
+    const studentDept = (student?.department || '').toUpperCase();
+    if (isTargetCSD) {
+      if (studentDept && !studentDept.includes('CSD') && (studentDept.includes('CSIT') || studentDept.includes('IT'))) {
+        return false;
+      }
+      if (rollUpper.includes('07') && !rollUpper.includes('62')) {
+        return false;
+      }
+    } else if (isTargetCSIT) {
+      if (studentDept && studentDept.includes('CSD')) {
+        return false;
+      }
+      if (rollUpper.includes('62') && !rollUpper.includes('07')) {
+        return false;
+      }
+    }
+
+    // Check Section Letter (A or B)
+    const isTargetSecB = targetSecUpper.endsWith('B') || targetSecUpper.endsWith('-B');
+    let studentSecLetter = '';
+
+    if (student?.section) {
+      const s = student.section.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
+      if (s === 'A' || s === 'B') studentSecLetter = s;
+    }
+
+    if (!studentSecLetter && rollUpper) {
+      const isSecB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(rollUpper) || rollUpper.includes('95A');
+      studentSecLetter = isSecB ? 'B' : 'A';
+    }
+
+    if (isTargetSecB && studentSecLetter !== 'B') return false;
+    if (!isTargetSecB && studentSecLetter === 'B') return false;
+
+    return true;
+  }, [studentInfoMap]);
+
+  // Set of unique full roll numbers of students with approved permissions for selectedDate, selectedYear, and sectionFilter AND matching selectedPeriodIds
   const approvedStudentRollsSet = useMemo(() => {
     const set = new Set<string>();
-    if (selectedPeriodIds.length === 0) return set;
+    if (selectedPeriodIds.length === 0 || !selectedYear || !sectionFilter) return set;
 
     approvedRequests.forEach(req => {
-      if (req.status === 'approved' && req.date?.slice(0, 10) === selectedDate) {
+      if (req.status === 'approved' && isRequestOnDate(req, selectedDate)) {
+        const studentObj = req.student || (req.studentId ? studentInfoMap.get(req.studentId.toUpperCase()) : undefined);
+        const matchesSectionAndYear = isStudentInSectionAndYear(
+          studentObj || req.student?.rollNumber || req.studentId,
+          selectedYear,
+          sectionFilter
+        );
+
+        if (!matchesSectionAndYear) return;
+
         // Period overlap check: req periods must overlap with currently selected faculty periods
         const reqPeriods = getPeriodsFromRequest(req);
         const hasOverlap = selectedPeriodIds.some(pId => reqPeriods.includes(pId));
@@ -270,13 +380,13 @@ export default function FacultyAttendance() {
         if (hasOverlap) {
           const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
           if (rollStr) {
-            set.add(rollStr);
+            set.add(rollStr.trim());
           }
         }
       }
     });
     return set;
-  }, [approvedRequests, selectedDate, selectedPeriodIds]);
+  }, [approvedRequests, selectedDate, selectedPeriodIds, selectedYear, sectionFilter, isRequestOnDate, isStudentInSectionAndYear, studentInfoMap]);
 
   // Unique count of approved permission students (for banner)
   const approvedStudentsCount = approvedStudentRollsSet.size;
@@ -285,10 +395,21 @@ export default function FacultyAttendance() {
   const permissionStudentsSet = useMemo(() => {
     const set = new Set<string>();
     approvedStudentRollsSet.forEach(rollStr => {
-      set.add(rollStr);
-      const suffix = extractRollSuffix(rollStr);
+      const trimmed = rollStr.trim();
+      const upper = trimmed.toUpperCase();
+      set.add(trimmed);
+      set.add(upper);
+
+      const suffix = extractRollSuffix(trimmed);
       if (suffix) {
+        const sufUpper = suffix.toUpperCase();
         set.add(suffix);
+        set.add(sufUpper);
+        const num = parseInt(suffix, 10);
+        if (!isNaN(num)) {
+          set.add(String(num));
+          set.add(String(num).padStart(2, '0'));
+        }
       }
     });
     return set;
@@ -296,19 +417,33 @@ export default function FacultyAttendance() {
 
   const permissionMap = useMemo(() => {
     const map = new Map<string, api.AttendanceRequest>();
-    if (selectedPeriodIds.length === 0) return map;
+    if (selectedPeriodIds.length === 0 || !selectedYear || !sectionFilter) return map;
 
     approvedRequests.forEach(req => {
-      if (req.status === 'approved' && req.date?.slice(0, 10) === selectedDate) {
+      if (req.status === 'approved' && isRequestOnDate(req, selectedDate)) {
+        const studentObj = req.student || (req.studentId ? studentInfoMap.get(req.studentId.toUpperCase()) : undefined);
+        const matchesSectionAndYear = isStudentInSectionAndYear(
+          studentObj || req.student?.rollNumber || req.studentId,
+          selectedYear,
+          sectionFilter
+        );
+
+        if (!matchesSectionAndYear) return;
+
         const reqPeriods = getPeriodsFromRequest(req);
         const hasOverlap = selectedPeriodIds.some(pId => reqPeriods.includes(pId));
         if (hasOverlap) {
-          const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
+          const rollStr = (req.student?.rollNumber ?? req.studentId ?? '').trim();
           if (rollStr) {
+            const upper = rollStr.toUpperCase();
             map.set(rollStr, req);
+            map.set(upper, req);
+
             const suffix = extractRollSuffix(rollStr);
             if (suffix) {
+              const sufUpper = suffix.toUpperCase();
               map.set(suffix, req);
+              map.set(sufUpper, req);
               const num = parseInt(suffix, 10);
               if (!isNaN(num)) {
                 map.set(String(num), req);
@@ -320,7 +455,7 @@ export default function FacultyAttendance() {
       }
     });
     return map;
-  }, [approvedRequests, selectedDate, selectedPeriodIds]);
+  }, [approvedRequests, selectedDate, selectedPeriodIds, selectedYear, sectionFilter, isRequestOnDate, isStudentInSectionAndYear, studentInfoMap]);
 
   // Derive a stable primitive string from the Set so useEffect can use it as a dep
   // without firing on every render due to Set object reference changes.
