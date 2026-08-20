@@ -422,6 +422,20 @@ export async function reviewRequest(
   return res.request;
 }
 
+export async function bulkReviewRequests(
+  requestIds: string[],
+  action: 'approve' | 'reject',
+  rejectionReason?: string,
+): Promise<{ success: boolean; count: number; requests: AttendanceRequest[]; skippedCount?: number }> {
+  return apiFetch<{ success: boolean; count: number; requests: AttendanceRequest[]; skippedCount?: number }>(
+    '/api/requests/bulk-review',
+    {
+      method: 'POST',
+      body: JSON.stringify({ requestIds, action, rejectionReason }),
+    },
+  );
+}
+
 export async function cancelRequest(id: string): Promise<AttendanceRequest> {
   const res = await apiFetch<{ request: AttendanceRequest }>(
     `/api/requests/${id}/cancel`,

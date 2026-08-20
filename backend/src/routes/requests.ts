@@ -999,6 +999,143 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/requests/bulk-review
+ * Body: { requestIds: string[], action: 'approve' | 'reject', rejectionReason?: string, remarks?: string }
+ * Allows Faculty / HOD to accept or reject multiple requests simultaneously.
+ */
+router.post('/bulk-review', async (req: Request, res: Response) => {
+  let user = req.user!;
+
+  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
+  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod' || (user.role as string) === 'viewer';
+
+  if (isHodOrAdmin) {
+    user = { ...user, role: 'hod' };
+  }
+
+  if (user.role === 'student') {
+    res.status(403).json({ error: 'Students cannot review requests' });
+    return;
+  }
+
+  const { requestIds, action, rejectionReason, remarks } = req.body as {
+    requestIds:        string[];
+    action:           'approve' | 'reject';
+    rejectionReason?: string;
+    remarks?:         string;
+  };
+
+  if (!Array.isArray(requestIds) || requestIds.length === 0) {
+    res.status(400).json({ error: 'requestIds array is required and must not be empty' });
+    return;
+  }
+
+  if (!action || !['approve', 'reject'].includes(action)) {
+    res.status(400).json({ error: 'action must be "approve" or "reject"' });
+    return;
+  }
+
+  try {
+    const existingRequests = await prisma.request.findMany({
+      where: {
+        OR: [
+          { id:        { in: requestIds } },
+          { requestId: { in: requestIds } },
+        ],
+      },
+      include: REQUEST_INCLUDE,
+    });
+
+    if (existingRequests.length === 0) {
+      res.status(404).json({ error: 'No matching requests found' });
+      return;
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const decisionRole = user.role === 'hod' ? 'HOD' : 'Faculty';
+    const performingUserId = (user as any).userId || user.id;
+    const now = new Date().toISOString();
+
+    const updatedRequests: any[] = [];
+    const skippedIds: string[] = [];
+
+    await prisma.$transaction(async tx => {
+      for (const existing of existingRequests) {
+        // Faculty check: must be assigned faculty and cannot override HOD
+        if (user.role === 'faculty') {
+          const assignedFacultyIds = existing.faculties.map(rf => rf.facultyId);
+          const assignedEmails     = existing.faculties.map(rf => rf.faculty.email);
+
+          const isAssignedFaculty =
+            existing.primaryFacultyId === user.id ||
+            assignedFacultyIds.includes(user.id) ||
+            existing.primaryFaculty?.email === user.email ||
+            assignedEmails.includes(user.email);
+
+          if (!isAssignedFaculty || existing.finalDecisionBy === 'HOD') {
+            skippedIds.push(existing.id);
+            continue;
+          }
+        }
+
+        let actionName: string;
+        if (user.role === 'faculty') {
+          actionName = action === 'approve' ? 'Approved by Faculty (Bulk)' : 'Rejected by Faculty (Bulk)';
+        } else {
+          actionName = action === 'approve' ? 'Approved by HOD (Bulk)' : 'Rejected by HOD (Bulk)';
+        }
+
+        const effectiveRemarks = remarks?.trim() || rejectionReason?.trim() || (action === 'approve' ? `Bulk approved by ${user.role.toUpperCase()}` : `Bulk rejected by ${user.role.toUpperCase()}`);
+
+        const updated = await tx.request.update({
+          where: { id: existing.id },
+          data: {
+            status:              newStatus,
+            rejectionReason:     action === 'reject' ? (rejectionReason ?? null) : null,
+            reviewedAt:          now,
+            finalDecisionBy:     decisionRole,
+            finalDecisionUserId: performingUserId,
+          },
+          include: REQUEST_INCLUDE,
+        });
+
+        await tx.requestAction.create({
+          data: {
+            requestId:     existing.id,
+            performedById: performingUserId,
+            action:        actionName,
+            remarks:       effectiveRemarks,
+          },
+        });
+
+        // Create student notification
+        await tx.notification.create({
+          data: {
+            userId:    existing.studentId,
+            requestId: existing.id,
+            type:      action === 'approve' ? 'approved' : 'rejected',
+            title:     `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
+            message:   `Your permission request for ${existing.reasonLabel} has been ${action === 'approve' ? 'approved' : 'rejected'} by ${user.name}.`,
+          },
+        });
+
+        updatedRequests.push(updated);
+      }
+    });
+
+    res.json({
+      success: true,
+      count: updatedRequests.length,
+      requests: updatedRequests.map(toApi),
+      skippedCount: skippedIds.length,
+    });
+  } catch (err: any) {
+    console.error('POST /requests/bulk-review error:', err);
+    res.status(500).json({ error: err.message || 'Failed to bulk review requests' });
+  }
+});
+
+/**
  * PUT /api/requests/:id — student updates an existing pending request
  * Rules:
  * 1. Can only update pending requests.

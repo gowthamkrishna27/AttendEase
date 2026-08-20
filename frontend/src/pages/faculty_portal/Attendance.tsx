@@ -1052,7 +1052,6 @@ export default function FacultyAttendance() {
                   {currentRollNumbers.map(roll => {
                     const rawStatus = markedAttendance[roll];
                     const hasPermission = permissionStudentsSet.has(roll);
-                    const permissionReq = permissionMap.get(roll);
 
                     let effectiveStatus = rawStatus;
                     if (!rawStatus) {
