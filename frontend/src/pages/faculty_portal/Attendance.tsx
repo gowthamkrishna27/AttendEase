@@ -55,6 +55,7 @@ export interface PeriodSlot {
 
 interface FacultyRollButtonProps {
   roll: string;
+  studentName?: string;
   hasPermission: boolean;
   permissionReq?: api.AttendanceRequest;
   btnStyle: string;
@@ -66,6 +67,7 @@ interface FacultyRollButtonProps {
 
 function FacultyRollButton({
   roll,
+  studentName,
   hasPermission,
   permissionReq,
   btnStyle,
@@ -116,8 +118,8 @@ function FacultyRollButton({
       disabled={!isOwner}
       title={
         hasPermission
-          ? `Roll #${roll}: Approved Permission — Press & Hold to view slip details`
-          : `Roll #${roll}: Press & Hold to view student photo card`
+          ? `${studentName ? `${studentName} (${roll})` : `Roll #${roll}`}: Approved Permission — Press & Hold to view slip details`
+          : `${studentName ? `${studentName} (${roll})` : `Roll #${roll}`}: Press & Hold to view student profile`
       }
       className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex flex-col items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none relative ${btnStyle} ${!isOwner ? 'cursor-not-allowed opacity-90' : ''
         }`}
@@ -221,6 +223,38 @@ export default function FacultyAttendance() {
     retry: 1,
   });
   const approvedRequests = approvedRequestsRaw ?? STABLE_EMPTY;
+
+  // Query all students list for name resolution & details
+  const { data: allStudents = [] } = useQuery<api.Student[]>({
+    queryKey: ['all-students-list'],
+    queryFn: () => api.getAllStudents(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Map of full roll numbers, suffixes, userIds to Student record for fast lookup
+  const studentInfoMap = useMemo(() => {
+    const map = new Map<string, api.Student>();
+    allStudents.forEach(s => {
+      if (s.rollNumber) {
+        const fullUpper = s.rollNumber.toUpperCase().trim();
+        map.set(fullUpper, s);
+
+        const suffix = extractRollSuffix(s.rollNumber);
+        if (suffix) {
+          map.set(suffix.toUpperCase().trim(), s);
+          const num = parseInt(suffix, 10);
+          if (!isNaN(num)) {
+            map.set(String(num), s);
+            map.set(String(num).padStart(2, '0'), s);
+          }
+        }
+      }
+      if (s.id) {
+        map.set(s.id.toUpperCase().trim(), s);
+      }
+    });
+    return map;
+  }, [allStudents]);
 
   // Set of unique full roll numbers of students with approved permissions for selectedDate AND matching selectedPeriodIds
   const approvedStudentRollsSet = useMemo(() => {
@@ -405,6 +439,7 @@ export default function FacultyAttendance() {
   const [selectedStudentModal, setSelectedStudentModal] = useState<{
     rollNo: string;
     fullRollNo: string;
+    name?: string;
     department: string;
     section: string;
     year: string;
@@ -415,6 +450,14 @@ export default function FacultyAttendance() {
   const handleSelectStudentForPreview = useCallback((roll: string) => {
     const fullRoll = getFullRollNumber(roll, selectedYear, sectionFilter);
     const avatarUrl = getStudentPhotoUrl(roll, selectedYear, sectionFilter);
+
+    // Look up student from studentInfoMap, permissionMap or approvedRequests
+    const matchedStudent = studentInfoMap.get(fullRoll.toUpperCase()) ||
+                           studentInfoMap.get(roll.toUpperCase()) ||
+                           permissionMap.get(roll)?.student ||
+                           permissionMap.get(fullRoll)?.student;
+
+    const studentName = matchedStudent?.name || undefined;
 
     const rawStatus = markedAttendance[roll];
     const hasPermission = permissionStudentsSet.has(roll);
@@ -431,13 +474,14 @@ export default function FacultyAttendance() {
     setSelectedStudentModal({
       rollNo: roll,
       fullRollNo: fullRoll,
-      department: sectionFilter.startsWith('CSD') ? 'CSD' : 'CSIT',
-      section: sectionFilter,
-      year: selectedYear,
-      avatarUrl,
+      name: studentName,
+      department: matchedStudent?.department || (sectionFilter.startsWith('CSD') ? 'CSD' : 'CSIT'),
+      section: matchedStudent?.section || sectionFilter,
+      year: matchedStudent?.year || selectedYear,
+      avatarUrl: matchedStudent?.avatarUrl || avatarUrl,
       status: effectiveStatus,
     });
-  }, [selectedYear, sectionFilter, markedAttendance, permissionStudentsSet, markMode]);
+  }, [selectedYear, sectionFilter, markedAttendance, permissionStudentsSet, markMode, studentInfoMap, permissionMap]);
 
   // Period Slot Toggle
   const togglePeriodSlot = (id: number) => {
@@ -855,6 +899,10 @@ export default function FacultyAttendance() {
                       }
                     }
 
+                    const matchedStudent = studentInfoMap.get(roll.toUpperCase()) ||
+                                           permissionMap.get(roll)?.student;
+                    const studentName = matchedStudent?.name;
+
                     let btnStyle = 'bg-slate-100/90 text-slate-700 hover:bg-slate-200 border-slate-200/80';
                     if (hasPermission) {
                       // Yellow Approved Permission — IMMUTABLY Yellow for approved permission students
@@ -869,6 +917,7 @@ export default function FacultyAttendance() {
                       <FacultyRollButton
                         key={roll}
                         roll={roll}
+                        studentName={studentName}
                         hasPermission={hasPermission}
                         permissionReq={permissionReq}
                         btnStyle={btnStyle}
@@ -931,10 +980,10 @@ export default function FacultyAttendance() {
                 <div className="w-28 h-36 rounded-2xl border-2 border-orange-500 bg-slate-100 overflow-hidden mx-auto shadow-md relative group">
                   <img
                     src={selectedStudentModal.avatarUrl}
-                    alt={`Student ${selectedStudentModal.fullRollNo}`}
+                    alt={`Student ${selectedStudentModal.name || selectedStudentModal.fullRollNo}`}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentModal.fullRollNo)}&background=F97316&color=fff&size=128`;
+                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentModal.name || selectedStudentModal.fullRollNo)}&background=F97316&color=fff&size=128`;
                     }}
                   />
                 </div>
@@ -944,9 +993,20 @@ export default function FacultyAttendance() {
                   <span className="px-2.5 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[10px] font-extrabold uppercase tracking-wider">
                     SRKR Student Profile
                   </span>
-                  <h3 className="text-lg font-extrabold text-slate-900 font-mono pt-1">
-                    {selectedStudentModal.fullRollNo}
-                  </h3>
+                  {selectedStudentModal.name ? (
+                    <div className="pt-1">
+                      <h3 className="text-lg font-black text-slate-900 leading-snug">
+                        {selectedStudentModal.name}
+                      </h3>
+                      <p className="text-sm font-mono font-bold text-orange-600 mt-0.5">
+                        {selectedStudentModal.fullRollNo}
+                      </p>
+                    </div>
+                  ) : (
+                    <h3 className="text-lg font-extrabold text-slate-900 font-mono pt-1">
+                      {selectedStudentModal.fullRollNo}
+                    </h3>
+                  )}
                   <p className="text-xs text-slate-500 font-bold">
                     {selectedStudentModal.year} • {selectedStudentModal.section}
                   </p>
