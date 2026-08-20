@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, Building2, ChevronDown, CheckCircle2, AlertCircle,
-  Calendar, Clock, Save, Lock, Check, RefreshCw, Printer, X
+  Calendar, Clock, Save, Lock, Check, RefreshCw, X
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
@@ -57,11 +57,9 @@ interface FacultyRollButtonProps {
   roll: string;
   studentName?: string;
   hasPermission: boolean;
-  permissionReq?: api.AttendanceRequest;
   btnStyle: string;
   isOwner: boolean;
   onClick: (roll: string) => void;
-  onSelectPass: (req: api.AttendanceRequest) => void;
   onSelectStudent: (roll: string) => void;
 }
 
@@ -69,11 +67,9 @@ function FacultyRollButton({
   roll,
   studentName,
   hasPermission,
-  permissionReq,
   btnStyle,
   isOwner,
   onClick,
-  onSelectPass,
   onSelectStudent,
 }: FacultyRollButtonProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,11 +79,7 @@ function FacultyRollButton({
     isLongPressRef.current = false;
     timerRef.current = setTimeout(() => {
       isLongPressRef.current = true;
-      if (hasPermission && permissionReq) {
-        onSelectPass(permissionReq);
-      } else {
-        onSelectStudent(roll);
-      }
+      onSelectStudent(roll);
     }, 400); // 400ms long press threshold
   };
 
@@ -118,7 +110,7 @@ function FacultyRollButton({
       disabled={!isOwner}
       title={
         hasPermission
-          ? `${studentName ? `${studentName} (${roll})` : `Roll #${roll}`}: Approved Permission — Press & Hold to view slip details`
+          ? `${studentName ? `${studentName} (${roll})` : `Roll #${roll}`}: Approved Permission — Press & Hold to view reason & details`
           : `${studentName ? `${studentName} (${roll})` : `Roll #${roll}`}: Press & Hold to view student profile`
       }
       className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex flex-col items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none relative ${btnStyle} ${!isOwner ? 'cursor-not-allowed opacity-90' : ''
@@ -174,7 +166,6 @@ export default function FacultyAttendance() {
 
   // Toast Notification
   const [toastMsg, setToastMsg] = useState<{ text: string; isError?: boolean } | null>(null);
-  const [selectedPass, setSelectedPass] = useState<api.AttendanceRequest | null>(null);
 
   const showToast = useCallback((text: string, isError = false) => {
     setToastMsg({ text, isError });
@@ -570,7 +561,7 @@ export default function FacultyAttendance() {
     });
   }, [isOwner, markMode, currentSubmission, showToast]);
 
-  // Student Photo Card Modal state & preview trigger for non-permission roll long-press
+  // Student Photo Card Modal state & preview trigger for long-press
   const [selectedStudentModal, setSelectedStudentModal] = useState<{
     rollNo: string;
     fullRollNo: string;
@@ -580,22 +571,37 @@ export default function FacultyAttendance() {
     year: string;
     avatarUrl: string;
     status?: 'present' | 'absent' | 'unmarked';
+    hasPermission: boolean;
+    permission?: {
+      id: string;
+      reasonLabel: string;
+      description?: string;
+      approvedBy?: string;
+      timeRange?: string;
+      date?: string;
+    };
   } | null>(null);
 
   const handleSelectStudentForPreview = useCallback((roll: string) => {
     const fullRoll = getFullRollNumber(roll, selectedYear, sectionFilter);
     const avatarUrl = getStudentPhotoUrl(roll, selectedYear, sectionFilter);
 
-    // Look up student from studentInfoMap, permissionMap or approvedRequests
+    // Look up permission pass if available for this roll
+    const permissionReq = permissionMap.get(roll) ||
+                           permissionMap.get(fullRoll) ||
+                           permissionMap.get(roll.toUpperCase()) ||
+                           permissionMap.get(fullRoll.toUpperCase());
+
+    const hasPermission = Boolean(permissionReq || permissionStudentsSet.has(roll) || permissionStudentsSet.has(roll.toUpperCase()));
+
+    // Look up student from studentInfoMap or permissionReq
     const matchedStudent = studentInfoMap.get(fullRoll.toUpperCase()) ||
                            studentInfoMap.get(roll.toUpperCase()) ||
-                           permissionMap.get(roll)?.student ||
-                           permissionMap.get(fullRoll)?.student;
+                           permissionReq?.student;
 
-    const studentName = matchedStudent?.name || undefined;
+    const studentName = matchedStudent?.name || permissionReq?.student?.name || undefined;
 
     const rawStatus = markedAttendance[roll];
-    const hasPermission = permissionStudentsSet.has(roll);
 
     let effectiveStatus: 'present' | 'absent' | 'unmarked' = 'unmarked';
     if (rawStatus) {
@@ -604,6 +610,31 @@ export default function FacultyAttendance() {
       effectiveStatus = 'present';
     } else if (Object.keys(markedAttendance).length > 0) {
       effectiveStatus = markMode === 'present' ? 'absent' : 'present';
+    }
+
+    let permissionData: {
+      id: string;
+      reasonLabel: string;
+      description?: string;
+      approvedBy?: string;
+      timeRange?: string;
+      date?: string;
+    } | undefined = undefined;
+
+    if (permissionReq) {
+      const timeStr = (permissionReq.startTime && permissionReq.endTime)
+        ? `${formatTime(permissionReq.startTime)} - ${formatTime(permissionReq.endTime)}`
+        : undefined;
+      const approvedByStr = permissionReq.finalDecisionName || permissionReq.faculty?.name || 'Faculty / HOD';
+
+      permissionData = {
+        id: permissionReq.id,
+        reasonLabel: permissionReq.reasonLabel || 'Official Permission',
+        description: permissionReq.description,
+        approvedBy: approvedByStr,
+        timeRange: timeStr,
+        date: permissionReq.date,
+      };
     }
 
     setSelectedStudentModal({
@@ -615,6 +646,8 @@ export default function FacultyAttendance() {
       year: matchedStudent?.year || selectedYear,
       avatarUrl: matchedStudent?.avatarUrl || avatarUrl,
       status: effectiveStatus,
+      hasPermission,
+      permission: permissionData,
     });
   }, [selectedYear, sectionFilter, markedAttendance, permissionStudentsSet, markMode, studentInfoMap, permissionMap]);
 
@@ -1054,11 +1087,9 @@ export default function FacultyAttendance() {
                         roll={roll}
                         studentName={studentName}
                         hasPermission={hasPermission}
-                        permissionReq={permissionReq}
                         btnStyle={btnStyle}
                         isOwner={isOwner}
                         onClick={handleRollClick}
-                        onSelectPass={setSelectedPass}
                         onSelectStudent={handleSelectStudentForPreview}
                       />
                     );
@@ -1094,7 +1125,7 @@ export default function FacultyAttendance() {
           </>
         )}
 
-        {/* Student Photo Preview Card Modal (on Long Press of Regular Student Number) */}
+        {/* Student Photo Preview Card Modal (on Long Press of Any Roll Number) */}
         <AnimatePresence>
           {selectedStudentModal && (
             <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3">
@@ -1102,7 +1133,7 @@ export default function FacultyAttendance() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-2xl max-w-xs sm:max-w-sm w-full p-5 shadow-2xl border border-slate-200 text-center space-y-4 relative overflow-hidden"
+                className="bg-white rounded-2xl max-w-xs sm:max-w-sm w-full p-5 shadow-2xl border border-slate-200 text-center space-y-3.5 relative overflow-hidden"
               >
                 <button
                   onClick={() => setSelectedStudentModal(null)}
@@ -1112,7 +1143,9 @@ export default function FacultyAttendance() {
                 </button>
 
                 {/* Student Photo */}
-                <div className="w-28 h-36 rounded-2xl border-2 border-orange-500 bg-slate-100 overflow-hidden mx-auto shadow-md relative group">
+                <div className={`w-28 h-34 rounded-2xl border-2 overflow-hidden mx-auto shadow-md relative group ${
+                  selectedStudentModal.hasPermission ? 'border-amber-400 ring-2 ring-amber-300/60' : 'border-orange-500'
+                }`}>
                   <img
                     src={selectedStudentModal.avatarUrl}
                     alt={`Student ${selectedStudentModal.name || selectedStudentModal.fullRollNo}`}
@@ -1125,8 +1158,12 @@ export default function FacultyAttendance() {
 
                 {/* Student Info */}
                 <div className="space-y-1">
-                  <span className="px-2.5 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[10px] font-extrabold uppercase tracking-wider">
-                    SRKR Student Profile
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                    selectedStudentModal.hasPermission
+                      ? 'bg-amber-100 border border-amber-300 text-amber-900'
+                      : 'bg-orange-50 border border-orange-200 text-orange-700'
+                  }`}>
+                    {selectedStudentModal.hasPermission ? '🟡 Approved Permission Student' : 'SRKR Student Profile'}
                   </span>
                   {selectedStudentModal.name ? (
                     <div className="pt-1">
@@ -1147,10 +1184,50 @@ export default function FacultyAttendance() {
                   </p>
                 </div>
 
+                {/* Permission Reason & Details Box (when student has an approved permission pass) */}
+                {selectedStudentModal.permission && (
+                  <div className="p-3 bg-gradient-to-br from-amber-50 to-orange-50/60 rounded-xl border border-amber-200/90 text-left space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-1.5 pb-1.5 border-b border-amber-200/60">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                        Permission Reason
+                      </span>
+                      <span className="px-2 py-0.5 bg-amber-500 text-white font-extrabold rounded-md text-[10.5px] shadow-2xs">
+                        {selectedStudentModal.permission.reasonLabel}
+                      </span>
+                    </div>
+
+                    {selectedStudentModal.permission.description && (
+                      <div className="text-[11.5px] text-amber-950/90 italic leading-snug">
+                        "{selectedStudentModal.permission.description}"
+                      </div>
+                    )}
+
+                    <div className="space-y-1 text-[11px] text-slate-600 font-medium">
+                      {selectedStudentModal.permission.timeRange && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500">Time Slot:</span>
+                          <span className="font-bold text-slate-800">{selectedStudentModal.permission.timeRange}</span>
+                        </div>
+                      )}
+                      {selectedStudentModal.permission.approvedBy && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500">Approved By:</span>
+                          <span className="font-bold text-slate-800 truncate max-w-[160px]">{selectedStudentModal.permission.approvedBy}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Attendance Status Badge */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs font-bold">
-                  <span className="text-slate-500">Period {periodsKey} Status:</span>
-                  {selectedStudentModal.status === 'present' ? (
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-500">Period {periodsKey || '—'} Status:</span>
+                  {selectedStudentModal.hasPermission ? (
+                    <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-extrabold flex items-center gap-1">
+                      <CheckCircle2 size={13} className="text-amber-600" />
+                      Present (Permission)
+                    </span>
+                  ) : selectedStudentModal.status === 'present' ? (
                     <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 font-extrabold flex items-center gap-1">
                       <CheckCircle2 size={13} className="text-emerald-600" />
                       Present
@@ -1173,190 +1250,6 @@ export default function FacultyAttendance() {
                 >
                   Close Preview
                 </button>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-
-        {/* Printable / Detail Permission Slip Modal (on Long Press of Yellow PERM Number) */}
-        <AnimatePresence>
-          {selectedPass && (
-            <div className="fixed inset-0 z-50 bg-orange-950/20 backdrop-blur-sm flex items-center justify-center p-3 print:static print:bg-white print:p-0 print:inset-auto print:z-auto">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                style={{
-                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 247, 237, 0.90) 100%)',
-                  backdropFilter: 'blur(24px) saturate(190%)',
-                  WebkitBackdropFilter: 'blur(24px) saturate(190%)',
-                  border: '1px solid rgba(254, 215, 170, 0.75)',
-                  boxShadow: '0 24px 60px -10px rgba(249, 115, 22, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.8) inset',
-                }}
-                className="rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl print:hidden"
-              >
-                <div className="flex items-start justify-between pb-3.5 border-b border-orange-500/25 gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-extrabold uppercase text-orange-600/80 tracking-wider">SRKR Engineering College</p>
-                    <h2 className="text-[20px] font-black text-slate-900 uppercase leading-tight mt-0.5">Permission Slip</h2>
-                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                      <span
-                        style={{
-                          background: 'rgba(249, 115, 22, 0.12)',
-                          backdropFilter: 'blur(8px)',
-                          border: '1px solid rgba(249, 115, 22, 0.35)',
-                          color: '#EA580C',
-                        }}
-                        className="text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full"
-                      >
-                        APPROVED
-                      </span>
-                      <span
-                        style={{
-                          background: 'rgba(255, 255, 255, 0.75)',
-                          backdropFilter: 'blur(8px)',
-                          border: '1px solid rgba(254, 215, 170, 0.6)',
-                          color: '#C2410C',
-                        }}
-                        className="text-[10.5px] font-mono font-bold px-2 py-0.5 rounded-full"
-                      >
-                        #{selectedPass.id.toUpperCase().slice(-8)}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSelectedPass(null)}
-                    style={{
-                      background: 'rgba(255, 247, 237, 0.9)',
-                      backdropFilter: 'blur(8px)',
-                      border: '1px solid rgba(254, 215, 170, 0.8)',
-                      color: '#EA580C',
-                    }}
-                    className="w-8 h-8 rounded-full hover:bg-orange-600 hover:text-white flex items-center justify-center transition-all cursor-pointer text-sm font-bold shrink-0 shadow-xs"
-                    title="Close slip"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="py-3.5 space-y-3 text-[12px]">
-                  <div
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.80)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(254, 215, 170, 0.65)',
-                      boxShadow: '0 4px 16px rgba(249, 115, 22, 0.05)',
-                    }}
-                    className="flex items-center gap-3 p-3.5 rounded-2xl"
-                  >
-                    <img
-                      src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${selectedPass.student?.rollNumber || selectedPass.studentId}.jpg`}
-                      alt="Student Avatar"
-                      className="w-13 h-15 sm:w-14 sm:h-16 object-cover rounded-xl border border-orange-200/80 shrink-0 shadow-xs"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=EA580C&color=fff`;
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] text-orange-600 font-bold uppercase tracking-wider">Student Name &amp; Roll</p>
-                      <p className="font-extrabold text-slate-900 text-[14px] truncate leading-snug">{selectedPass.student?.name ?? selectedPass.studentId}</p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="font-mono font-black text-slate-900 text-[13px]">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</span>
-                        <span
-                          style={{
-                            background: 'rgba(249, 115, 22, 0.12)',
-                            border: '1px solid rgba(249, 115, 22, 0.28)',
-                            color: '#EA580C',
-                          }}
-                          className="px-2 py-0.5 rounded-md font-bold text-[10px]"
-                        >
-                          {selectedPass.student?.department || 'CSIT'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.65)',
-                      backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(254, 215, 170, 0.55)',
-                    }}
-                    className="space-y-2.5 p-3.5 rounded-2xl text-[12px]"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-500 font-semibold">Category / Reason:</span>
-                      <span
-                        style={{
-                          background: 'rgba(249, 115, 22, 0.14)',
-                          border: '1px solid rgba(249, 115, 22, 0.3)',
-                          color: '#EA580C',
-                        }}
-                        className="font-extrabold px-2.5 py-0.5 rounded-lg text-[11.5px]"
-                      >
-                        {selectedPass.reasonLabel}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-500 font-semibold">Date &amp; Time Slot:</span>
-                      <span className="font-bold text-slate-800">{selectedPass.date} ({formatTime(selectedPass.startTime)} - {formatTime(selectedPass.endTime)})</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-slate-500 font-semibold">Approved By:</span>
-                      <span className="font-bold text-slate-900 truncate max-w-[200px] text-right">{selectedPass.finalDecisionName || selectedPass.faculty?.name || 'Faculty Advisor'}</span>
-                    </div>
-                  </div>
-
-                  {selectedPass.description && (
-                    <div
-                      style={{
-                        background: 'rgba(255, 247, 237, 0.85)',
-                        backdropFilter: 'blur(10px)',
-                        border: '1px solid rgba(254, 215, 170, 0.75)',
-                      }}
-                      className="p-3.5 rounded-2xl text-[11.5px] text-orange-950 leading-relaxed"
-                    >
-                      <span className="font-bold text-orange-800 block mb-1 text-[10px] uppercase tracking-wider">Purpose / Description:</span>
-                      "{selectedPass.description}"
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-3 flex flex-col sm:flex-row items-center gap-2">
-                  <button
-                    onClick={() => window.print()}
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.95) 0%, rgba(234, 88, 12, 1) 100%)',
-                      backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255, 255, 255, 0.4)',
-                      boxShadow: '0 8px 24px -4px rgba(249, 115, 22, 0.45)',
-                    }}
-                    className="w-full sm:flex-1 h-10.5 text-white font-extrabold text-[12.5px] rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
-                  >
-                    <Printer size={15} />
-                    <span>Print Letter Format</span>
-                  </button>
-                  <button
-                    onClick={() => setSelectedPass(null)}
-                    style={{
-                      background: 'rgba(255, 247, 237, 0.85)',
-                      backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(254, 215, 170, 0.8)',
-                      color: '#EA580C',
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background = '#EA580C';
-                      e.currentTarget.style.color = '#ffffff';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = 'rgba(255, 247, 237, 0.85)';
-                      e.currentTarget.style.color = '#EA580C';
-                    }}
-                    className="w-full sm:w-auto h-10.5 px-5 font-extrabold text-[12px] rounded-xl cursor-pointer transition-colors shadow-xs"
-                  >
-                    Close
-                  </button>
-                </div>
               </motion.div>
             </div>
           )}
