@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Clock, FileText, Check, Upload, PenLine, User, Calendar, Paperclip } from 'lucide-react';
+import { X, Check, PenLine, User, Calendar, Paperclip } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AttendanceRequest } from '../../types';
 import { UploadArea } from '../forms/UploadArea';
