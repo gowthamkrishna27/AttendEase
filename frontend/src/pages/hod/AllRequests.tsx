@@ -20,21 +20,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
 };
 
-const STATUS_TABS = [
-  { label: 'All',      value: 'all'      },
-  { label: 'Pending',  value: 'pending'  },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Rejected', value: 'rejected' },
-] as const;
-
 type TabValue = 'all' | 'pending' | 'approved' | 'rejected';
-
-const tabActiveClass: Record<TabValue, string> = {
-  all:      'bg-orange-500 text-white',
-  pending:  'bg-amber-500 text-white',
-  approved: 'bg-emerald-600 text-white',
-  rejected: 'bg-rose-500 text-white',
-};
 
 export default function HODAllRequests() {
   const navigate = useNavigate();

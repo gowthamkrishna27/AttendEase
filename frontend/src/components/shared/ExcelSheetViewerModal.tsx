@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileSpreadsheet, Download, Search, X, Filter,
-  Table2, FileText, CheckCircle2, Clock, XCircle
+  Table2, FileText
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { AttendanceRequest } from '../../types';

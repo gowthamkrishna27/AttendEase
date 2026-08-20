@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import React, { useState } from 'react';
-import { X, Calendar, Clock, FileText, Paperclip, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { X, Calendar, Clock, Paperclip, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { StatusBadge } from './StatusBadge';
 import { formatDate, formatTime, formatSubmittedAt } from '../../lib/utils';

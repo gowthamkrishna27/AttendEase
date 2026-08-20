@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Modal } from '../../components/shared/Modal';
 import * as api from '../../lib/api';

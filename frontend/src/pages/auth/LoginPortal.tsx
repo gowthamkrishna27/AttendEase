@@ -3,8 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, BookOpen, ShieldCheck,
-  Eye, EyeOff, Lock, User, Fingerprint, KeyRound,
-  ArrowRight, Info, Shield, Clock, Users, Sun, Moon,
+  Eye, EyeOff, Fingerprint, Shield,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../context/AuthContext';

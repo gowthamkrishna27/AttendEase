@@ -3,7 +3,8 @@ import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface ModalProps {
-  open: boolean;
+  open?: boolean;
+  isOpen?: boolean;
   onClose: () => void;
   title: string;
   description?: string;
@@ -11,10 +12,11 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export function Modal({ open, onClose, title, description, children, size = 'md' }: ModalProps) {
+export function Modal({ open, isOpen, onClose, title, description, children, size = 'md' }: ModalProps) {
+  const isVisible = open ?? isOpen ?? false;
   return (
     <AnimatePresence>
-      {open && (
+      {isVisible && (
         <div style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,

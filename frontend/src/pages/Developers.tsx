@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowUpRight, Check, Copy, Mail } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Check, Mail, Globe } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 
 // Lucide-spec SVG Icons
@@ -69,6 +69,7 @@ interface Developer {
   department: string;
   bio: string;
   avatar: string;
+  website?: string;
   github: string;
   linkedin: string;
   instagram: string;
@@ -79,10 +80,11 @@ interface Developer {
 const DEVELOPERS: Developer[] = [
   {
     name: 'Chundru Gowtham Krishna',
-    role: 'System Architect, Full-Stack Engineer, Mobile App Developer &  UI/UX Designer',
+    role: 'System Architect, Full-Stack Engineer, Mobile App Developer & UI/UX Designer',
     department: 'Dept. of CSIT • SRKR Engineering College',
     bio: 'Architected the core system architecture, multi-tier permission state engine, PostgreSQL database schema, WebAuthn passkey authentication, and backend REST APIs.',
     avatar: 'https://github.com/gowthamkrishna27.png',
+    website: 'https://gowthamkrishnachundru.vercel.app/',
     github: 'https://github.com/gowthamkrishna27',
     linkedin: 'https://www.linkedin.com/in/gowtham-krishna-chundru-213950324',
     instagram: 'https://instagram.com/gowthamchowdary.27',
@@ -100,6 +102,30 @@ const DEVELOPERS: Developer[] = [
     instagram: 'https://instagram.com/vivekkk_0_7_',
     email: 'chandanivivek770@gmail.com',
     stack: ['React 19', 'TypeScript', 'TailwindCSS', 'ExcelJS', 'Framer Motion', 'REST APIs']
+  },
+  {
+    name: 'Pavan Ketha',
+    role: 'Frontend Developer & UI Engineer',
+    department: 'Dept. of CSIT • SRKR Engineering College',
+    bio: 'Designed clean responsive user interfaces, streamlined student workflow components, and assisted in frontend state management and API integrations.',
+    avatar: 'https://github.com/Pavanketha19.png',
+    github: 'https://github.com/Pavanketha19',
+    linkedin: 'https://www.linkedin.com/in/pavan-ketha-5ab973383/',
+    instagram: 'https://instagram.com/purnnaaaa_',
+    email: 'pavanketha.palangi@gmail.com',
+    stack: ['React 19', 'TypeScript', 'TailwindCSS', 'UI/UX Design', 'REST APIs']
+  },
+  {
+    name: 'Kesanakurthi Manasa Satya',
+    role: 'Frontend Developer & UI/UX Specialist',
+    department: 'Dept. of CSIT • SRKR Engineering College',
+    bio: 'Crafted accessible UI layouts, contributed to student modal views, form validations, and user experience enhancements across portals.',
+    avatar: 'https://github.com/ManasaSatya26.png',
+    github: 'https://github.com/ManasaSatya26',
+    linkedin: 'https://www.linkedin.com/in/manasa-satya-kesanakurthi-76a81937b/',
+    instagram: 'https://instagram.com/satya_sidhi_263',
+    email: 'kmanasasatya@gmail.com',
+    stack: ['React 19', 'TypeScript', 'TailwindCSS', 'Framer Motion', 'UI/UX Design']
   }
 ];
 
@@ -248,6 +274,18 @@ export default function Developers() {
                   >
                     <InstagramIcon size={15} />
                   </a>
+
+                  {dev.website && (
+                    <a
+                      href={dev.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-8 h-8 rounded-lg border border-orange-200 hover:border-orange-400 bg-orange-50 hover:bg-orange-100 text-orange-600 hover:text-orange-700 flex items-center justify-center transition-all"
+                      title="Portfolio Website"
+                    >
+                      <Globe size={15} />
+                    </a>
+                  )}
                 </div>
 
                 {/* Email Copy Button */}

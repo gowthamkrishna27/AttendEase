@@ -52,8 +52,17 @@ const adminNav = [
   { to: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
+type BottomNavItem = {
+  id: string;
+  type: 'link' | 'fab';
+  to?: string;
+  label?: string;
+  icon?: React.ElementType;
+  hasBadge?: boolean;
+};
+
 /* Bottom tab bar items (mobile) */
-const studentMobileBottomNav = [
+const studentMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/student', label: 'Home', icon: Home, type: 'link' },
   { id: 'notifications', to: '/student/notifications', label: 'Notifications', icon: Bell, type: 'link', hasBadge: true },
   { id: 'fab', type: 'fab', to: '/student/new-request' },
@@ -61,7 +70,7 @@ const studentMobileBottomNav = [
   { id: 'profile', to: '/student/profile', label: 'Profile', icon: User, type: 'link' },
 ];
 
-const facultyMobileBottomNav = [
+const facultyMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/faculty', label: 'Dashboard', icon: Home, type: 'link' },
   { id: 'attendance', to: '/faculty/attendance', label: 'Attendance', icon: CheckSquare, type: 'link' },
   { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
@@ -69,7 +78,7 @@ const facultyMobileBottomNav = [
   { id: 'reports', to: '/faculty/reports', label: 'Reports', icon: BarChart2, type: 'link' },
 ];
 
-const hodMobileBottomNav = [
+const hodMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/hod', label: 'Overview', icon: Home, type: 'link' },
   { id: 'faculty', to: '/hod/faculty', label: 'Faculty', icon: Users, type: 'link' },
   { id: 'requests', to: '/hod/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
@@ -77,7 +86,7 @@ const hodMobileBottomNav = [
   { id: 'settings', to: '/hod/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
-const adminMobileBottomNav = [
+const adminMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/admin', label: 'Dashboard', icon: Home, type: 'link' },
   { id: 'users', to: '/admin/users', label: 'Accounts', icon: Users, type: 'link' },
   { id: 'counseling', to: '/admin/counseling', label: 'Counseling', icon: UserCheck, type: 'link' },

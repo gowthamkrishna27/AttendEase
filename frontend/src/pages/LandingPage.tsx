@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Send, X, Sparkles, Download, CheckCircle2,
+  X, Sparkles, Download, CheckCircle2,
   Clock, ArrowRight, Lock, ChevronDown, ChevronUp,
   FileText, MessageSquareText, Bot, RotateCcw, ArrowUp, Code2
 } from 'lucide-react';

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Shield, Eye, Moon, AlertTriangle, LogOut, Camera, Loader2, Check } from 'lucide-react';
+import { Bell, Shield, Eye, AlertTriangle, LogOut, Camera, Loader2, Check } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { FaceAlignedImage } from '../../components/shared/FaceAlignedImage';
 import { useAuth } from '../../context/AuthContext';
@@ -335,7 +335,7 @@ export default function FacultySettings() {
               onClick={async () => {
                 try {
                   const userEmail = user?.email || '';
-                  const challengeRes = await api.registerPasskeyChallenge(userEmail);
+                  await api.registerPasskeyChallenge(userEmail);
                   const challengeBytes = new Uint8Array(32);
                   window.crypto.getRandomValues(challengeBytes);
                   const userIdBytes = new TextEncoder().encode(userEmail);

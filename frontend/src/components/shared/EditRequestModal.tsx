@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Clock, FileText, Check, Upload, PenLine, User, Sparkles } from 'lucide-react';
+import { X, Clock, FileText, Check, Upload, PenLine, User } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AttendanceRequest } from '../../types';
-import { Button } from '../ui/Button';
 import { UploadArea } from '../forms/UploadArea';
 import * as api from '../../lib/api';
 

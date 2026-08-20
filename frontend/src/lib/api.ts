@@ -77,6 +77,7 @@ export interface Student {
 
 export interface Faculty {
   id: string;
+  userId?: string;
   name: string;
   department: string;
   email: string;
@@ -109,9 +110,15 @@ export interface NotificationItem {
 
 export interface AttendanceRequest {
   id: string;
+  requestId?: string;
   publicId?: string;
   studentId: string;
   student?: Student;
+  studentName?: string;
+  rollNumber?: string;
+  department?: string;
+  semester?: number | string;
+  facultyName?: string;
   reason: RequestReason;
   reasonLabel: string;
   date: string;
@@ -129,6 +136,7 @@ export interface AttendanceRequest {
   faculty?: Faculty;
   primaryFacultyId?: string;
   primaryFaculty?: Faculty;
+  facultyIds?: string[];
   faculties?: Faculty[];
   reviewedAt?: string;
   finalDecisionBy?: 'Faculty' | 'HOD' | string;
@@ -282,7 +290,7 @@ export async function logout(): Promise<void> {
 
 // NOTE: ?department= param intentionally removed — scope is always derived from the
 // JWT on the backend. Param kept in signature to avoid call-site breakage.
-export async function getRequests(_params?: { department?: string }): Promise<AttendanceRequest[]> {
+export async function getRequests(_params?: { department?: string } | any): Promise<AttendanceRequest[]> {
   const res = await apiFetch<{ requests: AttendanceRequest[] }>('/api/requests');
   return res.requests;
 }

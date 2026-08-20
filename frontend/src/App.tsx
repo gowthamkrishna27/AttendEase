@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
@@ -91,6 +92,17 @@ function ProtectedRoute({
   return <>{children}</>;
 }
 
+function ExternalRedirect({ url }: { url: string }) {
+  useEffect(() => {
+    window.location.replace(url);
+  }, [url]);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+      <p style={{ color: '#64748B', fontSize: 14 }}>Redirecting to {url}...</p>
+    </div>
+  );
+}
+
 function AppRoutes() {
   const location = useLocation();
 
@@ -106,6 +118,8 @@ function AppRoutes() {
         <Route path="/gowtham" element={<Navigate to="/developers" replace />} />
         <Route path="/vivek" element={<Navigate to="/developers" replace />} />
         <Route path="/team" element={<Navigate to="/developers" replace />} />
+        <Route path="/pavan" element={<Navigate to="/developers" replace />} />
+        <Route path="/manasa" element={<Navigate to="/developers" replace />} />
         <Route path="/login" element={<LoginPortal />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 
