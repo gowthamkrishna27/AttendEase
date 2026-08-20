@@ -79,16 +79,22 @@ export default function StudentHome() {
 
       {/* ── Student ID Card (desktop/mobile top) ── */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+        whileHover={{ translateY: -2, boxShadow: '0 6px 20px rgba(0,0,0,0.06)' }}
         className="student-id-card"
         style={{
           ...card({ padding: '24px 28px', marginBottom: 24 }),
           background: 'linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%)',
           display: 'flex', alignItems: 'center', gap: 24,
+          transition: 'box-shadow 0.2s ease, transform 0.2s ease',
         }}
       >
         {/* Emblem/Avatar attached directly to student card */}
-        <div
+        <motion.div
+          whileHover={{ scale: 1.04 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 15 }}
           className="student-id-avatar"
           style={{
             width: user?.avatarUrl ? 80 : 70,
@@ -106,7 +112,7 @@ export default function StudentHome() {
           ) : (
             <img src={srkrEmblem} alt="SRKR" style={{ width: 44, height: 44, objectFit: 'contain' }} />
           )}
-        </div>
+        </motion.div>
 
         {/* Info */}
         <div style={{ flex: 1 }}>
@@ -121,97 +127,149 @@ export default function StudentHome() {
         </div>
       </motion.div>
 
-
-
       {/* ── Attendance Permission Banner (desktop) ── */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, delay: 0.06 }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.08, ease: [0.25, 0.1, 0.25, 1] }}
+        whileHover={{ translateY: -1, boxShadow: '0 6px 20px rgba(0,0,0,0.06)' }}
         className="desktop-form"
-        style={{ ...card({ padding: '22px 28px', marginBottom: 24 }) }}
+        style={{
+          ...card({ padding: '22px 28px', marginBottom: 24 }),
+          transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+        }}
       >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#000000', margin: '0 0 4px' }}>Need Attendance permission?</h2>
           </div>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => navigate('/student/new-request')}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '12px 22px', borderRadius: 12,
-              background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-              color: '#fff',
-              fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(249,115,22,0.30)',
+              padding: '10px 20px', borderRadius: 12,
+              background: '#FFF7ED',
+              border: '1px solid #FED7AA',
+              color: '#EA580C',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#EA580C';
+              e.currentTarget.style.color = '#ffffff';
+              e.currentTarget.style.borderColor = '#EA580C';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#FFF7ED';
+              e.currentTarget.style.color = '#EA580C';
+              e.currentTarget.style.borderColor = '#FED7AA';
             }}
           >
             <Plus size={15} />
             New Request
-          </button>
+          </motion.button>
         </div>
       </motion.div>
 
-      {/* ── Recent Requests Table (desktop) ── */}
+      {/* ── Recent Requests Table ── */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, delay: 0.12 }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.14, ease: [0.25, 0.1, 0.25, 1] }}
         className="desktop-requests"
         style={{ ...card({ padding: '24px 28px' }) }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: 0 }}>Recent Requests</h2>
-          <button
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: '0 0 2px' }}>Recent Requests</h2>
+            <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>Overview of your recent permission applications</p>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
             onClick={() => navigate('/student/history')}
-            style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', background: 'none', border: 'none', cursor: 'pointer' }}
+            style={{ fontSize: 13, fontWeight: 600, color: '#EA580C', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', transition: 'all 0.15s ease' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#FFEDD5'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#FFF7ED'; }}
           >
             View all
-          </button>
+          </motion.button>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid #EEF2F7' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                {['Date', 'Subject', 'Reason', 'Status', 'Submitted', ''].map(h => (
-                  <th key={h} style={{ padding: '0 12px 12px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#94A3B8', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>
-                    {h}
-                  </th>
-                ))}
+              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #EEF2F7' }}>
+                <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', width: 40 }}>#</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11.5, fontWeight: 700, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Date</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11.5, fontWeight: 700, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Subject</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11.5, fontWeight: 700, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Reason / Details</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Status</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11.5, fontWeight: 700, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Submitted</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', width: 60 }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {recent.map((req, i) => (
-                <tr
+                <motion.tr
                   key={req.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.18 + i * 0.05, duration: 0.2 }}
                   onClick={() => navigate(`/student/request/${req.id}`)}
                   style={{
-                    borderBottom: i < recent.length - 1 ? '1px solid #F8FAFC' : 'none',
+                    borderBottom: i < recent.length - 1 ? '1px solid #F1F5F9' : 'none',
                     cursor: 'pointer',
-                    transition: 'background 0.12s',
+                    background: i % 2 === 0 ? '#ffffff' : '#fafbfc',
+                    transition: 'background 0.12s ease',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#FFF7ED')}
+                  onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? '#ffffff' : '#fafbfc')}
                 >
-                  <td style={{ padding: '14px 12px', fontSize: 13, color: '#374151', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '12px 14px', textAlign: 'center', color: '#94A3B8', fontSize: 12, fontWeight: 600, fontFamily: 'monospace' }}>
+                    {i + 1}
+                  </td>
+                  <td style={{ padding: '12px 14px', color: '#1E293B', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {formatDateShort(req.date)}
                   </td>
-                  <td style={{ padding: '14px 12px', fontSize: 13, color: '#374151', fontWeight: 500 }}>
+                  <td style={{ padding: '12px 14px', color: '#0F172A', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {req.reasonLabel}
                   </td>
-                  <td style={{ padding: '14px 12px', fontSize: 13, color: '#64748B' }}>
-                    {req.description?.split('.')[0] ?? req.reasonLabel}
+                  <td style={{ padding: '12px 14px', color: '#64748B', maxWidth: 240 }}>
+                    <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {req.description?.split('.')[0] || req.reasonLabel}
+                    </span>
                   </td>
-                  <td style={{ padding: '14px 12px' }}>
+                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                     <StatusBadge status={req.status} />
                   </td>
-                  <td style={{ padding: '14px 12px', fontSize: 13, color: '#94A3B8', whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '12px 14px', color: '#64748B', fontSize: 12.5, whiteSpace: 'nowrap' }}>
                     {formatTimeAgo(req.submittedAt)}
                   </td>
-                  <td style={{ padding: '14px 12px' }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', display: 'flex', padding: 4 }}>
-                      <MoreVertical size={15} />
-                    </button>
+                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={e => { e.stopPropagation(); navigate(`/student/request/${req.id}`); }}
+                      style={{
+                        background: '#FFF7ED', border: '1px solid #FED7AA',
+                        color: '#EA580C', cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '4px 8px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
+                        gap: 3, transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#FFEDD5'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#FFF7ED'; }}
+                      title="View details"
+                    >
+                      <MoreVertical size={13} />
+                    </motion.button>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
@@ -220,19 +278,25 @@ export default function StudentHome() {
 
       {/* ── Recent Requests List (mobile) ── */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, delay: 0.12 }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.14 }}
         className="mobile-requests"
         style={{ display: 'none' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <h2 style={{ fontSize: 16, fontWeight: 800, color: '#000000', margin: 0 }}>Recent Requests</h2>
-          <button onClick={() => navigate('/student/history')} style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', background: 'none', border: 'none', cursor: 'pointer' }}>View All</button>
+          <button onClick={() => navigate('/student/history')} style={{ fontSize: 13, fontWeight: 600, color: '#EA580C', background: 'none', border: 'none', cursor: 'pointer' }}>View All</button>
         </div>
 
         <div style={{ ...card(), overflow: 'hidden' }}>
           {recent.map((req, i) => (
-            <div
+            <motion.div
               key={req.id}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              whileTap={{ scale: 0.99 }}
               onClick={() => navigate(`/student/request/${req.id}`)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
@@ -242,8 +306,8 @@ export default function StudentHome() {
               }}
             >
               {/* Icon */}
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(37,99,235,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <ClipboardList size={18} style={{ color: '#2563EB' }} />
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(249,115,22,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <ClipboardList size={18} style={{ color: '#EA580C' }} />
               </div>
               {/* Info */}
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -257,13 +321,13 @@ export default function StudentHome() {
                 <StatusBadge status={req.status} />
                 <ArrowRight size={14} style={{ color: '#CBD5E1' }} />
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
 
         <button
           onClick={() => navigate('/student/history')}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 12, fontSize: 13, fontWeight: 600, color: '#2563EB', background: 'none', border: 'none', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 12, fontSize: 13, fontWeight: 600, color: '#EA580C', background: 'none', border: 'none', cursor: 'pointer' }}
         >
           View all requests <ArrowRight size={13} />
         </button>

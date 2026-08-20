@@ -1,5 +1,8 @@
-import { useState } from 'react';
-import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Search, Plus, Edit2, Trash2, UploadCloud, FileSpreadsheet, Download, Filter, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -9,14 +12,37 @@ import { EmptyState } from '../../components/shared/EmptyState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 
+interface PreviewData {
+  fileName: string;
+  fileSize: number;
+  headers: string[];
+  rows: Record<string, string>[];
+  totalRows: number;
+}
+
 export default function AdminUsers() {
   const queryClient = useQueryClient();
   const [search, setSearch]   = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'student' | 'faculty' | 'hod' | 'admin'>('all');
 
+  // Export progress state
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [exportProgressText, setExportProgressText] = useState('');
+
   // Modals state
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingUser, setEditingUser]     = useState<api.AuthUser | null>(null);
+
+  // Multi-select Batch Delete state
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+  // Bulk Import & Preview state
+  const [importFile, setImportFile]           = useState<File | null>(null);
+  const [previewData, setPreviewData]         = useState<PreviewData | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [isUploading, setIsUploading]         = useState(false);
+  const [isDraggingOver, setIsDraggingOver]   = useState(false);
+  const dragCounterRef = useRef(0);
 
   // Form state
   const [formId, setFormId]         = useState('');
@@ -33,12 +59,59 @@ export default function AdminUsers() {
   const [formCounselorId, setFormCounselorId] = useState('');
   const [formError, setFormError]   = useState('');
 
+  // Dropdown filter states
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterDept, setFilterDept]           = useState('all');
+  const [filterYear, setFilterYear]           = useState('all');
+  const [filterSection, setFilterSection]     = useState('all');
+
   const { data: usersList = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => api.getUsers(),
   });
 
   const facultyList = usersList.filter(u => u.role === 'faculty' || u.role === 'hod');
+
+  // Dynamic filter options
+  const departmentList = Array.from(new Set(usersList.map(u => u.department).filter(Boolean))).sort();
+  const yearList = Array.from(new Set(usersList.map(u => u.year).filter(Boolean))).sort();
+  const sectionList = Array.from(new Set(usersList.map(u => u.section).filter(Boolean))).sort();
+  const activeFilterCount = (filterDept !== 'all' ? 1 : 0) + (filterYear !== 'all' ? 1 : 0) + (filterSection !== 'all' ? 1 : 0);
+
+  // ── Global window drag-and-drop for CSV/Excel ────────────────────────────────
+  useEffect(() => {
+    const onDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current += 1;
+      if (dragCounterRef.current === 1) setIsDraggingOver(true);
+    };
+    const onDragOver = (e: DragEvent) => { e.preventDefault(); };
+    const onDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current -= 1;
+      if (dragCounterRef.current === 0) setIsDraggingOver(false);
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDraggingOver(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.type.includes('csv') || file.type.includes('spreadsheet') || file.type.includes('excel'))) {
+        handleFileSelectForPreview(file);
+      }
+    };
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('drop', onDrop);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const createMutation = useMutation({
     mutationFn: (data: api.CreateUserPayload) => api.createUser(data),
@@ -68,8 +141,42 @@ export default function AdminUsers() {
     mutationFn: (id: string) => api.deleteUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => {
+      window.alert(err.message || 'Failed to delete user');
     }
   });
+
+  const deleteMultipleMutation = useMutation({
+    mutationFn: (ids: string[]) => api.deleteMultipleUsers(ids),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setSelectedUserIds([]);
+      window.alert(`✅ Successfully deleted ${data.deletedCount} account(s) from the database.`);
+    },
+    onError: (err: any) => {
+      window.alert(`❌ Failed to delete selected accounts: ${err.message || 'Unknown error'}`);
+    },
+  });
+
+  const handleDelete = (id: string, name?: string) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete ${name ? `"${name}"` : 'this account'} from the database?`
+    );
+    if (confirmed) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedUserIds.length === 0) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete ${selectedUserIds.length} selected user account(s) from the database?`
+    );
+    if (confirmed) {
+      deleteMultipleMutation.mutate(selectedUserIds);
+    }
+  };
 
   const resetForm = () => {
     setEditingUser(null);
@@ -93,28 +200,262 @@ export default function AdminUsers() {
     setShowFormModal(true);
   };
 
-  const handleOpenEdit = (u: api.AuthUser) => {
-    setEditingUser(u);
-    setFormId(u.id);
-    setFormName(u.name);
-    setFormEmail(u.email);
-    setFormRole(u.role);
-    setFormDept(u.department);
-    setFormPass(''); // don't fill password
-    setFormRoll(u.rollNumber || '');
-    setFormSem(u.semester || 6);
-    setFormYear(u.year || '3rd Year');
-    setFormSection(u.section || 'CSIT-A');
-    setFormAvatar(u.avatarUrl || '');
-    setFormCounselorId(u.counselorId || '');
-    setFormError('');
-    setShowFormModal(true);
+  const handleDownloadSampleCsv = () => {
+    const csvContent =
+      'Register Number,Student Name,Year,Branch,Section,Role\n' +
+      '23B91A0701,BARAKATA TARUN SWAMY,4,CSIT,A,student\n' +
+      '23B91A0702,BARRI SRAVYA SREE,4,CSIT,A,student\n' +
+      '24B91A0701,Gowtham Krishna,3,CSIT,A,student\n' +
+      'FAC-CSIT-001,Dr. J. Somaraju,3,CSIT,A,faculty\n';
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'students_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this account? This will revoke login access.')) {
-      deleteMutation.mutate(id);
+  // Export in Excel (.xlsx) with embedded Photo thumbnails + Register Number, Name, Year, Department, Section
+  const handleExportExcelWithPhotos = async (format: 'xlsx' | 'csv' = 'xlsx') => {
+    if (sorted.length === 0) {
+      window.alert('No records available to export with current filters.');
+      return;
     }
+
+    if (format === 'csv') {
+      const exportRows = sorted.map(u => ({
+        'Register Number': u.rollNumber || u.userId || '',
+        'Name': u.name || '',
+        'Year': u.year || '',
+        'Department': u.department || '',
+        'Section': u.section || '',
+        'Photo URL': u.avatarUrl || (u.rollNumber ? `https://srkrexams.in/SRKR/photo/${u.rollNumber.toUpperCase()}.jpg` : ''),
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(exportRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+      const fileName = `Students_Export_${activeTab !== 'all' ? `${activeTab}_` : ''}${new Date().toISOString().slice(0, 10)}.csv`;
+      XLSX.writeFile(workbook, fileName, { bookType: 'csv' });
+      return;
+    }
+
+    try {
+      setIsExportingExcel(true);
+      setExportProgressText('Preparing Excel workbook...');
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'AttendEase';
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet('Students', {
+        views: [{ showGridLines: true }],
+      });
+
+      // Columns definition
+      worksheet.columns = [
+        { header: '#', key: 'index', width: 6 },
+        { header: 'Photo', key: 'photo', width: 14 },
+        { header: 'Register Number', key: 'rollNumber', width: 20 },
+        { header: 'Name', key: 'name', width: 32 },
+        { header: 'Year', key: 'year', width: 14 },
+        { header: 'Department', key: 'department', width: 18 },
+        { header: 'Section', key: 'section', width: 14 },
+      ];
+
+      // Header row styling
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 28;
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF18181B' }, // Dark theme matching AttendEase
+      };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+      // Process rows and embed photos
+      const total = sorted.length;
+      for (let i = 0; i < total; i++) {
+        const u = sorted[i];
+        const rowIndex = i + 2;
+        setExportProgressText(`Processing photos... (${i + 1}/${total})`);
+
+        const row = worksheet.addRow({
+          index: i + 1,
+          photo: '',
+          rollNumber: u.rollNumber || u.userId || '',
+          name: u.name || '',
+          year: u.year || '',
+          department: u.department || '',
+          section: u.section || '',
+        });
+
+        row.height = 56;
+        row.alignment = { vertical: 'middle', horizontal: 'left' };
+        row.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(2).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(3).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(5).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(6).alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell(7).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Subtle alternating row background
+        if (i % 2 !== 0) {
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF9FAFB' },
+          };
+        }
+
+        // Fetch student photo
+        const photoUrl = u.avatarUrl || (u.rollNumber ? `https://srkrexams.in/SRKR/photo/${u.rollNumber.toUpperCase()}.jpg` : '');
+        if (photoUrl) {
+          try {
+            const proxyUrl = `/api/users/proxy-image?url=${encodeURIComponent(photoUrl)}`;
+            const imgRes = await fetch(proxyUrl);
+            if (imgRes.ok) {
+              const arrayBuf = await imgRes.arrayBuffer();
+              const imageId = workbook.addImage({
+                buffer: arrayBuf,
+                extension: 'jpeg',
+              });
+
+              worksheet.addImage(imageId, {
+                tl: { col: 1.15, row: rowIndex - 0.88 },
+                ext: { width: 44, height: 52 },
+                editAs: 'oneCell',
+              });
+            }
+          } catch (imgErr) {
+            // Ignore single image failure and proceed
+          }
+        }
+      }
+
+      setExportProgressText('Generating .xlsx file...');
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.href = url;
+      downloadAnchor.download = `Students_With_Photos_${activeTab !== 'all' ? `${activeTab}_` : ''}${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Export Excel with photos failed:', err);
+      window.alert(`Failed to export Excel with photos: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setIsExportingExcel(false);
+      setExportProgressText('');
+    }
+  };
+
+  // Parses dropped or selected CSV/Excel file to display preview before upload
+  const handleFileSelectForPreview = async (file: File) => {
+    try {
+      setImportFile(file);
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) {
+        window.alert('No sheets found in the file.');
+        return;
+      }
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
+      
+      if (!jsonData || jsonData.length === 0) {
+        window.alert('The selected file appears to be empty.');
+        return;
+      }
+
+      const rawHeaders = (jsonData[0] as any[]).map(h => String(h ?? '').trim()).filter(Boolean);
+      const rawRows = jsonData.slice(1) as any[][];
+      
+      const formattedRows: Record<string, string>[] = rawRows
+        .filter(r => Array.isArray(r) && r.some(cell => String(cell ?? '').trim() !== ''))
+        .map(row => {
+          const obj: Record<string, string> = {};
+          rawHeaders.forEach((h, i) => {
+            obj[h] = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
+          });
+          return obj;
+        });
+
+      if (formattedRows.length === 0) {
+        window.alert('No valid student data rows found in this file.');
+        return;
+      }
+
+      setPreviewData({
+        fileName: file.name,
+        fileSize: file.size,
+        headers: rawHeaders,
+        rows: formattedRows,
+        totalRows: formattedRows.length,
+      });
+      setShowPreviewModal(true);
+    } catch (err: any) {
+      console.error('File parsing error:', err);
+      window.alert(`Failed to parse file: ${err.message || 'Check file format'}`);
+    }
+  };
+
+  // Called when user clicks "Upload to Database" in preview modal
+  const handleConfirmUpload = async () => {
+    if (!importFile) return;
+    setIsUploading(true);
+    try {
+      const report = await api.importStudentsFile(importFile);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['public-sections'] });
+      setShowPreviewModal(false);
+      setPreviewData(null);
+      
+      const failedCount = report.failed?.length || 0;
+      const failedLines = failedCount > 0
+        ? '\n\nFailed rows:\n' + report.failed.map(f => `  Row ${f.row ?? '?'}: ${f.reason}`).join('\n')
+        : '';
+      window.alert(
+        `✅ Import Complete — ${importFile.name}\n\n` +
+        `  ➕ New added : ${report.inserted}\n` +
+        `  🔄 Updated  : ${report.upserted || report.skipped || 0}\n` +
+        `  ❌ Failed   : ${failedCount}` +
+        failedLines
+      );
+    } catch (err: any) {
+      window.alert(`❌ Import Failed\n\n${err.message || 'Failed to upload student file.'}`);
+    } finally {
+      setIsUploading(false);
+      setImportFile(null);
+    }
+  };
+
+  const handleOpenEdit = (user: api.AuthUser) => {
+    setEditingUser(user);
+    setFormId(user.id);
+    setFormName(user.name);
+    setFormEmail(user.email);
+    setFormRole(user.role);
+    setFormDept(user.department);
+    setFormPass(''); // don't fill password
+    setFormRoll(user.rollNumber || '');
+    setFormSem(user.semester || 6);
+    setFormYear(user.year || '3rd Year');
+    setFormSection(user.section || 'CSIT-A');
+    setFormAvatar(user.avatarUrl || '');
+    setFormCounselorId(user.counselorId || '');
+    setFormError('');
+    setShowFormModal(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -180,48 +521,133 @@ export default function AdminUsers() {
       (u.rollNumber ?? u.userId ?? '').toLowerCase().includes(search.toLowerCase()) ||
       (u.department ?? '').toLowerCase().includes(search.toLowerCase());
     const matchesTab = activeTab === 'all' ? true : u.role === activeTab;
-    return matchesSearch && matchesTab;
+    const matchesDept = filterDept === 'all' || u.department === filterDept;
+    const matchesYear = filterYear === 'all' || u.year === filterYear;
+    const matchesSection = filterSection === 'all' || u.section === filterSection;
+    return matchesSearch && matchesTab && matchesDept && matchesYear && matchesSection;
   });
 
   const sorted = [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
+  const allVisibleIds = sorted.map(u => u.id || u.userId || '').filter(Boolean);
+  const isAllSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedUserIds.includes(id));
+  const isSomeSelected = selectedUserIds.length > 0 && !isAllSelected;
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(allVisibleIds);
+    }
+  };
+
+  const handleToggleSelectUser = (id: string) => {
+    setSelectedUserIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
   return (
     <PageWrapper role="admin">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto space-y-4">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
           <div>
-            <p className="text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">Admin Control</p>
-            <h1 className="text-[26px] font-heading font-bold text-slate-900">Manage Accounts</h1>
-            <p className="text-[14px] text-slate-400 mt-1">Full control to create, edit, and delete Student, Faculty, HOD, and Admin accounts</p>
+            <span className="text-[11px] font-semibold text-[#18181b] bg-[#edf0f2] px-2 py-0.5 rounded-[5px]">
+              ADMIN CONTROL
+            </span>
+            <h1 className="text-[22px] font-bold text-[#18181b] tracking-tight mt-1">Manage Accounts &amp; Students</h1>
+            <p className="text-[13px] text-[#6b7280]">Create, edit, delete and bulk upload Student, Faculty, HOD, and Admin accounts</p>
           </div>
-          <Button
-            onClick={handleOpenAdd}
-            className="flex items-center justify-center gap-2 h-[42px] px-5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold text-[13px] rounded-xl shadow-subtle transition-all cursor-pointer w-full sm:w-auto"
-          >
-            <Plus size={16} />
-            <span>Add New User</span>
-          </Button>
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+            {/* Export in Excel Button */}
+            <button
+              type="button"
+              disabled={isExportingExcel}
+              onClick={() => handleExportExcelWithPhotos('xlsx')}
+              title="Export filtered records in Excel (.xlsx) with embedded Photo thumbnails, Register Number, Name, Year, Department, and Section"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3.5 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer shadow-xs disabled:opacity-50"
+            >
+              {isExportingExcel ? (
+                <Loader2 size={15} className="animate-spin text-emerald-600" />
+              ) : (
+                <FileSpreadsheet size={15} className="text-emerald-600" />
+              )}
+              <span>{isExportingExcel ? (exportProgressText || 'Exporting...') : 'Export in Excel'}</span>
+            </button>
+
+            {/* Export CSV Button */}
+            <button
+              type="button"
+              disabled={isExportingExcel}
+              onClick={() => handleExportExcelWithPhotos('csv')}
+              title="Export filtered records in CSV format"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Download size={14} />
+              <span>CSV</span>
+            </button>
+
+            <label
+              htmlFor="header-csv-file-input"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3.5 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer"
+            >
+              <UploadCloud size={15} />
+              <span>Import</span>
+              <input
+                id="header-csv-file-input"
+                type="file"
+                accept=".csv, .xlsx, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                className="hidden"
+                onClick={(e) => {
+                  (e.target as HTMLInputElement).value = '';
+                }}
+                onChange={e => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleFileSelectForPreview(e.target.files[0]);
+                    (e.target as HTMLInputElement).value = '';
+                  }
+                }}
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={handleDownloadSampleCsv}
+              title="Download sample CSV format template"
+              className="inline-flex items-center justify-center gap-1.5 h-[38px] px-3 font-medium text-[13px] rounded-lg bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] transition-all cursor-pointer"
+            >
+              <Download size={14} />
+              <span className="hidden sm:inline">Template</span>
+            </button>
+
+            <button
+              onClick={handleOpenAdd}
+              className="flex items-center justify-center gap-1.5 h-[38px] px-4 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white font-medium text-[13px] rounded-lg shadow-xs transition-all cursor-pointer"
+            >
+              <Plus size={15} />
+              <span>Add User</span>
+            </button>
+          </div>
         </div>
 
-        {/* Toggle Option Tabs */}
-        <div className="flex overflow-x-auto bg-slate-100 border border-slate-200 p-1 rounded-xl mb-5 shadow-subtle">
+        {/* Role Filter Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-[#edf0f2] rounded-lg w-fit mb-2">
           {[
-            { id: 'all', label: 'All Accounts' },
+            { id: 'all',     label: 'All Users' },
             { id: 'student', label: 'Students' },
             { id: 'faculty', label: 'Faculty' },
-            { id: 'hod', label: 'HODs' },
-            { id: 'admin', label: 'Admins' },
+            { id: 'hod',     label: 'HODs' },
+            { id: 'admin',   label: 'Admins' },
           ].map(tab => (
             <button
               key={tab.id}
-              type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 py-2 px-3 min-w-[90px] text-center font-bold text-[12px] sm:text-[13px] transition-all rounded-lg cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 text-[12.5px] font-medium rounded-md transition-all cursor-pointer ${
                 activeTab === tab.id
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-white text-[#18181b] shadow-2xs font-semibold'
+                  : 'text-[#6b7280] hover:text-[#18181b]'
               }`}
             >
               {tab.label}
@@ -229,19 +655,157 @@ export default function AdminUsers() {
           ))}
         </div>
 
-        {/* Filter Toolbar */}
-        <div className="flex gap-3 mb-6">
+        {/* Filter Toolbar & Filter Button */}
+        <div className="flex gap-2.5 items-center">
           <div className="relative flex-1">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#88929e]" />
             <input
               type="text"
               placeholder="Search by name, email, roll no..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full h-[42px] pl-9 pr-4 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/12 transition-all shadow-subtle"
+              className="w-full h-[40px] pl-9 pr-4 text-[13.5px] bg-[#edf0f2] text-[#18181b] placeholder:text-[#88929e] rounded-lg outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all"
             />
           </div>
+
+          {/* Filter Button */}
+          <button
+            type="button"
+            onClick={() => setShowFilterPanel(!showFilterPanel)}
+            className={`h-[40px] px-3.5 rounded-lg border font-medium text-[13px] flex items-center gap-1.5 transition-all cursor-pointer ${
+              showFilterPanel || activeFilterCount > 0
+                ? 'bg-[#18181b] text-white border-[#18181b]'
+                : 'bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] border-transparent'
+            }`}
+          >
+            <Filter size={14} />
+            <span className="font-semibold">Filter</span>
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[11px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
         </div>
+
+        {/* Collapsible Dropdown Filter Panel */}
+        <AnimatePresence>
+          {showFilterPanel && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-2xs grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                {/* Department Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider block mb-1">
+                    Department / Branch
+                  </label>
+                  <select
+                    value={filterDept}
+                    onChange={e => setFilterDept(e.target.value)}
+                    className="w-full h-[36px] px-2.5 bg-[#edf0f2] text-[#18181b] rounded-lg text-[13px] font-medium outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="all">All Departments</option>
+                    {departmentList.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Year Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider block mb-1">
+                    Year
+                  </label>
+                  <select
+                    value={filterYear}
+                    onChange={e => setFilterYear(e.target.value)}
+                    className="w-full h-[36px] px-2.5 bg-[#edf0f2] text-[#18181b] rounded-lg text-[13px] font-medium outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="all">All Years</option>
+                    {yearList.map(yr => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Section Filter */}
+                <div>
+                  <label className="text-[11px] font-bold text-[#6b7280] uppercase tracking-wider block mb-1">
+                    Section
+                  </label>
+                  <select
+                    value={filterSection}
+                    onChange={e => setFilterSection(e.target.value)}
+                    className="w-full h-[36px] px-2.5 bg-[#edf0f2] text-[#18181b] rounded-lg text-[13px] font-medium outline-none border border-transparent focus:border-slate-300 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="all">All Sections</option>
+                    {sectionList.map(sec => (
+                      <option key={sec} value={sec}>{sec}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Reset Filters */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterDept('all');
+                      setFilterYear('all');
+                      setFilterSection('all');
+                    }}
+                    className="h-[36px] px-3.5 text-[12.5px] font-medium bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#18181b] rounded-lg transition-colors cursor-pointer w-full flex items-center justify-center"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Multi-select Batch Actions Bar */}
+        <AnimatePresence>
+          {selectedUserIds.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ duration: 0.15 }}
+              className="flex items-center justify-between gap-3 p-3 bg-[#18181b] text-white rounded-xl shadow-md mb-4 border border-slate-800"
+            >
+              <div className="flex items-center gap-2.5 pl-1.5 text-[13px] font-medium">
+                <span className="w-6 h-6 rounded-md bg-white/20 text-white flex items-center justify-center font-bold text-[11.5px]">
+                  {selectedUserIds.length}
+                </span>
+                <span>account{selectedUserIds.length > 1 ? 's' : ''} selected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserIds([])}
+                  className="px-3 py-1.5 text-[12px] font-medium bg-white/10 hover:bg-white/20 active:bg-white/30 text-white rounded-lg transition-colors cursor-pointer"
+                >
+                  Clear Selection
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteMultipleMutation.isPending}
+                  onClick={handleBatchDelete}
+                  className="px-3.5 py-1.5 text-[12px] font-semibold bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                >
+                  <Trash2 size={13} />
+                  <span>{deleteMultipleMutation.isPending ? 'Deleting...' : `Delete Selected (${selectedUserIds.length})`}</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Users Table */}
         {isLoading ? (
@@ -256,120 +820,132 @@ export default function AdminUsers() {
             action={<Button variant="secondary" onClick={() => { setSearch(''); setActiveTab('student'); }}>Reset Filters</Button>}
           />
         ) : (
-          <div className="card overflow-hidden">
-            {/* Desktop Table View */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            {/* Table Stats Bar */}
+            <div className="px-4 py-2.5 bg-[#f8f9fa] border-b border-slate-200 flex items-center justify-between text-[12px] text-[#6b7280]">
+              <span>Showing <strong className="text-[#18181b]">{sorted.length}</strong> {activeTab === 'all' ? 'total accounts' : `${activeTab} accounts`}</span>
+              <span className="text-[11px] text-[#88929e]">Scroll horizontally if needed</span>
+            </div>
+
+            {/* Structured Grid Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-[13px]">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/60">
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">User</th>
-                    <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Role</th>
-                    <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Department</th>
-                    <th className="text-left px-4 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">ID / Roll No.</th>
-                    <th className="text-right px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Actions</th>
+                  <tr className="bg-[#edf0f2] text-[#374151] border-b border-slate-200">
+                    <th className="px-3 py-2.5 text-center border-r border-slate-200 w-10">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                        onChange={handleToggleSelectAll}
+                        className="w-4 h-4 rounded border-slate-300 text-[#18181b] focus:ring-0 cursor-pointer accent-[#18181b]"
+                        title="Select All Accounts"
+                      />
+                    </th>
+                    <th className="px-2.5 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 w-10">#</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 w-14">Photo</th>
+                    <th className="px-3.5 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Register No.</th>
+                    <th className="px-4 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Full Name</th>
+                    <th className="px-4 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Email Address</th>
+                    <th className="px-3 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 text-center whitespace-nowrap">Role</th>
+                    <th className="px-3 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 text-center whitespace-nowrap">Year</th>
+                    <th className="px-3 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 text-center whitespace-nowrap">Section</th>
+                    <th className="px-3 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 text-center whitespace-nowrap">Branch</th>
+                    <th className="px-3.5 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider text-center whitespace-nowrap w-24">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map(u => (
-                    <tr
-                      key={u.id}
-                      className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
-                    >
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} />
-                          <div>
-                            <p className="text-[13px] font-semibold text-slate-800">{u.name}</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">{u.email}</p>
+                  {sorted.map((u, index) => {
+                    const uKey = u.id || u.userId || '';
+                    const isSelected = selectedUserIds.includes(uKey);
+                    return (
+                      <tr
+                        key={u.id}
+                        className={`border-b border-slate-200 hover:bg-[#f0f4f8] transition-colors ${
+                          isSelected ? 'bg-orange-50/60 hover:bg-orange-50' : index % 2 === 0 ? 'bg-white' : 'bg-[#fafbfc]'
+                        }`}
+                      >
+                        {/* Checkbox */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 w-10">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectUser(uKey)}
+                            className="w-4 h-4 rounded border-slate-300 text-[#18181b] focus:ring-0 cursor-pointer accent-[#18181b]"
+                          />
+                        </td>
+
+                        {/* Serial Number */}
+                        <td className="px-2.5 py-2 text-center text-[#88929e] font-mono text-[12px] border-r border-slate-200 w-10">
+                          {index + 1}
+                        </td>
+
+                        {/* Photo Avatar */}
+                        <td className="px-2 py-2 text-center border-r border-slate-200 w-14">
+                          <div className="flex items-center justify-center">
+                            <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} className="rounded-full shadow-2xs border border-slate-200/80" />
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 text-[11px] font-bold rounded-full border uppercase tracking-wider ${
-                          u.role === 'hod' ? 'bg-purple-50 text-purple-600 border-purple-200' :
-                          u.role === 'faculty' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                          'bg-orange-50 text-orange-600 border-orange-200'
-                        }`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className="text-[13px] text-slate-600 font-semibold">{u.department}</span>
-                      </td>
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className="text-[13px] font-mono text-slate-500">{u.rollNumber || u.id}</span>
-                      </td>
-                      <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2 flex-shrink-0">
-                          <button
-                            onClick={() => handleOpenEdit(u)}
-                            className="w-7 h-7 bg-slate-50 hover:bg-orange-50 text-slate-400 hover:text-orange-500 border border-slate-200 hover:border-orange-200 rounded-lg flex items-center justify-center transition-all cursor-pointer flex-shrink-0"
-                            title="Edit User"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(u.id)}
-                            className="w-7 h-7 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-lg flex items-center justify-center transition-all cursor-pointer flex-shrink-0"
-                            title="Delete User"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+
+                        {/* Register Number */}
+                        <td className="px-3.5 py-2 font-mono font-medium text-[#18181b] border-r border-slate-200 whitespace-nowrap">
+                          {u.rollNumber || '—'}
+                        </td>
+
+                        {/* Name */}
+                        <td className="px-4 py-2 font-semibold text-[#18181b] border-r border-slate-200 whitespace-nowrap">
+                          {u.name}
+                        </td>
+
+                        {/* Email */}
+                        <td className="px-4 py-2 text-[#6b7280] border-r border-slate-200 whitespace-nowrap text-[12.5px]">
+                          {u.email}
+                        </td>
+
+                        {/* Role */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151] capitalize">
+                          {u.role === 'hod' ? 'HOD' : u.role}
+                        </td>
+
+                        {/* Year */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12px] font-medium text-[#374151]">
+                          {u.year || '—'}
+                        </td>
+
+                        {/* Section */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12px] font-medium text-[#374151]">
+                          {u.section ? (u.section.toUpperCase().startsWith('SEC') || u.section.includes('-') ? u.section : `Sec ${u.section}`) : '—'}
+                        </td>
+
+                        {/* Branch / Department */}
+                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap font-medium text-[12px] text-[#374151]">
+                          {u.department}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleOpenEdit(u)}
+                              className="w-6 h-6 bg-[#edf0f2] hover:bg-[#18181b] text-[#374151] hover:text-white rounded flex items-center justify-center transition-all cursor-pointer"
+                              title="Edit User"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(u.id, u.name)}
+                              className="w-6 h-6 bg-[#edf0f2] hover:bg-rose-600 text-[#374151] hover:text-white rounded flex items-center justify-center transition-all cursor-pointer"
+                              title="Delete User"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-            </div>
-
-            {/* Mobile Cards View */}
-            <div className="block sm:hidden divide-y divide-slate-100">
-              {sorted.map(u => (
-                <div key={u.id} className="p-4 flex flex-col gap-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={u.name} src={u.avatarUrl} rollNumber={u.rollNumber} size="sm" role={u.role} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[14px] font-semibold text-slate-800 truncate">{u.name}</p>
-                      <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                    <span className="font-semibold text-slate-500 font-mono">{u.rollNumber || u.id}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded border uppercase tracking-wider ${
-                        u.role === 'hod' ? 'bg-purple-50 text-purple-600 border-purple-200' :
-                        u.role === 'faculty' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                        'bg-orange-50 text-orange-600 border-orange-200'
-                      }`}>
-                        {u.role}
-                      </span>
-                      <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-500 rounded border border-slate-200">
-                        {u.department}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-slate-400 font-medium">Quick Actions</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleOpenEdit(u)}
-                        className="px-3.5 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg text-[12px] font-bold flex items-center gap-1.5 transition-all active:bg-orange-500 active:text-white"
-                      >
-                        <Edit2 size={12} />
-                        <span>Edit</span>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(u.id)}
-                        className="px-3.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-[12px] font-bold flex items-center gap-1.5 transition-all active:bg-rose-500 active:text-white"
-                      >
-                        <Trash2 size={12} />
-                        <span>Delete</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -632,15 +1208,159 @@ export default function AdminUsers() {
             )}
 
             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 mt-1">
-              <Button type="button" variant="secondary" onClick={() => setShowFormModal(false)}>Cancel</Button>
-              <Button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6">
+              <button
+                type="button"
+                onClick={() => setShowFormModal(false)}
+                className="h-[38px] px-4 bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#374151] text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="h-[38px] px-5 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[13px] font-medium rounded-lg shadow-xs transition-all cursor-pointer"
+              >
                 {editingUser ? 'Save Updates' : 'Add User'}
-              </Button>
+              </button>
             </div>
           </form>
         </Modal>
+
+        {/* ── CSV / Excel Preview Modal ───────────────────────────────── */}
+        <Modal
+          open={showPreviewModal}
+          onClose={() => {
+            if (!isUploading) {
+              setShowPreviewModal(false);
+              setPreviewData(null);
+              setImportFile(null);
+            }
+          }}
+          title="Import Preview"
+          size="xl"
+        >
+          {previewData && (
+            <div className="space-y-4">
+              {/* File Info Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-[#edf0f2] border border-slate-200/80 rounded-xl">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#18181b] flex items-center justify-center shrink-0">
+                    <FileSpreadsheet size={16} color="#fff" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13.5px] font-semibold text-[#18181b] truncate">{previewData.fileName}</p>
+                    <p className="text-[11px] text-[#6b7280]">{(previewData.fileSize / 1024).toFixed(1)} KB • {previewData.totalRows} records found</p>
+                  </div>
+                </div>
+                <span className="text-[11.5px] font-semibold bg-white text-[#18181b] px-2.5 py-1 rounded-md border border-slate-200 shadow-xs">
+                  {previewData.totalRows} {previewData.totalRows === 1 ? 'Record' : 'Records'}
+                </span>
+              </div>
+
+              {/* Data Preview Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-[360px] overflow-y-auto">
+                <table className="w-full text-left text-[12px] border-collapse">
+                  <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10.5px] tracking-wider z-10">
+                    <tr>
+                      <th className="py-2.5 px-3 w-10 text-center text-slate-400">#</th>
+                      {previewData.headers.map((h, i) => (
+                        <th key={i} className="py-2.5 px-3 font-semibold text-[#18181b] whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {previewData.rows.map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2 px-3 text-center text-[11px] text-slate-400 font-mono">
+                          {rIdx + 1}
+                        </td>
+                        {previewData.headers.map((h, cIdx) => (
+                          <td key={cIdx} className="py-2 px-3 text-slate-700 whitespace-nowrap max-w-[200px] truncate">
+                            {row[h] || <span className="text-slate-300 italic">—</span>}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() => {
+                    setShowPreviewModal(false);
+                    setPreviewData(null);
+                    setImportFile(null);
+                  }}
+                  className="h-[38px] px-4 bg-[#edf0f2] hover:bg-[#e2e6e9] text-[#374151] text-[13px] font-medium rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={handleConfirmUpload}
+                  className="h-[38px] px-5 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[13px] font-medium rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isUploading ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Importing...</span>
+                    </>
+                  ) : (
+                    <span>Upload to Database ({previewData.totalRows})</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        {/* ── Global drag-over overlay ─────────────────────────────────── */}
+        <AnimatePresence>
+          {isDraggingOver && (
+            <motion.div
+              key="drag-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 300,
+                background: 'rgba(0,0,0,0.35)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                pointerEvents: 'none',
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                style={{
+                  width: 68, height: 68, borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.18)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1.5px solid rgba(255,255,255,0.35)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                }}
+              >
+                <Plus size={36} color="#ffffff" strokeWidth={2.5} />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
     </PageWrapper>
   );
 }
+

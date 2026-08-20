@@ -5,12 +5,13 @@ interface AvatarProps {
   name: string;
   src?: string;
   rollNumber?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   role?: 'student' | 'faculty' | 'hod' | 'admin';
   className?: string;
 }
 
 const sizeMap = {
+  xs: 'w-7 h-7 text-[10px]',
   sm: 'w-8 h-8 text-[12px]',
   md: 'w-10 h-10 text-[14px]',
   lg: 'w-14 h-14 text-[18px]',

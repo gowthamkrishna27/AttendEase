@@ -7,7 +7,7 @@ import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Button } from '../../components/ui/Button';
-import { formatDate, DEPARTMENTS } from '../../lib/utils';
+import { formatDate, formatSubmittedAt, DEPARTMENTS } from '../../lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
@@ -18,21 +18,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
 };
 
-const STATUS_TABS = [
-  { label: 'All',      value: 'all'      },
-  { label: 'Pending',  value: 'pending'  },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Rejected', value: 'rejected' },
-] as const;
-
 type TabValue = 'all' | 'pending' | 'approved' | 'rejected';
-
-const tabActiveClass: Record<TabValue, string> = {
-  all:      'bg-slate-900 text-white',
-  pending:  'bg-amber-500 text-white',
-  approved: 'bg-emerald-600 text-white',
-  rejected: 'bg-rose-500 text-white',
-};
 
 export default function FacultyRequests() {
   const navigate = useNavigate();
@@ -127,24 +113,18 @@ export default function FacultyRequests() {
                 <option value="3rd Year">3rd Year</option>
                 <option value="4th Year">4th Year</option>
               </select>
-            </div>
-          </div>
 
-          {/* Status pill tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 sm:pb-0 no-scrollbar">
-            {STATUS_TABS.map(t => (
-              <button
-                key={t.value}
-                onClick={() => setTab(t.value)}
-                className={`px-3.5 sm:px-4 py-1.5 text-[12px] sm:text-[13px] font-semibold rounded-full whitespace-nowrap transition-all duration-150 ${
-                  tab === t.value
-                    ? tabActiveClass[t.value] + ' shadow-subtle'
-                    : 'bg-white text-slate-500 border border-slate-200 hover:border-orange-300 hover:text-orange-600'
-                }`}
+              <select
+                value={tab}
+                onChange={e => setTab(e.target.value as TabValue)}
+                className="w-full sm:w-auto h-[42px] px-3 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
               >
-                {t.label}
-              </button>
-            ))}
+                <option value="all">All Statuses ({requestsList.length})</option>
+                <option value="pending">Pending ({requestsList.filter(r => r.status === 'pending').length})</option>
+                <option value="approved">Approved ({requestsList.filter(r => r.status === 'approved').length})</option>
+                <option value="rejected">Rejected ({requestsList.filter(r => r.status === 'rejected').length})</option>
+              </select>
+            </div>
           </div>
         </motion.div>
 
@@ -226,6 +206,11 @@ export default function FacultyRequests() {
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
+                            {req.submittedAt && (
+                              <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                Sub: {formatSubmittedAt(req.submittedAt)}
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="text-[13px] font-medium text-slate-700">{getDays(req)}</span>
@@ -275,10 +260,13 @@ export default function FacultyRequests() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-slate-400">
-                            <span>{formatDate(req.date)}</span>
-                            <span>•</span>
-                            <span>{getDays(req)} day</span>
+                          <div className="flex flex-col items-end text-slate-400">
+                            <span>{formatDate(req.date)} • {getDays(req)} day</span>
+                            {req.submittedAt && (
+                              <span className="text-[10px] text-orange-600/90 font-mono font-medium">
+                                Sub: {formatSubmittedAt(req.submittedAt)}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </motion.div>

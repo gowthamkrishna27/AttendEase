@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Allow: /permissions
+Allow: /login
+Allow: /landing
+Disallow: /api/
+
+Sitemap: https://attend-ease-hmi8.vercel.app/sitemap.xml

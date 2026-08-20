@@ -36,7 +36,9 @@ export function LoginLayout({
         <div className="w-7 h-7 bg-[#111111] rounded-lg flex items-center justify-center">
           <span className="text-white text-[11px] font-bold">AE</span>
         </div>
-        <span className="text-[16px] font-semibold text-[#111111]">AttendEase</span>
+        <span className="text-[16px] font-semibold text-[#111111]">
+          <span>Attend</span><span className="text-orange-500 font-bold">Ease</span>
+        </span>
       </div>
 
       <motion.div

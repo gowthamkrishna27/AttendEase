@@ -4,6 +4,8 @@ export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export type RequestReason =
   | 'internship'
+  | 'startup'
+  | 'project_development'
   | 'medical'
   | 'sports'
   | 'family_emergency'
@@ -24,6 +26,7 @@ export interface Student {
 
 export interface Faculty {
   id: string;
+  userId?: string;
   name: string;
   department: string;
   email: string;
@@ -34,8 +37,15 @@ export interface Faculty {
 
 export interface AttendanceRequest {
   id: string;
+  requestId?: string;
+  publicId?: string;
   studentId: string;
   student?: Student;
+  studentName?: string;
+  rollNumber?: string;
+  department?: string;
+  semester?: number | string;
+  facultyName?: string;
   reason: RequestReason;
   reasonLabel: string;
   date: string; // ISO date string YYYY-MM-DD
@@ -57,7 +67,9 @@ export interface AttendanceRequest {
   reviewedAt?: string;
   rejectionReason?: string;
   finalDecisionBy?: string;
+  finalDecisionUserId?: string;
   finalDecisionName?: string;
+  actions?: any[];
 }
 
 export interface NewRequestFormData {
@@ -74,4 +86,15 @@ export interface FacultyFilters {
   department: string;
   dateFrom: string;
   dateTo: string;
+}
+
+export interface HODDirectExemptionPayload {
+  studentIds: string[];
+  reason: string;
+  startDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  periods?: string;
+  description?: string;
 }

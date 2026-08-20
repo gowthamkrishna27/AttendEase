@@ -204,22 +204,26 @@
 /* ── Print Media Rules: Hide browser headers/footers & enforce single-page A4 print ── */
 @media print {
   @page {
-    margin: 0.6cm 1cm; /* Compact margin for single A4 page fit */
+    margin: 8mm 12mm;
     size: A4 portrait;
   }
 
-  html, body {
+  html, body, #root {
     background: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
-    height: 100% !important;
-    overflow: hidden !important;
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   header, aside, nav, footer,
   .desktop-topbar, .mobile-topbar, .desktop-sidebar, .mobile-bottom-nav,
-  .footer-line, .non-printable {
+  .footer-line, .non-printable, .print\:hidden,
+  [data-print-hidden="true"] {
     display: none !important;
   }
 
@@ -229,11 +233,14 @@
     background: #ffffff !important;
   }
 
-  .hidden.print\:block {
+  .hidden.print\:block,
+  .print\:block,
+  [data-print-visible="true"] {
     display: block !important;
     margin: 0 !important;
     padding: 0 !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    visibility: visible !important;
   }
 }

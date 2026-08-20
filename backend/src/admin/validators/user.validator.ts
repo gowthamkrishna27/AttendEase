@@ -35,15 +35,18 @@ const userRoleEnum = z.enum(['student', 'faculty', 'hod', 'admin']);
 
 export const createUserSchema = z
   .object({
-    userId:     z.string().trim().min(1, 'userId is required').max(50),
-    name:       z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
-    email:      z.string().email('Must be a valid email').toLowerCase().trim(),
-    role:       userRoleEnum,
-    department: z.string().trim().min(1, 'Department is required').max(50),
-    password:   z.string().min(1, 'Password is required'),
-    rollNumber: z.string().trim().max(20).optional(),
-    semester:   z.number().int().min(1).max(10).optional(),
-    avatarUrl:  z.string().trim().optional(),
+    userId:      z.string().trim().min(1, 'userId is required').max(50),
+    name:        z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
+    email:       z.string().email('Must be a valid email').toLowerCase().trim(),
+    role:        userRoleEnum,
+    department:  z.string().trim().min(1, 'Department is required').max(50),
+    password:    z.string().min(1, 'Password is required'),
+    rollNumber:  z.string().trim().max(20).optional(),
+    semester:    z.coerce.number().int().min(1).max(10).optional(),
+    year:        z.string().trim().optional(),
+    section:     z.string().trim().optional(),
+    counselorId: z.string().trim().optional(),
+    avatarUrl:   z.string().trim().optional(),
   })
   .refine(
     (data) => data.role !== 'student' || !!data.rollNumber,
@@ -53,14 +56,17 @@ export const createUserSchema = z
 // ── Update user schema ────────────────────────────────────────────────────────
 
 export const updateUserSchema = z.object({
-  name:       z.string().trim().min(2).max(100).optional(),
-  email:      z.string().email().toLowerCase().trim().optional(),
-  role:       userRoleEnum.optional(),
-  department: z.string().trim().min(1).max(50).optional(),
-  rollNumber: z.string().trim().max(20).optional(),
-  semester:   z.number().int().min(1).max(10).optional(),
-  avatarUrl:  z.string().trim().optional(),
-  password:   z.string().trim().optional(),
+  name:        z.string().trim().min(2).max(100).optional(),
+  email:       z.string().email().toLowerCase().trim().optional(),
+  role:        userRoleEnum.optional(),
+  department:  z.string().trim().min(1).max(50).optional(),
+  rollNumber:  z.string().trim().max(20).optional(),
+  semester:    z.coerce.number().int().min(1).max(10).optional(),
+  year:        z.string().trim().optional(),
+  section:     z.string().trim().optional(),
+  counselorId: z.string().trim().optional(),
+  avatarUrl:   z.string().trim().optional(),
+  password:    z.string().trim().optional(),
 }).refine(
   (body) => Object.values(body).some((v) => v !== undefined),
   { message: 'At least one field must be provided for update' },

@@ -31,7 +31,7 @@ export function RegisterPasskeyModal({
       }
 
       // 1. Get WebAuthn challenge from backend
-      const challengeRes = await api.registerPasskeyChallenge(userEmail);
+      await api.registerPasskeyChallenge(userEmail);
 
       // 2. Convert base64url challenge string to Uint8Array
       const challengeBytes = new Uint8Array(32);

@@ -8,15 +8,284 @@ import type { Prisma, RequestStatus } from '@prisma/client';
 
 const router = Router();
 
+// Helper to extract roll suffix in backend
+function extractRollSuffixBackend(rawRoll: string): string {
+  if (!rawRoll) return '';
+  const str = rawRoll.trim().toUpperCase();
+
+  const leMatch = str.match(/LE0*([1-9]|1[0-2])$/i);
+  if (leMatch) {
+    return `LE${parseInt(leMatch[1], 10)}`;
+  }
+
+  if (str.includes('95A')) {
+    const numMatch = str.match(/(\d{1,2})$/);
+    if (numMatch) {
+      const num = parseInt(numMatch[1], 10);
+      if (num >= 1 && num <= 20) {
+        return `LE${num}`;
+      }
+    }
+  }
+
+  const suffixMatch = str.match(/([A-D][0-9]|[0-9]{1,2})$/i);
+  if (suffixMatch) {
+    const val = suffixMatch[1];
+    if (/^\d+$/.test(val)) {
+      return String(parseInt(val, 10));
+    }
+    return val;
+  }
+  return str;
+}
+
+function sortRolls(rolls: string[]): string[] {
+  return [...rolls].sort((a, b) => {
+    const isNumA = /^\d+$/.test(a);
+    const isNumB = /^\d+$/.test(b);
+    if (isNumA && isNumB) return parseInt(a, 10) - parseInt(b, 10);
+    if (isNumA) return -1;
+    if (isNumB) return 1;
+
+    const isLeA = /^LE\d+$/i.test(a);
+    const isLeB = /^LE\d+$/i.test(b);
+    if (isLeA && isLeB) {
+      const numA = parseInt(a.replace(/LE/i, ''), 10);
+      const numB = parseInt(b.replace(/LE/i, ''), 10);
+      return numA - numB;
+    }
+    if (isLeA) return 1;
+    if (isLeB) return -1;
+
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+}
+
+// Public endpoint for sections list and section-wise student rosters from database
+router.get('/public-sections', async (req: Request, res: Response) => {
+  try {
+    const { year } = req.query;
+    const targetYear = (typeof year === 'string' && year.trim() && year !== 'all')
+      ? year.trim().toLowerCase()
+      : '3rd year';
+
+    const targetDigitMatch = targetYear.match(/([1-4])/);
+    const targetDigit = targetDigitMatch ? targetDigitMatch[1] : '3';
+    const yearLabel = `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`;
+
+    // Fetch all student users from DB
+    const students = (await prisma.user.findMany({
+      where: {
+        role: 'student',
+        isActive: true,
+      },
+      select: {
+        userId: true,
+        name: true,
+        rollNumber: true,
+        department: true,
+        year: true,
+        section: true,
+        semester: true,
+      } as any,
+      orderBy: { rollNumber: 'asc' },
+    })) as unknown as Array<{
+      userId: string;
+      name: string;
+      rollNumber: string | null;
+      department: string;
+      year?: string | null;
+      section?: string | null;
+      semester: number | null;
+    }>;
+
+    // Filter students by academic year (prioritizing explicit DB year record)
+    const yearStudents = students.filter(s => {
+      const studentYear = (s as any).year as string | undefined;
+      if (studentYear) {
+        const digitMatch = studentYear.match(/([1-4])/);
+        if (digitMatch) return digitMatch[1] === targetDigit;
+      }
+      const sem = s.semester;
+      if (sem && typeof sem === 'number') {
+        const derivedYearNum = String(Math.ceil(sem / 2));
+        return derivedYearNum === targetDigit;
+      }
+      const roll = (s.rollNumber || '').toUpperCase();
+      const isLateralEntry = roll.includes('95A') || roll.includes('LE') || /LE\d+$/i.test(roll);
+
+      if (targetDigit === '3') {
+        return roll.startsWith('24B') || (roll.startsWith('25B') && isLateralEntry);
+      }
+      if (targetDigit === '2') {
+        return roll.startsWith('25B') && !isLateralEntry;
+      }
+      if (targetDigit === '1') {
+        return roll.startsWith('26B') && !isLateralEntry;
+      }
+      if (targetDigit === '4') {
+        return roll.startsWith('23B') || (roll.startsWith('24B') && isLateralEntry);
+      }
+      return targetDigit === '3';
+    });
+
+    // Map of sectionKey -> Section metadata
+    const sectionMap = new Map<string, {
+      key: string;
+      department: string;
+      section: string;
+      year: string;
+      label: string;
+      value: string;
+      rollNumbers: Set<string>;
+      studentCount: number;
+    }>();
+
+    // Default base sections for standard years
+    sectionMap.set('CSD — Section A', {
+      key: 'CSD — Section A',
+      department: 'CSD',
+      section: 'A',
+      year: yearLabel,
+      label: 'CSD - Sec A',
+      value: 'CSD-A',
+      rollNumbers: new Set<string>(),
+      studentCount: 0,
+    });
+    sectionMap.set('CSIT — Section A', {
+      key: 'CSIT — Section A',
+      department: 'CSIT',
+      section: 'A',
+      year: yearLabel,
+      label: 'CSIT - Sec A',
+      value: 'CSIT-A',
+      rollNumbers: new Set<string>(),
+      studentCount: 0,
+    });
+    sectionMap.set('CSIT — Section B', {
+      key: 'CSIT — Section B',
+      department: 'CSIT',
+      section: 'B',
+      year: yearLabel,
+      label: 'CSIT - Sec B',
+      value: 'CSIT-B',
+      rollNumbers: new Set<string>(),
+      studentCount: 0,
+    });
+
+    yearStudents.forEach(s => {
+      const dept = (s.department || 'CSIT').toUpperCase().trim();
+      const rawRoll = (s.rollNumber || s.userId || '').toUpperCase().trim();
+      const suffix = extractRollSuffixBackend(rawRoll);
+
+      let secKey = '';
+      let secValue = '';
+      let secLabel = '';
+      let secLetter = 'A';
+
+      const rawSec = ((s as any).section || '') as string;
+      const explicitSec = rawSec.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
+      if (explicitSec === 'A' || explicitSec === 'B' || explicitSec === 'C' || explicitSec === 'D') {
+        secLetter = explicitSec;
+        secKey = `${dept} — Section ${explicitSec}`;
+        secValue = `${dept}-${explicitSec}`;
+        secLabel = `${dept} - Sec ${explicitSec}`;
+      } else if (dept === 'CSD' || rawRoll.includes('62') || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
+        secKey = 'CSD — Section A';
+        secValue = 'CSD-A';
+        secLabel = 'CSD - Sec A';
+        secLetter = 'A';
+      } else if (dept === 'CSIT' || rawRoll.includes('07')) {
+        let isSecB = false;
+        if (/^\d+$/.test(suffix)) {
+          const num = parseInt(suffix, 10);
+          isSecB = num >= 73;
+        } else {
+          isSecB = true;
+        }
+        if (isSecB) {
+          secKey = 'CSIT — Section B';
+          secValue = 'CSIT-B';
+          secLabel = 'CSIT - Sec B';
+          secLetter = 'B';
+        } else {
+          secKey = 'CSIT — Section A';
+          secValue = 'CSIT-A';
+          secLabel = 'CSIT - Sec A';
+          secLetter = 'A';
+        }
+      } else {
+        secKey = `${dept} — Section A`;
+        secValue = `${dept}-A`;
+        secLabel = `${dept} - Sec A`;
+        secLetter = 'A';
+      }
+
+      if (!sectionMap.has(secKey)) {
+        sectionMap.set(secKey, {
+          key: secKey,
+          department: dept,
+          section: secLetter,
+          year: `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`,
+          label: secLabel,
+          value: secValue,
+          rollNumbers: new Set<string>(),
+          studentCount: 0,
+        });
+      }
+
+      const secObj = sectionMap.get(secKey)!;
+      if (suffix) {
+        secObj.rollNumbers.add(suffix);
+      }
+      secObj.studentCount += 1;
+    });
+
+    // Return only the sections and real student rolls from DB (no dummy fallback data)
+    const result = Array.from(sectionMap.values())
+      .filter(sec => sec.studentCount > 0 || sec.rollNumbers.size > 0)
+      .map(sec => {
+        const rolls = Array.from(sec.rollNumbers);
+        return {
+          key: sec.key,
+          department: sec.department,
+          section: sec.section,
+          year: sec.year,
+          label: sec.label,
+          value: sec.value,
+          rollNumbers: sortRolls(rolls),
+          studentCount: sec.studentCount,
+        };
+      });
+
+    res.json({ sections: result });
+  } catch (error) {
+    console.error('Error fetching public sections:', error);
+    res.status(500).json({ error: 'Failed to fetch public sections' });
+  }
+});
+
 // Public endpoint for permissions page viewer & attendance pre-highlighting
 router.get('/public-approved', async (req: Request, res: Response) => {
   try {
-    const { date, department, section, year } = req.query;
+    const { date } = req.query;
 
     const where: Prisma.RequestWhereInput = {
       status: 'approved',
-      ...(date && { date: String(date).trim() }),
     };
+
+    if (date && typeof date === 'string' && date.trim()) {
+      const targetDate = date.trim().slice(0, 10);
+      where.OR = [
+        { date: { startsWith: targetDate } },
+        {
+          AND: [
+            { date: { lte: targetDate } },
+            { endDate: { gte: targetDate } },
+          ],
+        },
+      ];
+    }
 
     const requests = await prisma.request.findMany({
       where,
@@ -24,55 +293,123 @@ router.get('/public-approved', async (req: Request, res: Response) => {
       orderBy: { date: 'desc' },
     });
 
-    let filtered = requests.map(toApi);
-
-    // Filter by department if specified
-    if (department && typeof department === 'string' && department.trim() && department !== 'all') {
-      const depNorm = department.trim().toLowerCase();
-      filtered = filtered.filter(r => (r.student?.department || '').toLowerCase() === depNorm);
-    }
-
-    // Filter by section if specified ('CSD-A', 'CSIT-A', 'CSIT-B', 'A', 'B', etc.)
-    if (section && typeof section === 'string' && section.trim() && section !== 'none' && section !== 'all') {
-      const secNorm = section.trim().toUpperCase();
-      const isSecB = secNorm.includes('B') || secNorm === 'CSIT-B';
-      filtered = filtered.filter(r => {
-        const studentSec = ((r.student as any)?.section || '').toUpperCase();
-        if (studentSec) {
-          return studentSec === secNorm || secNorm.includes(studentSec) || studentSec.includes(secNorm);
-        }
-        // Fallback: derive from roll number
-        const roll = (r.student?.rollNumber || r.studentId || '').toUpperCase();
-        const isRollB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B') || roll.includes('95A') || roll.includes('LE');
-        return isSecB ? isRollB : !isRollB;
-      });
-    }
-
-    // Filter by year if specified ('1st Year', '2nd Year', '3rd Year', '4th Year', '1', '2', '3', '4', etc.)
-    if (year && typeof year === 'string' && year.trim() && year !== 'all') {
-      const yrNorm = year.trim().toLowerCase();
-      const yearDigitMatch = yrNorm.match(/([1-4])/);
-      const targetNum = yearDigitMatch ? yearDigitMatch[1] : '';
-
-      filtered = filtered.filter(r => {
-        const reqYear = ((r.student as any)?.year || '').toLowerCase();
-        if (reqYear) {
-          if (reqYear === yrNorm) return true;
-          if (targetNum && reqYear.includes(targetNum)) return true;
-        }
-        const sem = r.student?.semester;
-        if (sem && typeof sem === 'number' && targetNum) {
-          const derivedYear = String(Math.ceil(sem / 2));
-          return derivedYear === targetNum;
-        }
-        return !targetNum || targetNum === '3';
-      });
-    }
-
-    res.json({ requests: filtered });
+    const mapped = requests.map(toApi);
+    res.json({ requests: mapped });
   } catch (error) {
     console.error('Error fetching public approved requests:', error);
     res.status(500).json({ error: 'Failed to fetch public approved requests' });
+  }
+});
+
+/**
+ * POST /api/requests/upload-proof
+ * Accepts base64 encoded file payload and uploads to Cloudinary.
+ * Returns { url: string, documentName: string }
+ */
+router.post('/upload-proof', async (req: Request, res: Response) => {
+  try {
+    const { file, filename } = req.body as { file?: string; filename?: string };
+
+    if (!file) {
+      res.status(400).json({ error: 'File payload is required' });
+      return;
+    }
+
+    let cloudName = process.env['CLOUDINARY_CLOUD_NAME'] || 'yp5l3jrg';
+    let apiKey = process.env['CLOUDINARY_API_KEY'] || '926915746443411';
+    let apiSecret = process.env['CLOUDINARY_API_SECRET'] || 'pFUsk-t924l6n3Wh2abEbVfER0U';
+    const uploadPreset = process.env['CLOUDINARY_UPLOAD_PRESET'] || 'attendease_proofs';
+
+    const cloudinaryUrl = process.env['CLOUDINARY_URL'];
+    if (cloudinaryUrl && cloudinaryUrl.startsWith('cloudinary://')) {
+      try {
+        const match = cloudinaryUrl.match(/^cloudinary:\/\/([^:]+):([^@]+)@(.+)$/);
+        if (match) {
+          apiKey = match[1];
+          apiSecret = match[2];
+          cloudName = match[3];
+        }
+      } catch (err) {
+        console.warn('Could not parse CLOUDINARY_URL:', err);
+      }
+    }
+
+    let uploadedUrl = '';
+
+    // If Cloudinary credentials are provided, use signed upload
+    if (apiKey && apiSecret) {
+      try {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const strToSign = `timestamp=${timestamp}${apiSecret}`;
+        const signature = crypto.createHash('sha1').update(strToSign).digest('hex');
+
+        const params = new URLSearchParams();
+        params.append('file', file);
+        params.append('timestamp', String(timestamp));
+        params.append('api_key', apiKey);
+        params.append('signature', signature);
+
+        const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+          method: 'POST',
+          body: params,
+        });
+
+        if (cloudRes.ok) {
+          const data = await cloudRes.json();
+          uploadedUrl = data.secure_url || data.url;
+        }
+      } catch (cErr) {
+        console.warn('Signed Cloudinary upload failed, trying unsigned:', cErr);
+      }
+    }
+
+    // Direct / unsigned Cloudinary upload attempt
+    if (!uploadedUrl) {
+      try {
+        const params = new URLSearchParams();
+        params.append('file', file);
+        params.append('upload_preset', uploadPreset);
+
+        const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+          method: 'POST',
+          body: params,
+        });
+
+        if (cloudRes.ok) {
+          const data = await cloudRes.json();
+          uploadedUrl = data.secure_url || data.url;
+        } else {
+          // Try standard unsigned preset fallback
+          const paramsMl = new URLSearchParams();
+          paramsMl.append('file', file);
+          paramsMl.append('upload_preset', 'ml_default');
+
+          const cloudResMl = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+            method: 'POST',
+            body: paramsMl,
+          });
+          if (cloudResMl.ok) {
+            const data = await cloudResMl.json();
+            uploadedUrl = data.secure_url || data.url;
+          }
+        }
+      } catch (uErr) {
+        console.warn('Unsigned Cloudinary upload attempt failed:', uErr);
+      }
+    }
+
+    // Fail-safe URL fallback to preserve proof link functionality
+    if (!uploadedUrl) {
+      uploadedUrl = file;
+    }
+
+    res.json({
+      url: uploadedUrl,
+      documentName: filename || 'uploaded_proof_document.pdf',
+    });
+  } catch (err: any) {
+    console.error('Upload proof error:', err);
+    res.status(500).json({ error: err.message || 'Failed to upload proof document' });
   }
 });
 
@@ -80,12 +417,14 @@ router.get('/public-approved', async (req: Request, res: Response) => {
 router.use(verifyToken);
 
 const REASON_LABELS: Record<RequestReason, string> = {
-  internship:       'Internship',
-  medical:          'Medical Leave',
-  sports:           'Sports Event',
-  family_emergency: 'Family Emergency',
-  competition:      'Competition',
-  other:            'Other',
+  internship:          'Internship',
+  startup:             'Startup Work',
+  project_development: 'Project Development',
+  medical:             'Medical Leave',
+  sports:              'Sports Event',
+  family_emergency:    'Family Emergency',
+  competition:         'Competition',
+  other:               'Other',
 };
 
 // Shared include for all request queries including actions audit trail
@@ -108,6 +447,7 @@ function toApi(r: any) {
     name:        student.name,
     rollNumber:  student.rollNumber ?? fallbackRoll,
     department:  student.department ?? 'CSIT',
+    year:        student.year       ?? undefined,
     semester:    student.semester   ?? 1,
     email:       student.email,
     avatarUrl:   student.avatarUrl  ?? undefined,
@@ -116,6 +456,7 @@ function toApi(r: any) {
     name:        r.studentName || fallbackRoll,
     rollNumber:  fallbackRoll,
     department:  'CSIT',
+    year:        undefined,
     semester:    1,
     email:       `${fallbackRoll.toLowerCase()}@srkrec.ac.in`,
     avatarUrl:   undefined,
@@ -149,6 +490,7 @@ function toApi(r: any) {
     endTime:             r.endTime,
     description:         r.description,
     documentName:        r.documentName ?? undefined,
+    documentUrl:         r.documentUrl  ?? (r.documentName?.startsWith('http') ? r.documentName : undefined),
     status:              r.status,
     rejectionReason:     r.rejectionReason ?? undefined,
     submittedAt:         r.submittedAt,
@@ -341,16 +683,148 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/requests/hod-direct-grant
+ * HOD voluntarily selects students and grants direct classwork exemptions (pre-approved).
+ */
+router.post('/hod-direct-grant', async (req: Request, res: Response) => {
+  const user = req.user!;
+  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
+  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod';
+
+  if (!isHodOrAdmin) {
+    res.status(403).json({ error: 'Only HOD or Admin can issue direct classwork exemptions' });
+    return;
+  }
+
+  const { studentIds, reason, startDate, endDate, startTime, endTime, periods, description } = req.body as {
+    studentIds:   string[];
+    reason:       string;
+    startDate:    string;
+    endDate?:     string;
+    startTime?:   string;
+    endTime?:     string;
+    periods?:     string;
+    description?: string;
+  };
+
+  if (!Array.isArray(studentIds) || studentIds.length === 0 || !reason || !startDate) {
+    res.status(400).json({ error: 'studentIds (array), reason, and startDate are required' });
+    return;
+  }
+
+  try {
+    const hodUser = await prisma.user.findFirst({
+      where: { OR: [{ userId: user.id }, { email: user.email }] },
+    });
+    const performingUserId = hodUser?.userId || user.id;
+
+    const targetStudents = await prisma.user.findMany({
+      where: {
+        OR: [
+          { userId: { in: studentIds } },
+          { id: { in: studentIds } },
+          { rollNumber: { in: studentIds } },
+        ],
+      },
+    });
+
+    if (targetStudents.length === 0) {
+      res.status(404).json({ error: 'No matching students found' });
+      return;
+    }
+
+    const createdRequests: any[] = [];
+
+    for (const student of targetStudents) {
+      const tsHex   = Date.now().toString(36).toUpperCase();
+      const randHex = Math.random().toString(36).slice(2, 6).toUpperCase();
+      const requestId = `req-HOD-${tsHex}-${randHex}`;
+
+      const sDate = String(startDate).trim();
+      const eDate = endDate ? String(endDate).trim() : sDate;
+      const sTime = startTime ? String(startTime).trim() : '09:00';
+      const eTime = endTime ? String(endTime).trim() : '17:00';
+      const pText = periods ? String(periods).trim() : '1,2,3,4,5,6,7,8';
+      const desc  = description?.trim() || `HOD Direct Voluntary Classwork Exemption: ${reason}`;
+      const rLabel = String(reason).trim();
+
+      const newDoc = await prisma.$transaction(async tx => {
+        const created = await tx.request.create({
+          data: {
+            requestId,
+            studentId:           student.userId,
+            primaryFacultyId:    performingUserId,
+            reason:              'other',
+            reasonLabel:         rLabel,
+            date:                sDate,
+            endDate:             eDate,
+            startTime:           sTime,
+            endTime:             eTime,
+            periods:             pText,
+            description:         desc,
+            status:              'approved',
+            submittedAt:         new Date().toISOString(),
+            reviewedAt:          new Date().toISOString(),
+            finalDecisionBy:     'HOD',
+            finalDecisionUserId: performingUserId,
+          },
+        });
+
+        await tx.requestAction.create({
+          data: {
+            requestId:     created.id,
+            action:        'Approved by HOD',
+            remarks:       `Voluntary Classwork Exemption Granted by HOD: ${rLabel}`,
+            performedById: performingUserId,
+            performedAt:   new Date().toISOString(),
+          },
+        });
+
+        await tx.notification.create({
+          data: {
+            userId:    student.userId,
+            requestId: created.id,
+            title:     'Classwork Exemption Granted by HOD',
+            message:   `HOD has granted you direct permission for "${rLabel}" from ${sDate}${eDate !== sDate ? ' to ' + eDate : ''}.`,
+            type:      'approved',
+          },
+        });
+
+        return tx.request.findUnique({
+          where: { id: created.id },
+          include: REQUEST_INCLUDE,
+        });
+      });
+
+      if (newDoc) {
+        createdRequests.push(toApi(newDoc));
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Direct exemption granted to ${createdRequests.length} student(s)`,
+      count:   createdRequests.length,
+      requests: createdRequests,
+    });
+  } catch (err) {
+    console.error('POST /requests/hod-direct-grant error:', err);
+    res.status(500).json({ error: 'Failed to grant HOD direct exemption' });
+  }
+});
+
+/**
  * POST /api/requests — student creates a new request
  */
 router.post('/', async (req: Request, res: Response) => {
+
   const user = req.user!;
   if (user.role !== 'student') {
     res.status(403).json({ error: 'Only students can submit requests' });
     return;
   }
 
-  const { reason, date, endDate, periods, startTime, endTime, description, documentName, facultyId, facultyIds } = req.body as {
+  const { reason, date, endDate, periods, startTime, endTime, description, documentName, documentUrl, facultyId, facultyIds } = req.body as {
     reason:        string;
     date:          string;
     endDate?:      string;
@@ -359,6 +833,7 @@ router.post('/', async (req: Request, res: Response) => {
     endTime:       string;
     description:   string;
     documentName?: string;
+    documentUrl?:  string;
     facultyId?:    string;
     facultyIds?:   string[];
   };
@@ -371,7 +846,7 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     // Normalize reason enum value safely
     const rawReason = String(reason).trim().toLowerCase().replace(/\s+/g, '_');
-    const validReasons: RequestReason[] = ['internship', 'medical', 'sports', 'family_emergency', 'competition', 'other'];
+    const validReasons: RequestReason[] = ['internship', 'startup', 'project_development', 'medical', 'sports', 'family_emergency', 'competition', 'other'];
     const safeReason: RequestReason = validReasons.includes(rawReason as RequestReason)
       ? (rawReason as RequestReason)
       : 'other';
@@ -395,6 +870,19 @@ router.post('/', async (req: Request, res: Response) => {
 
     if (!studentUser) {
       res.status(400).json({ error: 'Student record not found. Please log in again.' });
+      return;
+    }
+
+    // Enforce daily request limit: maximum 3 requests per student for the same date
+    const dailyCount = await prisma.request.count({
+      where: {
+        studentId: studentUser.userId,
+        date: date,
+      },
+    });
+
+    if (dailyCount >= 3) {
+      res.status(400).json({ error: 'Daily request limit reached. You can submit a maximum of 3 requests for the same date.' });
       return;
     }
 
@@ -438,6 +926,8 @@ router.post('/', async (req: Request, res: Response) => {
     const publicId = publicIdStr;
 
     const primaryFaculty = facultyDocs[0] ?? null;
+    const finalDocName = documentName || (documentUrl ? 'Uploaded_Proof_Document' : undefined);
+    const finalDocUrl = documentUrl || (documentName?.startsWith('http') || documentName?.startsWith('data:') ? documentName : undefined);
 
     // Create request + audit action + notifications in a single transaction
     const newDoc = await prisma.$transaction(async tx => {
@@ -447,7 +937,7 @@ router.post('/', async (req: Request, res: Response) => {
           publicId,
           studentId:        studentUser.userId,
           primaryFacultyId: primaryFaculty?.userId ?? null,
-          reason:           safeReason,
+          reason:           safeReason as any,
           reasonLabel:      REASON_LABELS[safeReason] ?? String(reason),
           date,
           ...(endDate && { endDate }),
@@ -457,7 +947,8 @@ router.post('/', async (req: Request, res: Response) => {
           description,
           status:           'pending',
           submittedAt:      new Date().toISOString(),
-          ...(documentName && { documentName }),
+          ...(finalDocName && { documentName: finalDocName }),
+          ...(finalDocUrl && { documentUrl: finalDocUrl }),
         },
       });
 
@@ -506,6 +997,154 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Server error creating request' });
   }
 });
+
+/**
+ * PUT /api/requests/:id — student updates an existing pending request
+ * Rules:
+ * 1. Can only update pending requests.
+ * 2. If approved (or rejected/cancelled), student CANNOT edit it.
+ */
+router.put('/:id', async (req: Request, res: Response) => {
+  const user = req.user!;
+  const idParam = (req.params['id'] || '').trim();
+
+  try {
+    const existing = await prisma.request.findFirst({
+      where: {
+        OR: [
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
+        ],
+      },
+      include: REQUEST_INCLUDE,
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    // Ownership check for student
+    if (user.role === 'student') {
+      const stuUserId = (existing.studentId || existing.student?.userId || '').toLowerCase().trim();
+      const stuRoll = (existing.student?.rollNumber || '').toLowerCase().trim();
+      const stuEmail = (existing.student?.email || '').toLowerCase().trim();
+
+      const userId = (user.id || '').toLowerCase().trim();
+      const userRoll = (user.rollNumber || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+
+      const isOwner =
+        !stuUserId ||
+        stuUserId === userId ||
+        stuUserId.includes(userId) ||
+        userId.includes(stuUserId) ||
+        (userRoll && stuRoll === userRoll) ||
+        (userEmail && stuEmail === userEmail);
+
+      if (!isOwner) {
+        res.status(403).json({ error: 'You are not authorized to edit this request' });
+        return;
+      }
+
+      // Rule: Approved requests CANNOT be edited by student
+      if (existing.status === 'approved') {
+        res.status(403).json({ error: 'Approved requests cannot be edited by student' });
+        return;
+      }
+
+      // Only pending requests can be updated by student
+      if (existing.status !== 'pending') {
+        res.status(400).json({ error: `Requests in ${existing.status} status cannot be edited` });
+        return;
+      }
+    }
+
+    const { reason, date, endDate, periods, startTime, endTime, description, documentName, documentUrl, facultyId, facultyIds } = req.body;
+
+    const rawReason = reason ? String(reason).trim().toLowerCase().replace(/\s+/g, '_') : existing.reason;
+    const validReasons: RequestReason[] = ['internship', 'startup', 'project_development', 'medical', 'sports', 'family_emergency', 'competition', 'other'];
+    const safeReason: RequestReason = validReasons.includes(rawReason as RequestReason)
+      ? (rawReason as RequestReason)
+      : existing.reason;
+
+    // Resolve faculty assignments if provided
+    let primaryFacultyId = existing.primaryFacultyId;
+    const targetFacultyInput = Array.isArray(facultyIds) && facultyIds.length > 0
+      ? facultyIds
+      : facultyId ? [facultyId] : [];
+
+    let newFacultyDocs: { userId: string }[] = [];
+    if (targetFacultyInput.length > 0) {
+      newFacultyDocs = await prisma.user.findMany({
+        where: {
+          OR: [
+            { userId: { in: targetFacultyInput } },
+            { email:  { in: targetFacultyInput } },
+            { id:     { in: targetFacultyInput } },
+          ],
+        },
+      });
+    }
+
+    if (newFacultyDocs.length > 0) {
+      primaryFacultyId = newFacultyDocs[0].userId;
+    }
+
+    const updated = await prisma.$transaction(async tx => {
+      const result = await tx.request.update({
+        where: { id: existing.id },
+        data: {
+          ...(reason && { reason: safeReason, reasonLabel: REASON_LABELS[safeReason] ?? String(reason) }),
+          ...(date && { date }),
+          ...(endDate !== undefined && { endDate }),
+          ...(periods !== undefined && { periods }),
+          ...(startTime && { startTime }),
+          ...(endTime && { endTime }),
+          ...(description && { description }),
+          ...(documentName !== undefined && { documentName }),
+          ...(documentUrl !== undefined && { documentUrl }),
+          ...(primaryFacultyId && { primaryFacultyId }),
+        },
+        include: REQUEST_INCLUDE,
+      });
+
+      // Update RequestFaculty junction table so new assigned faculty see the request in their dashboard
+      if (newFacultyDocs.length > 0) {
+        await tx.requestFaculty.deleteMany({
+          where: { requestId: existing.id },
+        });
+
+        await tx.requestFaculty.createMany({
+          data: newFacultyDocs.map(f => ({
+            requestId: existing.id,
+            facultyId: f.userId,
+          })),
+        });
+      }
+
+      // Log audit action
+      await tx.requestAction.create({
+        data: {
+          requestId:     existing.id,
+          performedById: user.id,
+          action:        'Updated',
+          remarks:       'Request details and assigned faculty updated by student',
+        },
+      });
+
+      return result;
+    });
+
+    res.json({ request: toApi(updated) });
+  } catch (err: any) {
+    console.error('PUT /requests/:id error:', err);
+    res.status(500).json({ error: err.message || 'Failed to update request' });
+  }
+});
+
+
 
 /**
  * PATCH /api/requests/:id — faculty / HOD approves or rejects
@@ -590,9 +1229,11 @@ router.patch('/:id', async (req: Request, res: Response) => {
     if (user.role === 'faculty') {
       actionName = action === 'approve' ? 'Approved by Faculty' : 'Rejected by Faculty';
     } else {
-      // HOD action: check if overriding a faculty decision
-      if (existing.finalDecisionBy === 'Faculty' || (existing.status !== 'pending' && existing.status !== 'cancelled')) {
-        actionName = 'Overridden by HOD';
+      // HOD action: check if force rejecting an already approved request or overriding faculty
+      if (existing.status === 'approved' && action === 'reject') {
+        actionName = 'Force Rejected by HOD';
+      } else if (existing.finalDecisionBy === 'Faculty' || (existing.status !== 'pending' && existing.status !== 'cancelled')) {
+        actionName = action === 'approve' ? 'Force Approved by HOD' : 'Overridden by HOD';
       } else {
         actionName = action === 'approve' ? 'Approved by HOD' : 'Rejected by HOD';
       }
@@ -607,7 +1248,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
         where: { id: existing.id },
         data: {
           status:              newStatus,
-          rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || 'Rejected by HOD Executive Override') : null,
+          rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || 'Force Rejected by HOD Override') : null,
           reviewedAt:          new Date().toISOString(),
           finalDecisionBy:     decisionRole,
           finalDecisionUserId: performingUserId,

@@ -7,13 +7,16 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/shared/Modal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
-import { formatDate, formatTime } from '../../lib/utils';
+import { formatDate, formatTime, formatSubmittedAt } from '../../lib/utils';
+import { ProofPreviewModal } from '../../components/shared/ProofPreviewModal';
+import NotFound from '../NotFound';
 
 
 export default function FacultyRequestDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState<'approve' | 'reject' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
@@ -22,36 +25,22 @@ export default function FacultyRequestDetails() {
     queryFn: async () => {
       try {
         return await api.getRequest(id!);
-      } catch (err) {
-        const cachedList = queryClient.getQueryData<api.AttendanceRequest[]>(['requests']) || [];
-        const cached = cachedList.find(r => r.id === id || (r as any).requestId === id);
-        if (cached) return cached;
-        throw err;
+      } catch {
+        return null;
       }
     },
     enabled: !!id,
   });
 
   const reviewMutation = useMutation({
-    mutationFn: ({ action, reason }: { action: 'approve' | 'reject'; reason?: string }) =>
-      api.reviewRequest(id!, action, reason),
-    onMutate: async ({ action }) => {
-      await queryClient.cancelQueries({ queryKey: ['request', id] });
-      await queryClient.cancelQueries({ queryKey: ['requests'] });
-
-      const newStatus = action === 'approve' ? 'approved' : 'rejected';
-      queryClient.setQueryData<api.AttendanceRequest>(['request', id], old =>
-        old ? { ...old, status: newStatus as any } : old
-      );
-
-      queryClient.setQueryData<api.AttendanceRequest[]>(['requests'], old =>
-        (old || []).map(r => r.id === id ? { ...r, status: newStatus as any } : r)
-      );
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      void queryClient.invalidateQueries({ queryKey: ['request', id] });
+    mutationFn: (payload: { action: 'approve' | 'reject'; reason?: string }) =>
+      api.reviewRequest(id!, payload.action, payload.reason),
+    onSuccess: (updatedReq) => {
+      queryClient.setQueryData(['request', id], updatedReq);
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['facultyRequests'] });
       setConfirmModal(null);
+      setRejectionReason('');
     },
   });
 
@@ -59,7 +48,7 @@ export default function FacultyRequestDetails() {
     return (
       <PageWrapper role="faculty" showGreeting={false}>
         <div className="max-w-xl mx-auto text-center py-20">
-          <p className="text-[16px] text-[#6B7280]">Loading...</p>
+          <p className="text-[14px] text-[#6B7280]">Loading request details...</p>
         </div>
       </PageWrapper>
     );
@@ -67,14 +56,10 @@ export default function FacultyRequestDetails() {
 
   if (isError || !request) {
     return (
-      <PageWrapper role="faculty" showGreeting={false}>
-        <div className="max-w-xl mx-auto text-center py-20">
-          <p className="text-[16px] text-[#6B7280]">Request not found.</p>
-          <Button className="mt-4" onClick={() => navigate('/faculty')}>
-            Back to Dashboard
-          </Button>
-        </div>
-      </PageWrapper>
+      <NotFound
+        code="404"
+        title="This attendance request could not be found."
+      />
     );
   }
 
@@ -111,23 +96,6 @@ export default function FacultyRequestDetails() {
           </div>
           <StatusBadge status={currentStatus} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
         </div>
-
-        {/* HOD Decision Banner */}
-        {request.finalDecisionBy === 'HOD' && (
-          <div className="mb-6 p-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between text-[13px] text-white font-medium shadow-2xs">
-            <div>
-              <p className="font-bold text-[14px] text-orange-400 flex items-center gap-1.5">
-                👑 Official Decision by Head of Department (HOD)
-              </p>
-              <p className="text-[12px] text-slate-300 mt-0.5">
-                Head of Department (HOD) holds the official rights to override permission requests.
-              </p>
-            </div>
-            <span className="px-2.5 py-1 bg-orange-500 text-white font-bold text-[11px] rounded-lg shrink-0">
-              HOD Overridden
-            </span>
-          </div>
-        )}
 
         {/* Student info card */}
         <div
@@ -190,12 +158,31 @@ export default function FacultyRequestDetails() {
                 <Clock size={15} className="text-[#6B7280]" />
               </div>
               <div>
-                <p className="text-[13px] text-[#6B7280] mb-0.5">Time</p>
+                <p className="text-[13px] text-[#6B7280] mb-0.5">Time & Periods</p>
                 <p className="text-[14px] font-medium text-[#111111]">
                   {formatTime(request.startTime)} – {formatTime(request.endTime)}
                 </p>
+                {request.periods && (
+                  <p className="text-[11px] font-semibold text-orange-600 mt-0.5">
+                    Periods: {request.periods}
+                  </p>
+                )}
               </div>
             </div>
+
+            {request.submittedAt && (
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#F3F4F6] flex items-center justify-center flex-shrink-0">
+                  <Clock size={15} className="text-[#6B7280]" />
+                </div>
+                <div>
+                  <p className="text-[13px] text-[#6B7280] mb-0.5">Submitted On</p>
+                  <p className="text-[14px] font-bold text-slate-900 font-mono">
+                    {formatSubmittedAt(request.submittedAt)}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Uploaded Student Proof Document Section (Only shown if student actually attached a file) */}
             {Boolean(request.documentName || request.documentUrl) && (
@@ -211,22 +198,40 @@ export default function FacultyRequestDetails() {
                   <p className="text-[14px] font-semibold text-slate-900 truncate">{request.documentName || 'Uploaded_Proof_Document.pdf'}</p>
                   <div className="flex items-center gap-3 mt-1.5">
                     <button
-                      onClick={() => alert(`Previewing uploaded proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                      type="button"
+                      onClick={() => setIsPreviewOpen(true)}
                       className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       👁️ Preview Proof
                     </button>
                     <span className="text-slate-300">•</span>
-                    <button
-                      onClick={() => alert(`Downloading proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                    <a
+                      href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
+                      download={request.documentName || 'proof_document'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
+                        if (!targetUrl) {
+                          e.preventDefault();
+                          setIsPreviewOpen(true);
+                        }
+                      }}
                       className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       📥 Download File
-                    </button>
+                    </a>
                   </div>
                 </div>
               </div>
             )}
+
+            <ProofPreviewModal
+              isOpen={isPreviewOpen}
+              onClose={() => setIsPreviewOpen(false)}
+              documentUrl={request.documentUrl}
+              documentName={request.documentName}
+            />
           </div>
         </div>
 

@@ -59,7 +59,25 @@ export async function deleteUser(
 ): Promise<void> {
   try {
     await userService.deleteUser(req.params['id'] as string);
-    res.json({ success: true, message: 'User deactivated.' });
+    res.json({ success: true, message: 'User deleted.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteMultipleUsers(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const userIds = (req.body.userIds || req.body.ids) as string[];
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      res.status(400).json({ error: 'userIds array is required' });
+      return;
+    }
+    const result = await userService.deleteMultipleUsers(userIds);
+    res.json({ success: true, message: `Successfully deleted ${result.deletedCount} users.`, ...result });
   } catch (err) {
     next(err);
   }

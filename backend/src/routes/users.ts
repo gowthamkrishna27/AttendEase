@@ -135,6 +135,45 @@ router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/users/students
+ * Returns all students with derived section and year — used by HOD Direct Exemption Modal.
+ */
+router.get('/students', verifyToken, async (_req: Request, res: Response) => {
+  try {
+    const students = await prisma.user.findMany({
+      where: { role: 'student' },
+      orderBy: { rollNumber: 'asc' },
+    });
+
+    const formatted = students.map((s: any) => {
+      const roll = s.rollNumber || s.userId;
+      const isSecB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B') || roll.includes('95A');
+      const derivedSec = isSecB ? 'Section B' : 'Section A';
+      const sem = s.semester || 6;
+      const derivedYear = `${Math.ceil(sem / 2)}th Year`;
+
+      return {
+        id:         s.userId,
+        name:       s.name,
+        email:      s.email,
+        rollNumber: roll,
+        department: s.department || 'Computer Science',
+        semester:   sem,
+        year:       derivedYear,
+        section:    s.section || derivedSec,
+        avatarUrl:  s.avatarUrl ?? undefined,
+      };
+    });
+
+    res.json({ students: formatted });
+  } catch (err) {
+    console.error('GET /users/students error:', err);
+    res.status(500).json({ error: 'Failed to fetch students list' });
+  }
+});
+
+
+/**
  * GET /api/users/counseling/all
  * Returns all faculty members along with their assigned counseling students.
  */
@@ -327,7 +366,7 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, email, phone, avatarUrl, semester, password, currentPassword } = req.body;
+    const { name, email, phone, avatarUrl, semester, designation, password, currentPassword } = req.body;
 
     // Handle password change
     if (password && String(password).trim().length > 0) {
@@ -344,12 +383,13 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
     const updated = await prisma.user.update({
       where: { id: existing.id },
       data: {
-        ...(name      !== undefined && { name      }),
-        ...(email     !== undefined && { email     }),
-        ...(phone     !== undefined && { phone     }),
-        ...(avatarUrl !== undefined && { avatarUrl }),
-        ...(semester  !== undefined && { semester: Number(semester) }),
-        ...(password  !== undefined && { password  }),
+        ...(name        !== undefined && { name        }),
+        ...(email       !== undefined && { email       }),
+        ...(phone       !== undefined && { phone       }),
+        ...(avatarUrl   !== undefined && { avatarUrl   }),
+        ...(semester    !== undefined && { semester: Number(semester) }),
+        ...(designation !== undefined && { designation }),
+        ...(password    !== undefined && { password    }),
       },
     });
 
@@ -357,6 +397,38 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
   } catch (err) {
     console.error('PUT /users/me error:', err);
     res.status(500).json({ error: 'Failed to update personal information' });
+  }
+});
+
+/**
+ * GET /api/users/proxy-image
+ * Proxies remote images (e.g. SRKR exam portal, Cloudinary) to avoid CORS in Excel export
+ */
+router.get('/proxy-image', async (req: Request, res: Response) => {
+  try {
+    const imageUrl = req.query.url as string;
+    if (!imageUrl) {
+      res.status(400).send('Image URL required');
+      return;
+    }
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      },
+    });
+    if (!response.ok) {
+      res.status(response.status).send('Failed to fetch remote image');
+      return;
+    }
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(buffer);
+  } catch (err: any) {
+    console.error('Proxy image error:', err);
+    res.status(500).send(err.message || 'Error proxying image');
   }
 });
 

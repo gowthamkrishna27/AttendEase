@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, RotateCcw, Check, X, Paperclip } from 'lucide-react';
+import { Search, SlidersHorizontal, RotateCcw, Check, X, Paperclip, ShieldCheck } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
@@ -12,6 +12,7 @@ import { formatDate, DEPARTMENTS } from '../../lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
+import { HODDirectExemptionModal } from './components/HODDirectExemptionModal';
 
 const listVariants = { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } };
 const itemVariants = {
@@ -19,21 +20,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.2 } },
 };
 
-const STATUS_TABS = [
-  { label: 'All',      value: 'all'      },
-  { label: 'Pending',  value: 'pending'  },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Rejected', value: 'rejected' },
-] as const;
-
 type TabValue = 'all' | 'pending' | 'approved' | 'rejected';
-
-const tabActiveClass: Record<TabValue, string> = {
-  all:      'bg-slate-900 text-white',
-  pending:  'bg-amber-500 text-white',
-  approved: 'bg-emerald-600 text-white',
-  rejected: 'bg-rose-500 text-white',
-};
 
 export default function HODAllRequests() {
   const navigate = useNavigate();
@@ -42,6 +29,7 @@ export default function HODAllRequests() {
   const [department, setDept]   = useState('');
   const [yearFilter, setYearFilter] = useState('');
   const [tab, setTab]           = useState<TabValue>('all');
+  const [isExemptionModalOpen, setIsExemptionModalOpen] = useState(false);
 
   const { data: requestsList = [] } = useQuery({
     queryKey: ['requests'],
@@ -92,11 +80,48 @@ export default function HODAllRequests() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="mb-5 sm:mb-6"
+          className="mb-5 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
-          <p className="text-[11px] sm:text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">HOD</p>
-          <h1 className="text-[22px] sm:text-[26px] font-heading font-bold text-slate-900">All Requests</h1>
-          <p className="text-[13px] sm:text-[14px] text-slate-400 mt-1">Every attendance permission request across all faculty</p>
+          <div>
+            <p className="text-[11px] sm:text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">HOD</p>
+            <h1 className="text-[22px] sm:text-[26px] font-heading font-bold text-slate-900">All Requests</h1>
+            <p className="text-[13px] sm:text-[14px] text-slate-400 mt-1">Every attendance permission request across all faculty</p>
+          </div>
+
+          <button
+            onClick={() => setIsExemptionModalOpen(true)}
+            style={{
+              height: 40,
+              padding: '0 16px',
+              background: '#FFF7ED',
+              border: '1px solid #FED7AA',
+              color: '#EA580C',
+              fontSize: 13,
+              fontWeight: 700,
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#EA580C';
+              e.currentTarget.style.color = '#ffffff';
+              e.currentTarget.style.borderColor = '#EA580C';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#FFF7ED';
+              e.currentTarget.style.color = '#EA580C';
+              e.currentTarget.style.borderColor = '#FED7AA';
+            }}
+            className="self-start sm:self-auto shadow-sm"
+          >
+            <ShieldCheck size={16} />
+            <span>Grant Direct Exemption</span>
+          </button>
         </motion.div>
 
         {/* ── Filters ── */}
@@ -149,6 +174,17 @@ export default function HODAllRequests() {
                 <option value="4th Year">4th Year</option>
               </select>
 
+              <select
+                value={tab}
+                onChange={e => setTab(e.target.value as TabValue)}
+                className="w-full sm:w-auto h-[42px] px-3 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
+              >
+                <option value="all">All Statuses ({requestsList.length})</option>
+                <option value="pending">Pending ({requestsList.filter(r => r.status === 'pending').length})</option>
+                <option value="approved">Approved ({requestsList.filter(r => r.status === 'approved').length})</option>
+                <option value="rejected">Rejected ({requestsList.filter(r => r.status === 'rejected').length})</option>
+              </select>
+
               {(search || department || yearFilter || tab !== 'all') && (
                 <button
                   onClick={() => { setSearch(''); setDept(''); setYearFilter(''); setTab('all'); }}
@@ -160,22 +196,6 @@ export default function HODAllRequests() {
                 </button>
               )}
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 sm:pb-0 mb-4 no-scrollbar">
-            {STATUS_TABS.map(t => (
-              <button
-                key={t.value}
-                onClick={() => setTab(t.value)}
-                className={`px-3.5 sm:px-4 py-1.5 text-[12px] sm:text-[13px] font-semibold rounded-full whitespace-nowrap transition-all duration-150 ${
-                  tab === t.value
-                    ? tabActiveClass[t.value] + ' shadow-subtle'
-                    : 'bg-white text-slate-500 border border-slate-200 hover:border-orange-300 hover:text-orange-600'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
           </div>
         </motion.div>
 
@@ -275,16 +295,14 @@ export default function HODAllRequests() {
                               <Check size={12} />
                               <span>{req.status === 'approved' ? 'Approved' : 'Approve'}</span>
                             </button>
-                            {req.status !== 'approved' && (
-                              <button
-                                onClick={() => reviewMutation.mutate({ id: req.id, action: 'reject' })}
-                                className="h-7 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
-                                title="Reject Request"
-                              >
-                                <X size={12} />
-                                <span>Reject</span>
-                              </button>
-                            )}
+                            <button
+                              onClick={() => reviewMutation.mutate({ id: req.id, action: 'reject' })}
+                              className="h-7 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
+                              title={req.status === 'approved' ? 'Force Reject Approved Request' : 'Reject Request'}
+                            >
+                              <X size={12} />
+                              <span>{req.status === 'approved' ? 'Force Reject' : 'Reject'}</span>
+                            </button>
                           </div>
                         </td>
                       </motion.tr>
@@ -341,6 +359,11 @@ export default function HODAllRequests() {
         )}
 
       </div>
+
+      <HODDirectExemptionModal
+        open={isExemptionModalOpen}
+        onClose={() => setIsExemptionModalOpen(false)}
+      />
     </PageWrapper>
   );
 }

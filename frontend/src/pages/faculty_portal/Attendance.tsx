@@ -3,13 +3,46 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, Building2, ChevronDown, CheckCircle2, AlertCircle,
-  Calendar, Clock, Save, Lock, Check, RefreshCw
+  Calendar, Clock, Save, Lock, Check, RefreshCw, Printer, X
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import * as api from '../../lib/api';
 import type { AttendanceSubmissionItem } from '../../lib/api';
 import { getPeriodsFromRequest, extractRollSuffix } from '../../lib/utils';
+
+const formatTime = (timeStr?: string) => {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':');
+  let hour = parseInt(h, 10);
+  if (isNaN(hour)) return timeStr;
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12;
+  return `${hour}:${m || '00'} ${ampm}`;
+};
+
+const getFullRollNumber = (roll: string, year: string, sectionFilter?: string): string => {
+  if (roll.length > 5) return roll.toUpperCase();
+  const yearDigit = year.replace(/[^0-9]/g, '') || '3';
+
+  // Department code: CSIT -> '07', CSD -> '62'
+  const isCSIT = sectionFilter ? sectionFilter.includes('CSIT') : true;
+  const deptCode = isCSIT ? '07' : '62';
+
+  const prefix = yearDigit === '3' ? `24B91A${deptCode}` : yearDigit === '2' ? `25B91A${deptCode}` : yearDigit === '4' ? `23B91A${deptCode}` : `26B91A${deptCode}`;
+  const lePrefix = yearDigit === '3' ? `25B95A${deptCode}` : yearDigit === '2' ? `26B95A${deptCode}` : yearDigit === '4' ? `24B95A${deptCode}` : `27B95A${deptCode}`;
+
+  if (/^LE\d+$/i.test(roll)) {
+    const leNum = roll.replace(/LE/i, '').padStart(2, '0');
+    return `${lePrefix}${leNum}`;
+  }
+  return `${prefix}${roll.padStart(2, '0')}`;
+};
+
+const getStudentPhotoUrl = (roll: string, year: string, sectionFilter?: string): string => {
+  const fullRoll = getFullRollNumber(roll, year, sectionFilter);
+  return `https://srkrexams.in/SRKR/photo/${fullRoll.toUpperCase()}.jpg`;
+};
 
 // Period Definition with 45-min slots and 12:00 - 1:30 PM Lunch Break
 export interface PeriodSlot {
@@ -18,6 +51,87 @@ export interface PeriodSlot {
   timeRange: string;
   startTime: string;
   endTime: string;
+}
+
+interface FacultyRollButtonProps {
+  roll: string;
+  studentName?: string;
+  hasPermission: boolean;
+  permissionReq?: api.AttendanceRequest;
+  btnStyle: string;
+  isOwner: boolean;
+  onClick: (roll: string) => void;
+  onSelectPass: (req: api.AttendanceRequest) => void;
+  onSelectStudent: (roll: string) => void;
+}
+
+function FacultyRollButton({
+  roll,
+  studentName,
+  hasPermission,
+  permissionReq,
+  btnStyle,
+  isOwner,
+  onClick,
+  onSelectPass,
+  onSelectStudent,
+}: FacultyRollButtonProps) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPressRef = useRef(false);
+
+  const startPress = () => {
+    isLongPressRef.current = false;
+    timerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      if (hasPermission && permissionReq) {
+        onSelectPass(permissionReq);
+      } else {
+        onSelectStudent(roll);
+      }
+    }, 400); // 400ms long press threshold
+  };
+
+  const cancelPress = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const handleClick = () => {
+    if (isLongPressRef.current) {
+      isLongPressRef.current = false;
+      return;
+    }
+    onClick(roll);
+  };
+
+  return (
+    <button
+      type="button"
+      onMouseDown={startPress}
+      onMouseUp={cancelPress}
+      onMouseLeave={cancelPress}
+      onTouchStart={startPress}
+      onTouchEnd={cancelPress}
+      onClick={handleClick}
+      disabled={!isOwner}
+      title={
+        hasPermission
+          ? `${studentName ? `${studentName} (${roll})` : `Roll #${roll}`}: Approved Permission — Press & Hold to view slip details`
+          : `${studentName ? `${studentName} (${roll})` : `Roll #${roll}`}: Press & Hold to view student profile`
+      }
+      className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex flex-col items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none relative ${btnStyle} ${!isOwner ? 'cursor-not-allowed opacity-90' : ''
+        }`}
+    >
+      {hasPermission && (
+        <span className="absolute -top-1 px-1 py-0.2 bg-amber-500 text-white text-[7px] font-black rounded-full uppercase shadow-2xs">
+          PERM
+        </span>
+      )}
+      <span>{roll}</span>
+    </button>
+  );
 }
 
 const PERIOD_SLOTS: PeriodSlot[] = [
@@ -43,12 +157,12 @@ export default function FacultyAttendance() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Selection States
+  // Selection States (No default pre-selected parameters)
   const [selectedDate, setSelectedDate] = useState<string>(getTodayFormattedDate());
-  const [selectedYear, setSelectedYear] = useState<string>('3rd Year');
-  const [sectionFilter, setSectionFilter] = useState<string>('CSIT-B');
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [sectionFilter, setSectionFilter] = useState<string>('');
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState<boolean>(false);
-  
+
   // Selected Periods (e.g. [1, 2])
   const [selectedPeriodIds, setSelectedPeriodIds] = useState<number[]>([]);
 
@@ -57,9 +171,10 @@ export default function FacultyAttendance() {
 
   // Marked attendance state: rollNumber -> 'present' | 'absent'
   const [markedAttendance, setMarkedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
-  
+
   // Toast Notification
   const [toastMsg, setToastMsg] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [selectedPass, setSelectedPass] = useState<api.AttendanceRequest | null>(null);
 
   const showToast = useCallback((text: string, isError = false) => {
     setToastMsg({ text, isError });
@@ -77,7 +192,7 @@ export default function FacultyAttendance() {
     const sorted = [...selectedPeriodIds].sort((a, b) => a - b);
     const slots = sorted.map(id => PERIOD_SLOTS.find(p => p.id === id)).filter(Boolean) as PeriodSlot[];
     if (slots.length === 1) return `${slots[0].label} (${slots[0].timeRange})`;
-    
+
     const first = slots[0];
     const last = slots[slots.length - 1];
     return `Periods ${sorted.join(' & ')} (${first.timeRange.split(' - ')[0]} - ${last.timeRange.split(' - ')[1]})`;
@@ -109,13 +224,155 @@ export default function FacultyAttendance() {
   });
   const approvedRequests = approvedRequestsRaw ?? STABLE_EMPTY;
 
-  // Set of unique full roll numbers of students with approved permissions for selectedDate AND matching selectedPeriodIds
+  // Query all students list for name resolution & details
+  const { data: allStudents = [] } = useQuery<api.Student[]>({
+    queryKey: ['all-students-list'],
+    queryFn: () => api.getAllStudents(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Map of full roll numbers, suffixes, userIds to Student record for fast lookup
+  const studentInfoMap = useMemo(() => {
+    const map = new Map<string, api.Student>();
+    allStudents.forEach(s => {
+      if (s.rollNumber) {
+        const fullUpper = s.rollNumber.toUpperCase().trim();
+        map.set(fullUpper, s);
+
+        const suffix = extractRollSuffix(s.rollNumber);
+        if (suffix) {
+          map.set(suffix.toUpperCase().trim(), s);
+          const num = parseInt(suffix, 10);
+          if (!isNaN(num)) {
+            map.set(String(num), s);
+            map.set(String(num).padStart(2, '0'), s);
+          }
+        }
+      }
+      if (s.id) {
+        map.set(s.id.toUpperCase().trim(), s);
+      }
+    });
+    return map;
+  }, [allStudents]);
+
+  // Check if an attendance request is valid for the target date (single day or date range)
+  const isRequestOnDate = useCallback((req: api.AttendanceRequest, targetDate: string) => {
+    if (!req.date) return false;
+    const start = req.date.trim().slice(0, 10);
+    const end = (req.endDate ? req.endDate.trim().slice(0, 10) : start);
+    return targetDate >= start && targetDate <= end;
+  }, []);
+
+  // Check if a student belongs to the selected Academic Year and Branch/Section
+  const isStudentInSectionAndYear = useCallback((
+    studentOrRoll: string | api.Student | undefined,
+    targetYear: string,
+    targetSection: string
+  ): boolean => {
+    if (!targetYear || !targetSection) return false;
+
+    let student: api.Student | undefined;
+    let roll = '';
+
+    if (typeof studentOrRoll === 'string') {
+      roll = studentOrRoll.trim();
+      student = studentInfoMap.get(roll.toUpperCase()) || studentInfoMap.get(roll);
+    } else if (studentOrRoll) {
+      student = studentOrRoll;
+      roll = (student.rollNumber || student.id || '').trim();
+    }
+
+    if (!roll && !student) return false;
+
+    // 1. Year Matching
+    const targetDigit = targetYear.replace(/[^1-4]/g, ''); // '1', '2', '3', '4'
+    let studentYearDigit = '';
+
+    if (student?.year) {
+      const match = student.year.match(/([1-4])/);
+      if (match) studentYearDigit = match[1];
+    }
+    if (!studentYearDigit && student?.semester) {
+      studentYearDigit = String(Math.ceil(student.semester / 2));
+    }
+    if (!studentYearDigit && roll) {
+      const upperRoll = roll.toUpperCase();
+      const isLateral = upperRoll.includes('95A') || upperRoll.includes('LE') || /^LE\d+$/i.test(upperRoll);
+      if (upperRoll.startsWith('24B') && !isLateral) studentYearDigit = '3';
+      else if (upperRoll.startsWith('25B') && isLateral) studentYearDigit = '3';
+      else if (upperRoll.startsWith('25B') && !isLateral) studentYearDigit = '2';
+      else if (upperRoll.startsWith('26B') && isLateral) studentYearDigit = '2';
+      else if (upperRoll.startsWith('26B') && !isLateral) studentYearDigit = '1';
+      else if (upperRoll.startsWith('23B') && !isLateral) studentYearDigit = '4';
+      else if (upperRoll.startsWith('24B') && isLateral) studentYearDigit = '4';
+    }
+
+    if (targetDigit && studentYearDigit && targetDigit !== studentYearDigit) {
+      return false;
+    }
+
+    // 2. Section & Department Matching
+    const targetSecUpper = targetSection.toUpperCase().replace(/\s+/g, '');
+    const rollUpper = roll.toUpperCase();
+
+    // Check Department
+    const isTargetCSD = targetSecUpper.includes('CSD');
+    const isTargetCSIT = targetSecUpper.includes('CSIT');
+
+    const studentDept = (student?.department || '').toUpperCase();
+    if (isTargetCSD) {
+      if (studentDept && !studentDept.includes('CSD') && (studentDept.includes('CSIT') || studentDept.includes('IT'))) {
+        return false;
+      }
+      if (rollUpper.includes('07') && !rollUpper.includes('62')) {
+        return false;
+      }
+    } else if (isTargetCSIT) {
+      if (studentDept && studentDept.includes('CSD')) {
+        return false;
+      }
+      if (rollUpper.includes('62') && !rollUpper.includes('07')) {
+        return false;
+      }
+    }
+
+    // Check Section Letter (A or B)
+    const isTargetSecB = targetSecUpper.endsWith('B') || targetSecUpper.endsWith('-B');
+    let studentSecLetter = '';
+
+    if (student?.section) {
+      const s = student.section.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
+      if (s === 'A' || s === 'B') studentSecLetter = s;
+    }
+
+    if (!studentSecLetter && rollUpper) {
+      const isSecB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(rollUpper) || rollUpper.includes('95A');
+      studentSecLetter = isSecB ? 'B' : 'A';
+    }
+
+    if (isTargetSecB && studentSecLetter !== 'B') return false;
+    if (!isTargetSecB && studentSecLetter === 'B') return false;
+
+    return true;
+  }, [studentInfoMap]);
+
+  // Set of unique full roll numbers of students with approved permissions for selectedDate, selectedYear, and sectionFilter AND matching selectedPeriodIds
   const approvedStudentRollsSet = useMemo(() => {
     const set = new Set<string>();
-    if (selectedPeriodIds.length === 0) return set;
+    if (selectedPeriodIds.length === 0 || !selectedYear || !sectionFilter) return set;
 
     approvedRequests.forEach(req => {
-      if (req.status === 'approved' && req.date?.slice(0, 10) === selectedDate) {
+      if (req.status === 'approved' && isRequestOnDate(req, selectedDate)) {
+        const studentObj = req.student || (req.studentId ? studentInfoMap.get(req.studentId.toUpperCase()) : undefined);
+        const matchesSectionAndYear = isStudentInSectionAndYear(
+          studentObj || req.student?.rollNumber || req.studentId,
+          selectedYear,
+          sectionFilter
+        );
+
+        if (!matchesSectionAndYear) return;
+
         // Period overlap check: req periods must overlap with currently selected faculty periods
         const reqPeriods = getPeriodsFromRequest(req);
         const hasOverlap = selectedPeriodIds.some(pId => reqPeriods.includes(pId));
@@ -123,13 +380,13 @@ export default function FacultyAttendance() {
         if (hasOverlap) {
           const rollStr = req.student?.rollNumber ?? req.studentId ?? '';
           if (rollStr) {
-            set.add(rollStr);
+            set.add(rollStr.trim());
           }
         }
       }
     });
     return set;
-  }, [approvedRequests, selectedDate, selectedPeriodIds]);
+  }, [approvedRequests, selectedDate, selectedPeriodIds, selectedYear, sectionFilter, isRequestOnDate, isStudentInSectionAndYear, studentInfoMap]);
 
   // Unique count of approved permission students (for banner)
   const approvedStudentsCount = approvedStudentRollsSet.size;
@@ -138,14 +395,67 @@ export default function FacultyAttendance() {
   const permissionStudentsSet = useMemo(() => {
     const set = new Set<string>();
     approvedStudentRollsSet.forEach(rollStr => {
-      set.add(rollStr);
-      const suffix = extractRollSuffix(rollStr);
+      const trimmed = rollStr.trim();
+      const upper = trimmed.toUpperCase();
+      set.add(trimmed);
+      set.add(upper);
+
+      const suffix = extractRollSuffix(trimmed);
       if (suffix) {
+        const sufUpper = suffix.toUpperCase();
         set.add(suffix);
+        set.add(sufUpper);
+        const num = parseInt(suffix, 10);
+        if (!isNaN(num)) {
+          set.add(String(num));
+          set.add(String(num).padStart(2, '0'));
+        }
       }
     });
     return set;
   }, [approvedStudentRollsSet]);
+
+  const permissionMap = useMemo(() => {
+    const map = new Map<string, api.AttendanceRequest>();
+    if (selectedPeriodIds.length === 0 || !selectedYear || !sectionFilter) return map;
+
+    approvedRequests.forEach(req => {
+      if (req.status === 'approved' && isRequestOnDate(req, selectedDate)) {
+        const studentObj = req.student || (req.studentId ? studentInfoMap.get(req.studentId.toUpperCase()) : undefined);
+        const matchesSectionAndYear = isStudentInSectionAndYear(
+          studentObj || req.student?.rollNumber || req.studentId,
+          selectedYear,
+          sectionFilter
+        );
+
+        if (!matchesSectionAndYear) return;
+
+        const reqPeriods = getPeriodsFromRequest(req);
+        const hasOverlap = selectedPeriodIds.some(pId => reqPeriods.includes(pId));
+        if (hasOverlap) {
+          const rollStr = (req.student?.rollNumber ?? req.studentId ?? '').trim();
+          if (rollStr) {
+            const upper = rollStr.toUpperCase();
+            map.set(rollStr, req);
+            map.set(upper, req);
+
+            const suffix = extractRollSuffix(rollStr);
+            if (suffix) {
+              const sufUpper = suffix.toUpperCase();
+              map.set(suffix, req);
+              map.set(sufUpper, req);
+              const num = parseInt(suffix, 10);
+              if (!isNaN(num)) {
+                map.set(String(num), req);
+                map.set(String(num).padStart(2, '0'), req);
+              }
+            }
+          }
+        }
+      }
+    });
+    return map;
+  }, [approvedRequests, selectedDate, selectedPeriodIds, selectedYear, sectionFilter, isRequestOnDate, isStudentInSectionAndYear, studentInfoMap]);
 
   // Derive a stable primitive string from the Set so useEffect can use it as a dep
   // without firing on every render due to Set object reference changes.
@@ -219,7 +529,7 @@ export default function FacultyAttendance() {
       }
     });
     setMarkedAttendance(initialMap);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSubmission, permissionRollsKey]);
 
   // Roll numbers generator for section
@@ -232,7 +542,7 @@ export default function FacultyAttendance() {
         for (let i = 0; i <= 9; i++) rolls.push(`${prefix}${i}`);
       });
       rolls.push('D0', 'D1');
-      for (let i = 1; i <= 12; i++) rolls.push(`LE${i}`);
+      for (let i = 1; i <= 13; i++) rolls.push(`LE${i}`);
       return rolls;
     }
     // Section A (CSD, CSD-A, CSIT-A, CSIT A)
@@ -260,11 +570,58 @@ export default function FacultyAttendance() {
     });
   }, [isOwner, markMode, currentSubmission, showToast]);
 
+  // Student Photo Card Modal state & preview trigger for non-permission roll long-press
+  const [selectedStudentModal, setSelectedStudentModal] = useState<{
+    rollNo: string;
+    fullRollNo: string;
+    name?: string;
+    department: string;
+    section: string;
+    year: string;
+    avatarUrl: string;
+    status?: 'present' | 'absent' | 'unmarked';
+  } | null>(null);
+
+  const handleSelectStudentForPreview = useCallback((roll: string) => {
+    const fullRoll = getFullRollNumber(roll, selectedYear, sectionFilter);
+    const avatarUrl = getStudentPhotoUrl(roll, selectedYear, sectionFilter);
+
+    // Look up student from studentInfoMap, permissionMap or approvedRequests
+    const matchedStudent = studentInfoMap.get(fullRoll.toUpperCase()) ||
+                           studentInfoMap.get(roll.toUpperCase()) ||
+                           permissionMap.get(roll)?.student ||
+                           permissionMap.get(fullRoll)?.student;
+
+    const studentName = matchedStudent?.name || undefined;
+
+    const rawStatus = markedAttendance[roll];
+    const hasPermission = permissionStudentsSet.has(roll);
+
+    let effectiveStatus: 'present' | 'absent' | 'unmarked' = 'unmarked';
+    if (rawStatus) {
+      effectiveStatus = rawStatus;
+    } else if (hasPermission) {
+      effectiveStatus = 'present';
+    } else if (Object.keys(markedAttendance).length > 0) {
+      effectiveStatus = markMode === 'present' ? 'absent' : 'present';
+    }
+
+    setSelectedStudentModal({
+      rollNo: roll,
+      fullRollNo: fullRoll,
+      name: studentName,
+      department: matchedStudent?.department || (sectionFilter.startsWith('CSD') ? 'CSD' : 'CSIT'),
+      section: matchedStudent?.section || sectionFilter,
+      year: matchedStudent?.year || selectedYear,
+      avatarUrl: matchedStudent?.avatarUrl || avatarUrl,
+      status: effectiveStatus,
+    });
+  }, [selectedYear, sectionFilter, markedAttendance, permissionStudentsSet, markMode, studentInfoMap, permissionMap]);
+
   // Period Slot Toggle
   const togglePeriodSlot = (id: number) => {
     setSelectedPeriodIds(prev => {
       if (prev.includes(id)) {
-        if (prev.length === 1) return prev; // keep at least 1 period selected
         return prev.filter(p => p !== id);
       }
       return [...prev, id];
@@ -328,7 +685,7 @@ export default function FacultyAttendance() {
   return (
     <PageWrapper role="faculty">
       <div className="max-w-4xl mx-auto space-y-4">
-        
+
         {/* Toast Alert */}
         <AnimatePresence>
           {toastMsg && (
@@ -336,9 +693,8 @@ export default function FacultyAttendance() {
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-white text-[13px] font-bold ${
-                toastMsg.isError ? 'bg-rose-600' : 'bg-orange-500'
-              }`}
+              className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-white text-[13px] font-bold ${toastMsg.isError ? 'bg-rose-600' : 'bg-orange-500'
+                }`}
             >
               {toastMsg.isError ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
               <span>{toastMsg.text}</span>
@@ -375,7 +731,7 @@ export default function FacultyAttendance() {
 
         {/* ── Year & Section Selector Container ── */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 space-y-3.5 shadow-xs">
-          
+
           {/* Top Row: Year Selection (Square buttons with rounded corners) */}
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1.5 mr-1">
@@ -392,13 +748,17 @@ export default function FacultyAttendance() {
                 <button
                   key={yr.value}
                   type="button"
-                  onClick={() => setSelectedYear(yr.value)}
+                  onClick={() => {
+                    setSelectedYear(selectedYear === yr.value ? '' : yr.value);
+                    setSectionFilter('');
+                    setSelectedPeriodIds([]);
+                    setMarkedAttendance({});
+                  }}
                   title={yr.value}
-                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${
-                    selectedYear === yr.value
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${selectedYear === yr.value
                       ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-500/20 scale-105'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
-                  }`}
+                    }`}
                 >
                   {yr.label}
                 </button>
@@ -417,7 +777,17 @@ export default function FacultyAttendance() {
                 <Building2 size={16} className="text-orange-500" />
                 <span className="text-slate-400 font-medium">Select Target Section:</span>
                 <span className="text-slate-900 font-bold">
-                  {sectionFilter === 'CSD-A' ? 'CSD — Section A' : sectionFilter === 'CSIT-A' ? 'CSIT — Section A' : 'CSIT — Section B'}
+                  {!selectedYear
+                    ? 'Select Year First...'
+                    : !sectionFilter
+                      ? 'Choose Section...'
+                      : sectionFilter === 'CSD-A'
+                        ? 'CSD — Section A'
+                        : sectionFilter === 'CSIT-A'
+                          ? 'CSIT — Section A'
+                          : sectionFilter === 'CSIT-B'
+                            ? 'CSIT — Section B'
+                            : sectionFilter}
                 </span>
               </div>
               <ChevronDown size={16} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
@@ -431,26 +801,31 @@ export default function FacultyAttendance() {
                   exit={{ opacity: 0, y: 4 }}
                   className="absolute left-0 right-0 top-[48px] z-30 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1"
                 >
-                  {[
-                    { label: 'CSD - Sec A', value: 'CSD-A' },
-                    { label: 'CSIT - Sec A', value: 'CSIT-A' },
-                    { label: 'CSIT - Sec B', value: 'CSIT-B' },
-                  ].map(sec => (
-                    <button
-                      key={sec.value}
-                      type="button"
-                      onClick={() => {
-                        setSectionFilter(sec.value);
-                        setIsSectionDropdownOpen(false);
-                      }}
-                      className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${
-                        sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
-                      }`}
-                    >
-                      <span>{sec.label}</span>
-                      {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
-                    </button>
-                  ))}
+                  {!selectedYear ? (
+                    <div className="px-4 py-3 text-center text-slate-400 text-[12px]">
+                      Please select an Academic Year first
+                    </div>
+                  ) : (
+                    [
+                      { label: 'CSD - Sec A', value: 'CSD-A' },
+                      { label: 'CSIT - Sec A', value: 'CSIT-A' },
+                      { label: 'CSIT - Sec B', value: 'CSIT-B' },
+                    ].map(sec => (
+                      <button
+                        key={sec.value}
+                        type="button"
+                        onClick={() => {
+                          setSectionFilter(sec.value);
+                          setIsSectionDropdownOpen(false);
+                        }}
+                        className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
+                          }`}
+                      >
+                        <span>{sec.label}</span>
+                        {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
+                      </button>
+                    ))
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -477,8 +852,8 @@ export default function FacultyAttendance() {
                   const pArr = typeof rawP === 'string'
                     ? rawP.split(',').map(n => Number(n.trim()))
                     : Array.isArray(rawP)
-                    ? rawP.map((n: unknown) => Number(n))
-                    : [Number(rawP)];
+                      ? rawP.map((n: unknown) => Number(n))
+                      : [Number(rawP)];
                   return pArr.includes(slot.id);
                 });
                 const currentUid = (user?.id || user?.userId || '').toLowerCase().trim();
@@ -508,13 +883,12 @@ export default function FacultyAttendance() {
                       togglePeriodSlot(slot.id);
                     }}
                     title={isLocked ? `Locked by ${lockedBy}` : slot.timeRange}
-                    className={`px-3 py-2 rounded-xl border text-left flex flex-col justify-between transition-all select-none relative ${
-                      isLocked
+                    className={`px-3 py-2 rounded-xl border text-left flex flex-col justify-between transition-all select-none relative ${isLocked
                         ? 'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed opacity-80'
                         : isSelected
-                        ? 'bg-orange-500 border-orange-500 text-white shadow-sm scale-[1.02] cursor-pointer'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
-                    }`}
+                          ? 'bg-orange-500 border-orange-500 text-white shadow-sm scale-[1.02] cursor-pointer'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer'
+                      }`}
                   >
                     <div className="flex items-center justify-between w-full font-bold">
                       <span className="flex items-center gap-1">
@@ -530,7 +904,7 @@ export default function FacultyAttendance() {
                 );
               })}
             </div>
-            
+
             {/* Lunch Break Note */}
             <div className="text-[10px] text-slate-400 font-medium text-center pt-0.5">
               🍱 Lunch Break: 12:00 PM – 01:30 PM
@@ -539,13 +913,13 @@ export default function FacultyAttendance() {
         </div>
 
         {/* ── Conditional Render: Require Year, Branch/Section & Period Numbers Selection ── */}
-        {selectedPeriodIds.length === 0 ? (
+        {!selectedYear || !sectionFilter || selectedPeriodIds.length === 0 ? (
           <div className="bg-white border border-slate-200/80 rounded-2xl p-8 sm:p-12 text-center space-y-3 shadow-xs">
             <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 border border-orange-200/60 flex items-center justify-center mx-auto shadow-xs">
               <Calendar size={24} />
             </div>
             <div className="space-y-1 max-w-md mx-auto">
-              <h3 className="text-sm sm:text-base font-bold text-slate-900">Select Academic Year, Branch & Period Numbers</h3>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">Select Academic Year, Branch &amp; Period Numbers</h3>
               <p className="text-xs text-slate-500 font-medium leading-relaxed">
                 Student roll numbers and approved permissions will appear here once you select the required Academic Year, Branch/Section, and Period number(s) above.
               </p>
@@ -570,18 +944,10 @@ export default function FacultyAttendance() {
 
             {/* ── Submitter Ownership Warning / Status Badge ── */}
             {currentSubmission && (
-              <div className={`p-3 rounded-xl border flex items-center justify-between text-[12px] font-bold ${
-                isOwner
-
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-amber-50 border-amber-200 text-amber-900'
-              }`}>
-                <div className="flex items-center gap-2">
-                  {isOwner ? <CheckCircle2 size={16} className="text-emerald-600" /> : <Lock size={16} className="text-amber-600" />}
-
+              <div className={`p-3 rounded-xl border flex items-center justify-between text-[12px] font-bold ${isOwner
                   ? 'bg-orange-50 border-orange-200 text-orange-800'
                   : 'bg-amber-50 border-amber-200 text-amber-900'
-              }`}>
+                }`}>
                 <div className="flex items-center gap-2">
                   {isOwner ? <CheckCircle2 size={16} className="text-orange-600" /> : <Lock size={16} className="text-amber-600" />}
 
@@ -599,7 +965,7 @@ export default function FacultyAttendance() {
 
             {/* ── Grid Container & Interactive Marking Controls ── */}
             <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-4 shadow-xs">
-              
+
               {/* Click Mode Controls Bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-[12px]">
@@ -607,11 +973,10 @@ export default function FacultyAttendance() {
                     Click Mode:
                   </span>
                   <div className="flex items-center gap-2">
-                    <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${
-                      markMode === 'present'
+                    <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${markMode === 'present'
                         ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 shadow-2xs ring-2 ring-emerald-500/20'
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    }`}>
+                      }`}>
                       <input
                         type="radio"
                         name="markMode"
@@ -623,11 +988,10 @@ export default function FacultyAttendance() {
                       <span>Presentees</span>
                     </label>
 
-                    <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${
-                      markMode === 'absent'
+                    <label className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border cursor-pointer select-none transition-all text-[12px] font-bold ${markMode === 'absent'
                         ? 'bg-rose-50/80 border-rose-300 text-rose-900 shadow-2xs ring-2 ring-rose-500/20'
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    }`}>
+                      }`}>
                       <input
                         type="radio"
                         name="markMode"
@@ -656,6 +1020,7 @@ export default function FacultyAttendance() {
                   {currentRollNumbers.map(roll => {
                     const rawStatus = markedAttendance[roll];
                     const hasPermission = permissionStudentsSet.has(roll);
+                    const permissionReq = permissionMap.get(roll);
 
                     let effectiveStatus = rawStatus;
                     if (!rawStatus) {
@@ -670,6 +1035,10 @@ export default function FacultyAttendance() {
                       }
                     }
 
+                    const matchedStudent = studentInfoMap.get(roll.toUpperCase()) ||
+                                           permissionMap.get(roll)?.student;
+                    const studentName = matchedStudent?.name;
+
                     let btnStyle = 'bg-slate-100/90 text-slate-700 hover:bg-slate-200 border-slate-200/80';
                     if (hasPermission) {
                       // Yellow Approved Permission — IMMUTABLY Yellow for approved permission students
@@ -681,23 +1050,18 @@ export default function FacultyAttendance() {
                     }
 
                     return (
-                      <button
+                      <FacultyRollButton
                         key={roll}
-                        type="button"
-                        onClick={() => handleRollClick(roll)}
-                        disabled={!isOwner}
-                        title={hasPermission ? `Roll #${roll}: Has Approved Out-Pass Permission` : `Roll #${roll}`}
-                        className={`w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] rounded-2xl border flex flex-col items-center justify-center text-[13px] font-bold transition-all cursor-pointer select-none relative ${btnStyle} ${
-                          !isOwner ? 'cursor-not-allowed opacity-90' : ''
-                        }`}
-                      >
-                        {hasPermission && (
-                          <span className="absolute -top-1 px-1 py-0.2 bg-amber-500 text-white text-[7px] font-black rounded-full uppercase shadow-2xs">
-                            PERM
-                          </span>
-                        )}
-                        <span>{roll}</span>
-                      </button>
+                        roll={roll}
+                        studentName={studentName}
+                        hasPermission={hasPermission}
+                        permissionReq={permissionReq}
+                        btnStyle={btnStyle}
+                        isOwner={isOwner}
+                        onClick={handleRollClick}
+                        onSelectPass={setSelectedPass}
+                        onSelectStudent={handleSelectStudentForPreview}
+                      />
                     );
                   })}
                 </div>
@@ -709,13 +1073,12 @@ export default function FacultyAttendance() {
                   type="button"
                   disabled={!isOwner || submitMutation.isPending}
                   onClick={handleSubmit}
-                  className={`w-full sm:w-auto min-w-[260px] py-3 px-6 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer ${
-                    !isOwner
+                  className={`w-full sm:w-auto min-w-[260px] py-3 px-6 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer ${!isOwner
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
                       : submitMutation.isPending
-                      ? 'bg-orange-400 text-white cursor-wait'
-                      : 'bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white shadow-orange-500/25 ring-2 ring-orange-500/20'
-                  }`}
+                        ? 'bg-orange-400 text-white cursor-wait'
+                        : 'bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white shadow-orange-500/25 ring-2 ring-orange-500/20'
+                    }`}
                 >
                   {submitMutation.isPending ? (
                     <RefreshCw size={18} className="animate-spin" />
@@ -731,6 +1094,274 @@ export default function FacultyAttendance() {
             </div>
           </>
         )}
+
+        {/* Student Photo Preview Card Modal (on Long Press of Regular Student Number) */}
+        <AnimatePresence>
+          {selectedStudentModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-2xl max-w-xs sm:max-w-sm w-full p-5 shadow-2xl border border-slate-200 text-center space-y-4 relative overflow-hidden"
+              >
+                <button
+                  onClick={() => setSelectedStudentModal(null)}
+                  className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+
+                {/* Student Photo */}
+                <div className="w-28 h-36 rounded-2xl border-2 border-orange-500 bg-slate-100 overflow-hidden mx-auto shadow-md relative group">
+                  <img
+                    src={selectedStudentModal.avatarUrl}
+                    alt={`Student ${selectedStudentModal.name || selectedStudentModal.fullRollNo}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentModal.name || selectedStudentModal.fullRollNo)}&background=F97316&color=fff&size=128`;
+                    }}
+                  />
+                </div>
+
+                {/* Student Info */}
+                <div className="space-y-1">
+                  <span className="px-2.5 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[10px] font-extrabold uppercase tracking-wider">
+                    SRKR Student Profile
+                  </span>
+                  {selectedStudentModal.name ? (
+                    <div className="pt-1">
+                      <h3 className="text-lg font-black text-slate-900 leading-snug">
+                        {selectedStudentModal.name}
+                      </h3>
+                      <p className="text-sm font-mono font-bold text-orange-600 mt-0.5">
+                        {selectedStudentModal.fullRollNo}
+                      </p>
+                    </div>
+                  ) : (
+                    <h3 className="text-lg font-extrabold text-slate-900 font-mono pt-1">
+                      {selectedStudentModal.fullRollNo}
+                    </h3>
+                  )}
+                  <p className="text-xs text-slate-500 font-bold">
+                    {selectedStudentModal.year} • {selectedStudentModal.section}
+                  </p>
+                </div>
+
+                {/* Attendance Status Badge */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-500">Period {periodsKey} Status:</span>
+                  {selectedStudentModal.status === 'present' ? (
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 font-extrabold flex items-center gap-1">
+                      <CheckCircle2 size={13} className="text-emerald-600" />
+                      Present
+                    </span>
+                  ) : selectedStudentModal.status === 'absent' ? (
+                    <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 border border-rose-300 font-extrabold flex items-center gap-1">
+                      <AlertCircle size={13} className="text-rose-600" />
+                      Absent
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-extrabold">
+                      Unmarked
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setSelectedStudentModal(null)}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  Close Preview
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Printable / Detail Permission Slip Modal (on Long Press of Yellow PERM Number) */}
+        <AnimatePresence>
+          {selectedPass && (
+            <div className="fixed inset-0 z-50 bg-orange-950/20 backdrop-blur-sm flex items-center justify-center p-3 print:static print:bg-white print:p-0 print:inset-auto print:z-auto">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 247, 237, 0.90) 100%)',
+                  backdropFilter: 'blur(24px) saturate(190%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+                  border: '1px solid rgba(254, 215, 170, 0.75)',
+                  boxShadow: '0 24px 60px -10px rgba(249, 115, 22, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.8) inset',
+                }}
+                className="rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl print:hidden"
+              >
+                <div className="flex items-start justify-between pb-3.5 border-b border-orange-500/25 gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-extrabold uppercase text-orange-600/80 tracking-wider">SRKR Engineering College</p>
+                    <h2 className="text-[20px] font-black text-slate-900 uppercase leading-tight mt-0.5">Permission Slip</h2>
+                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                      <span
+                        style={{
+                          background: 'rgba(249, 115, 22, 0.12)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(249, 115, 22, 0.35)',
+                          color: '#EA580C',
+                        }}
+                        className="text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full"
+                      >
+                        APPROVED
+                      </span>
+                      <span
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.75)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(254, 215, 170, 0.6)',
+                          color: '#C2410C',
+                        }}
+                        className="text-[10.5px] font-mono font-bold px-2 py-0.5 rounded-full"
+                      >
+                        #{selectedPass.id.toUpperCase().slice(-8)}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedPass(null)}
+                    style={{
+                      background: 'rgba(255, 247, 237, 0.9)',
+                      backdropFilter: 'blur(8px)',
+                      border: '1px solid rgba(254, 215, 170, 0.8)',
+                      color: '#EA580C',
+                    }}
+                    className="w-8 h-8 rounded-full hover:bg-orange-600 hover:text-white flex items-center justify-center transition-all cursor-pointer text-sm font-bold shrink-0 shadow-xs"
+                    title="Close slip"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="py-3.5 space-y-3 text-[12px]">
+                  <div
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.80)',
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(254, 215, 170, 0.65)',
+                      boxShadow: '0 4px 16px rgba(249, 115, 22, 0.05)',
+                    }}
+                    className="flex items-center gap-3 p-3.5 rounded-2xl"
+                  >
+                    <img
+                      src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${selectedPass.student?.rollNumber || selectedPass.studentId}.jpg`}
+                      alt="Student Avatar"
+                      className="w-13 h-15 sm:w-14 sm:h-16 object-cover rounded-xl border border-orange-200/80 shrink-0 shadow-xs"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=EA580C&color=fff`;
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-orange-600 font-bold uppercase tracking-wider">Student Name &amp; Roll</p>
+                      <p className="font-extrabold text-slate-900 text-[14px] truncate leading-snug">{selectedPass.student?.name ?? selectedPass.studentId}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="font-mono font-black text-slate-900 text-[13px]">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</span>
+                        <span
+                          style={{
+                            background: 'rgba(249, 115, 22, 0.12)',
+                            border: '1px solid rgba(249, 115, 22, 0.28)',
+                            color: '#EA580C',
+                          }}
+                          className="px-2 py-0.5 rounded-md font-bold text-[10px]"
+                        >
+                          {selectedPass.student?.department || 'CSIT'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.65)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(254, 215, 170, 0.55)',
+                    }}
+                    className="space-y-2.5 p-3.5 rounded-2xl text-[12px]"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500 font-semibold">Category / Reason:</span>
+                      <span
+                        style={{
+                          background: 'rgba(249, 115, 22, 0.14)',
+                          border: '1px solid rgba(249, 115, 22, 0.3)',
+                          color: '#EA580C',
+                        }}
+                        className="font-extrabold px-2.5 py-0.5 rounded-lg text-[11.5px]"
+                      >
+                        {selectedPass.reasonLabel}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500 font-semibold">Date &amp; Time Slot:</span>
+                      <span className="font-bold text-slate-800">{selectedPass.date} ({formatTime(selectedPass.startTime)} - {formatTime(selectedPass.endTime)})</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500 font-semibold">Approved By:</span>
+                      <span className="font-bold text-slate-900 truncate max-w-[200px] text-right">{selectedPass.finalDecisionName || selectedPass.faculty?.name || 'Faculty Advisor'}</span>
+                    </div>
+                  </div>
+
+                  {selectedPass.description && (
+                    <div
+                      style={{
+                        background: 'rgba(255, 247, 237, 0.85)',
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(254, 215, 170, 0.75)',
+                      }}
+                      className="p-3.5 rounded-2xl text-[11.5px] text-orange-950 leading-relaxed"
+                    >
+                      <span className="font-bold text-orange-800 block mb-1 text-[10px] uppercase tracking-wider">Purpose / Description:</span>
+                      "{selectedPass.description}"
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 flex flex-col sm:flex-row items-center gap-2">
+                  <button
+                    onClick={() => window.print()}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.95) 0%, rgba(234, 88, 12, 1) 100%)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255, 255, 255, 0.4)',
+                      boxShadow: '0 8px 24px -4px rgba(249, 115, 22, 0.45)',
+                    }}
+                    className="w-full sm:flex-1 h-10.5 text-white font-extrabold text-[12.5px] rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                  >
+                    <Printer size={15} />
+                    <span>Print Letter Format</span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedPass(null)}
+                    style={{
+                      background: 'rgba(255, 247, 237, 0.85)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(254, 215, 170, 0.8)',
+                      color: '#EA580C',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#EA580C';
+                      e.currentTarget.style.color = '#ffffff';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(255, 247, 237, 0.85)';
+                      e.currentTarget.style.color = '#EA580C';
+                    }}
+                    className="w-full sm:w-auto h-10.5 px-5 font-extrabold text-[12px] rounded-xl cursor-pointer transition-colors shadow-xs"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
       </div>
     </PageWrapper>

@@ -3,6 +3,8 @@ export type RequestStatus = 'pending' | 'approved' | 'rejected';
 
 export type RequestReason =
   | 'internship'
+  | 'startup'
+  | 'project_development'
   | 'medical'
   | 'sports'
   | 'family_emergency'

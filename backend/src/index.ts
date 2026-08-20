@@ -14,6 +14,7 @@ import userRoutes         from './routes/users.js';
 import notificationRoutes  from './routes/notifications.js';
 import attendanceRoutes    from './routes/attendance.js';
 import adminRouter from './admin/index.js';
+import chatRoutes from './routes/chat.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
 
@@ -22,7 +23,8 @@ const PORT = process.env['PORT'] ?? 3000;
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth',          rateLimiter(15 * 60 * 1000, 100), authRoutes);
@@ -32,6 +34,7 @@ app.use('/api/users',         userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/attendance',    attendanceRoutes);
 app.use('/api/admin',         adminRouter);
+app.use('/api/chat',          chatRoutes);
 
 // ── Root & Health check ───────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
@@ -69,12 +72,50 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
+// ── Auto-sync Postgres Enums ──────────────────────────────────────────────────
+async function syncDatabaseEnums() {
+  const reasons = [
+    'internship',
+    'startup',
+    'project_development',
+    'medical',
+    'sports',
+    'family_emergency',
+    'competition',
+    'other',
+  ];
+  for (const val of reasons) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "RequestReason" ADD VALUE IF NOT EXISTS '${val}'`);
+    } catch {
+      // Ignore if table/enum not created yet or already exists
+    }
+  }
+
+  const statuses = ['pending', 'approved', 'rejected', 'cancelled'];
+  for (const val of statuses) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "RequestStatus" ADD VALUE IF NOT EXISTS '${val}'`);
+    } catch {}
+  }
+
+  const roles = ['student', 'faculty', 'hod', 'admin'];
+  for (const val of roles) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "Role" ADD VALUE IF NOT EXISTS '${val}'`);
+    } catch {}
+  }
+}
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 async function bootstrap() {
   try {
     // Connect to PostgreSQL
     await prisma.$connect();
     console.log('✅  PostgreSQL connected (Prisma)');
+
+    // Ensure database enums match Prisma schema
+    await syncDatabaseEnums();
 
     let currentPort = Number(PORT);
 
@@ -98,9 +139,10 @@ async function bootstrap() {
 
       server.on('error', (err: NodeJS.ErrnoException) => {
         if (err.code === 'EADDRINUSE') {
-          console.warn(`⚠️  Port ${p} is in use. Trying port ${p + 1}...`);
-          server.close();
-          tryListen(p + 1);
+          console.warn(`⚠️  Port ${p} busy during reload. Retrying in 400ms...`);
+          setTimeout(() => {
+            tryListen(p);
+          }, 400);
         } else {
           console.error('❌  Server error:', err);
           process.exit(1);

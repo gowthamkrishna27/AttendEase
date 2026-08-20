@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Home, Clock, User, LogOut, LogIn,
-  Bell, GraduationCap, Plus,
+  Bell, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-  CheckSquare, UserCheck
+  CheckSquare, UserCheck, Database
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import srkrEmblem from '../../assets/srkr-emblem.png';
+import attendEaseLogo from '../../assets/logo.png';
+const srkrLogo = '/srkr-emblem.png';
 
 interface PageWrapperProps {
   children: ReactNode;
@@ -26,32 +27,42 @@ const studentNav = [
   { to: '/student/profile', label: 'Profile', icon: User },
 ];
 const facultyNav = [
-  { to: '/faculty',          label: 'Dashboard',     icon: Home          },
+  { to: '/faculty', label: 'Dashboard', icon: Home },
   { to: '/faculty/attendance', label: 'Mark Attendance', icon: CheckSquare },
-  { to: '/faculty/requests', label: 'Requests',      icon: ClipboardList },
-  { to: '/faculty/students', label: 'Students',      icon: Users         },
-  { to: '/faculty/reports',  label: 'Reports',       icon: BarChart2     },
-  { to: '/faculty/settings', label: 'Settings',      icon: Settings      },
+  { to: '/faculty/requests', label: 'Requests', icon: ClipboardList },
+  { to: '/faculty/students', label: 'Students', icon: Users },
+  { to: '/faculty/reports', label: 'Reports', icon: BarChart2 },
+  { to: '/faculty/settings', label: 'Settings', icon: Settings },
 ];
 
 const hodNav = [
-  { to: '/hod',          label: 'Overview',     icon: Home          },
-  { to: '/hod/requests', label: 'All Requests',  icon: ClipboardList },
-  { to: '/hod/faculty',  label: 'Faculty',       icon: Users         },
-  { to: '/hod/reports',  label: 'Reports',       icon: BarChart2     },
-  { to: '/permissions',  label: 'Permissions',   icon: Shield        },
-  { to: '/hod/settings', label: 'Settings',      icon: Settings      },
+  { to: '/hod', label: 'Overview', icon: Home },
+  { to: '/hod/requests', label: 'All Requests', icon: ClipboardList },
+  { to: '/hod/faculty', label: 'Faculty', icon: Users },
+  { to: '/hod/reports', label: 'Reports', icon: BarChart2 },
+  { to: '/hod/settings', label: 'Settings', icon: Settings },
 ];
 
 const adminNav = [
-  { to: '/admin',            label: 'Dashboard',       icon: Home      },
-  { to: '/admin/users',      label: 'User & Students', icon: Users     },
-  { to: '/admin/counseling', label: 'Counseling Assign', icon: UserCheck },
-  { to: '/admin/settings',   label: 'Settings',        icon: Settings  },
+  { to: '/admin', label: 'Dashboard', icon: Home },
+  { to: '/admin/users', label: 'Accounts & Students', icon: Users },
+  { to: '/admin/counseling', label: 'Counseling', icon: UserCheck },
+  { to: '/admin/requests', label: 'Request Logs', icon: ClipboardList },
+  { to: '/admin/database', label: 'Database Tables', icon: Database },
+  { to: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
+type BottomNavItem = {
+  id: string;
+  type: 'link' | 'fab';
+  to?: string;
+  label?: string;
+  icon?: React.ElementType;
+  hasBadge?: boolean;
+};
+
 /* Bottom tab bar items (mobile) */
-const studentMobileBottomNav = [
+const studentMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/student', label: 'Home', icon: Home, type: 'link' },
   { id: 'notifications', to: '/student/notifications', label: 'Notifications', icon: Bell, type: 'link', hasBadge: true },
   { id: 'fab', type: 'fab', to: '/student/new-request' },
@@ -59,7 +70,7 @@ const studentMobileBottomNav = [
   { id: 'profile', to: '/student/profile', label: 'Profile', icon: User, type: 'link' },
 ];
 
-const facultyMobileBottomNav = [
+const facultyMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/faculty', label: 'Dashboard', icon: Home, type: 'link' },
   { id: 'attendance', to: '/faculty/attendance', label: 'Attendance', icon: CheckSquare, type: 'link' },
   { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
@@ -67,7 +78,7 @@ const facultyMobileBottomNav = [
   { id: 'reports', to: '/faculty/reports', label: 'Reports', icon: BarChart2, type: 'link' },
 ];
 
-const hodMobileBottomNav = [
+const hodMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/hod', label: 'Overview', icon: Home, type: 'link' },
   { id: 'faculty', to: '/hod/faculty', label: 'Faculty', icon: Users, type: 'link' },
   { id: 'requests', to: '/hod/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
@@ -75,10 +86,11 @@ const hodMobileBottomNav = [
   { id: 'settings', to: '/hod/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
-const adminMobileBottomNav = [
+const adminMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/admin', label: 'Dashboard', icon: Home, type: 'link' },
-  { id: 'users', to: '/admin/users', label: 'Users', icon: Users, type: 'link' },
+  { id: 'users', to: '/admin/users', label: 'Accounts', icon: Users, type: 'link' },
   { id: 'counseling', to: '/admin/counseling', label: 'Counseling', icon: UserCheck, type: 'link' },
+  { id: 'database', to: '/admin/database', label: 'Database', icon: Database, type: 'link' },
   { id: 'settings', to: '/admin/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
@@ -109,35 +121,6 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
   const firstName = user?.name?.split(' ')[0] ?? 'User';
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
-  const [deviceTime, setDeviceTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setDeviceTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatDeviceDateTime = (dateObj: Date) => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const dayName = days[dateObj.getDay()];
-    const dateNum = dateObj.getDate();
-    const monthName = months[dateObj.getMonth()];
-    const year = dateObj.getFullYear();
-    const hours = String(dateObj.getHours()).padStart(2, '0');
-    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
-    return `${dayName}, ${dateNum} ${monthName} ${year}  ${hours}:${minutes}`;
-  };
-
-  const formatDeviceDateTimeMobile = (dateObj: Date) => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const dayName = days[dateObj.getDay()];
-    const hours = String(dateObj.getHours()).padStart(2, '0');
-    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
-    return `${dayName}  ${hours}:${minutes}`;
-  };
-
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#F3F6FB', fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
 
@@ -146,30 +129,32 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
       ═══════════════════════════════════════ */}
       <header className="desktop-topbar print:hidden" style={{
         position: 'sticky', top: 0, zIndex: 40,
-        height: 60, background: '#ffffff',
-        borderBottom: '1px solid #EEF2F7',
-        boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
+        height: 56, background: '#ffffff',
+        borderBottom: '1px solid #edf0f2',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
         display: 'flex', alignItems: 'center',
         padding: '0 24px',
       }}>
-        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', flexShrink: 0 }}>
-          <img src={srkrEmblem} alt="SRKR" style={{ width: 38, height: 38, objectFit: 'contain' }} />
+        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
+          <img
+            src={attendEaseLogo}
+            alt="AttendEase"
+            style={{
+              width: 40, height: 40,
+              objectFit: 'contain',
+              background: 'transparent',
+            }}
+          />
           <div style={{ lineHeight: 1.15 }}>
-            <p style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>SRKR Engineering College</p>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
+            <p style={{ fontSize: 16, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+              <span style={{ color: '#18181b' }}>Attend</span>
+              <span style={{ color: '#EA580C' }}>Ease</span>
+            </p>
+            <p style={{ fontSize: 11, fontWeight: 500, color: '#6b7280', margin: 0 }}>Permission Portal</p>
           </div>
         </Link>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 }}>
-          {/* Live Date & Time */}
-          <div style={{
-            fontSize: 13, fontWeight: 600, color: '#475569',
-            background: '#F8FAFC', padding: '6px 14px', borderRadius: 20,
-            border: '1px solid #EEF2F7', display: 'flex', alignItems: 'center'
-          }}>
-            <span>{formatDeviceDateTime(deviceTime)}</span>
-          </div>
-
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Settings or Plus button in top navbar */}
           {user && user.role !== 'student' && (
             <Link
@@ -177,12 +162,33 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               title={user.role === 'admin' ? 'Add User' : 'Settings'}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, borderRadius: 12, background: '#F8FAFC',
-                border: '1px solid #EEF2F7', color: '#475569', textDecoration: 'none',
+                width: 34, height: 34, borderRadius: 8,
+                background: user.role === 'admin' ? '#edf0f2' : '#FFF7ED',
+                border: user.role === 'admin' ? '1px solid #e2e6e9' : '1px solid #FED7AA',
+                color: user.role === 'admin' ? '#18181b' : '#EA580C',
+                textDecoration: 'none',
                 transition: 'all 0.15s ease',
               }}
+              onMouseEnter={e => {
+                if (user.role === 'admin') {
+                  e.currentTarget.style.background = '#e2e6e9';
+                } else {
+                  e.currentTarget.style.background = '#EA580C';
+                  e.currentTarget.style.color = '#ffffff';
+                  e.currentTarget.style.borderColor = '#EA580C';
+                }
+              }}
+              onMouseLeave={e => {
+                if (user.role === 'admin') {
+                  e.currentTarget.style.background = '#edf0f2';
+                } else {
+                  e.currentTarget.style.background = '#FFF7ED';
+                  e.currentTarget.style.color = '#EA580C';
+                  e.currentTarget.style.borderColor = '#FED7AA';
+                }
+              }}
             >
-              {user.role === 'admin' ? <Plus size={18} style={{ color: '#F97316' }} /> : <Settings size={17} />}
+              {user.role === 'admin' ? <Plus size={16} /> : <Settings size={15} />}
             </Link>
           )}
 
@@ -191,44 +197,111 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             <Link
               to="/login"
               style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px', fontSize: 13, fontWeight: 700,
-                color: '#ffffff', background: '#F97316',
-                borderRadius: 12, textDecoration: 'none',
-                boxShadow: '0 2px 8px rgba(249,115,22,0.25)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '6px 14px', fontSize: 12.5, fontWeight: 600,
+                color: '#EA580C', background: '#FFF7ED',
+                border: '1px solid #FED7AA',
+                borderRadius: 8, textDecoration: 'none',
                 transition: 'all 0.15s ease',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#000000'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#F97316'; }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = '#EA580C';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = '#EA580C';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = '#FFF7ED';
+                e.currentTarget.style.color = '#EA580C';
+                e.currentTarget.style.borderColor = '#FED7AA';
+              }}
             >
-              <LogIn size={15} />
+              <LogIn size={14} />
               <span>Login</span>
             </Link>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Link
-                to={`/${user.role}`}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '6px 14px', fontSize: 13, fontWeight: 700,
-                  color: '#ffffff', background: '#0F172A',
-                  borderRadius: 12, textDecoration: 'none',
-                  boxShadow: '0 2px 8px rgba(15,23,42,0.15)',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <User size={15} style={{ color: '#F97316' }} />
-                <span style={{ textTransform: 'capitalize' }}>{user.name?.split(' ')[0] || user.role}</span>
-              </Link>
+              {user.role === 'student' || user.role === 'faculty' ? (
+                location.pathname === '/permissions' ? (
+                  <Link
+                    to={`/${user.role}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
+                      color: '#EA580C', background: '#FFF7ED',
+                      border: '1px solid #FED7AA',
+                      borderRadius: 8, textDecoration: 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#EA580C';
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.borderColor = '#EA580C';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = '#FFF7ED';
+                      e.currentTarget.style.color = '#EA580C';
+                      e.currentTarget.style.borderColor = '#FED7AA';
+                    }}
+                  >
+                    <Home size={14} />
+                    <span>Dashboard</span>
+                  </Link>
+                ) : (
+                  <Link
+                    to="/permissions"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
+                      color: '#EA580C', background: '#FFF7ED',
+                      border: '1px solid #FED7AA',
+                      borderRadius: 8, textDecoration: 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#EA580C';
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.borderColor = '#EA580C';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = '#FFF7ED';
+                      e.currentTarget.style.color = '#EA580C';
+                      e.currentTarget.style.borderColor = '#FED7AA';
+                    }}
+                  >
+                    <Shield size={14} />
+                    <span>View Permissions</span>
+                  </Link>
+                )
+              ) : (
+                <Link
+                  to={user.role === 'hod' ? '/hod/settings' : `/${user.role}`}
+                  title={user.role === 'hod' ? 'Profile & Settings' : 'Dashboard'}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
+                    color: '#18181b', background: '#edf0f2',
+                    border: '1px solid #e2e6e9',
+                    borderRadius: 8, textDecoration: 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#e2e6e9'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; }}
+                >
+                  <User size={14} />
+                  <span style={{ textTransform: 'capitalize' }}>{user.name?.split(' ')[0] || user.role}</span>
+                </Link>
+              )}
               <button
                 onClick={handleLogout}
                 title="Logout"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 34, height: 34, borderRadius: 10, background: '#FEF2F2',
-                  border: '1px solid #FECACA', color: '#DC2626', cursor: 'pointer',
+                  width: 34, height: 34, borderRadius: 8, background: '#edf0f2',
+                  border: 'none', color: '#6b7280', cursor: 'pointer',
                   transition: 'all 0.15s ease',
                 }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#dc2626'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; e.currentTarget.style.color = '#6b7280'; }}
               >
                 <LogOut size={15} />
               </button>
@@ -242,43 +315,48 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
       ═══════════════════════════════════════ */}
       <header className="mobile-topbar print:hidden" style={{
         position: 'sticky', top: 0, zIndex: 40,
-        height: 60, background: '#ffffff',
-        borderBottom: '1px solid #EEF2F7',
-        boxShadow: '0 1px 8px rgba(0,0,0,0.04)',
+        height: 56, background: '#ffffff',
+        borderBottom: '1px solid #edf0f2',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
         display: 'none', alignItems: 'center',
         padding: '0 16px',
       }}>
         {/* Left: logo + brand */}
-        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-          <img src={srkrEmblem} alt="SRKR" style={{ width: 34, height: 34, objectFit: 'contain' }} />
+        <Link to={homeLink} style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+          <img
+            src={attendEaseLogo}
+            alt="AttendEase"
+            style={{
+              width: 28, height: 28,
+              objectFit: 'contain',
+              background: 'transparent',
+            }}
+          />
           <div style={{ lineHeight: 1.15 }}>
-            <p style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>SRKR Engineering College</p>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#475569', margin: 0 }}>CSD &amp; CSIT</p>
+            <p style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
+              <span style={{ color: '#18181b' }}>Attend</span>
+              <span style={{ color: '#EA580C' }}>Ease</span>
+            </p>
+            <p style={{ fontSize: 10, fontWeight: 500, color: '#6b7280', margin: 0 }}>Permission Portal</p>
           </div>
         </Link>
 
-        {/* Center/Right: Time + Settings + Login Button (mobile) */}
+        {/* Center/Right: Settings + Login Button (mobile) */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{
-            fontSize: 11, fontWeight: 700, color: '#475569',
-            background: '#F8FAFC', padding: '5px 8px', borderRadius: 8,
-            border: '1px solid #EEF2F7', display: 'flex', alignItems: 'center'
-          }}>
-            <span>{formatDeviceDateTimeMobile(deviceTime)}</span>
-          </div>
-
-          {/* Settings or Plus button in mobile top bar */}
-          {user && user.role !== 'student' && user.role !== 'hod' && (
+          {user && user.role !== 'student' && (
             <Link
               to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
-              title={user.role === 'admin' ? 'Add User' : 'Settings'}
+              title={user.role === 'admin' ? 'Add User' : 'Settings & Profile'}
               style={{
-                width: 30, height: 30, borderRadius: 8, background: '#F8FAFC',
-                border: '1px solid #EEF2F7', color: '#475569', textDecoration: 'none',
+                width: 32, height: 32, borderRadius: 8,
+                background: user.role === 'admin' ? '#edf0f2' : '#FFF7ED',
+                border: user.role === 'admin' ? '1px solid #e2e6e9' : '1px solid #FED7AA',
+                color: user.role === 'admin' ? '#18181b' : '#EA580C',
+                textDecoration: 'none',
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}
             >
-              {user.role === 'admin' ? <Plus size={16} style={{ color: '#F97316' }} /> : <Settings size={15} />}
+              {user.role === 'admin' ? <Plus size={15} /> : <Settings size={14} />}
             </Link>
           )}
 
@@ -286,29 +364,61 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             <Link
               to="/login"
               style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '5px 10px', fontSize: 12, fontWeight: 700,
-                color: '#ffffff', background: '#F97316',
-                borderRadius: 8, textDecoration: 'none',
-                boxShadow: '0 1px 4px rgba(249,115,22,0.20)'
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                padding: '5px 12px', fontSize: 11.5, fontWeight: 600,
+                color: '#EA580C', background: '#FFF7ED',
+                border: '1px solid #FED7AA',
+                borderRadius: 7, textDecoration: 'none',
+                transition: 'all 0.15s ease',
               }}
             >
               <LogIn size={13} />
               <span>Login</span>
             </Link>
+          ) : user.role === 'student' || user.role === 'faculty' ? (
+            location.pathname === '/permissions' ? (
+              <Link
+                to={`/${user.role}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
+                  color: '#EA580C', background: '#FFF7ED',
+                  border: '1px solid #FED7AA',
+                  borderRadius: 7, textDecoration: 'none',
+                }}
+              >
+                <Home size={13} />
+                <span>Dashboard</span>
+              </Link>
+            ) : (
+              <Link
+                to="/permissions"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
+                  color: '#EA580C', background: '#FFF7ED',
+                  border: '1px solid #FED7AA',
+                  borderRadius: 7, textDecoration: 'none',
+                }}
+              >
+                <Shield size={13} />
+                <span>Permissions</span>
+              </Link>
+            )
           ) : (
             <Link
-              to={`/${user.role}`}
+              to={user.role === 'hod' ? '/hod/settings' : `/${user.role}`}
+              title={user.role === 'hod' ? 'Profile & Settings' : 'Dashboard'}
               style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '5px 10px', fontSize: 12, fontWeight: 700,
-                color: '#ffffff', background: '#0F172A',
-                borderRadius: 8, textDecoration: 'none',
-                boxShadow: '0 1px 4px rgba(15,23,42,0.20)'
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
+                color: '#18181b', background: '#edf0f2',
+                border: '1px solid #e2e6e9',
+                borderRadius: 7, textDecoration: 'none',
               }}
             >
-              <User size={13} style={{ color: '#F97316' }} />
-              <span style={{ textTransform: 'capitalize' }}>{user.role}</span>
+              <User size={13} />
+              <span style={{ textTransform: 'capitalize' }}>{user.name?.split(' ')[0] || user.role}</span>
             </Link>
           )}
         </div>
@@ -322,84 +432,90 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         {/* ── DESKTOP SIDEBAR ── */}
         {navLinks.length > 0 && (
           <aside className="desktop-sidebar print:hidden" style={{
-          width: 210, flexShrink: 0,
-          background: '#ffffff',
-          borderRight: '1px solid #EEF2F7',
-          display: 'flex', flexDirection: 'column',
-          padding: '16px 0',
-          position: 'sticky', top: 60, height: 'calc(100vh - 60px)',
-          overflowY: 'auto',
-        }}>
-          <div style={{ padding: '0 16px 20px' }}>
-            <p style={{ fontSize: 18, fontWeight: 800, margin: '0 0 2px', letterSpacing: '-0.3px' }}>
-              <span style={{ color: '#000000' }}>Attend</span>
-              <span style={{ color: '#F97316' }}>Ease</span>
-            </p>
-            <p style={{ fontSize: 11, color: '#94A3B8', margin: 0 }}>Attendance Permission Portal</p>
-          </div>
+            width: 220, flexShrink: 0,
+            background: '#ffffff',
+            borderRight: '1px solid #edf0f2',
+            display: 'flex', flexDirection: 'column',
+            padding: '16px 0',
+            position: 'sticky', top: 56, height: 'calc(100vh - 56px)',
+            overflowY: 'auto',
+          }}>
+            <nav style={{ flex: 1, padding: '0 10px' }}>
+              {navLinks.map(link => {
+                const Icon = link.icon;
+                return (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    end={link.to === homeLink}
+                    style={({ isActive }) => ({
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8.5px 12px', borderRadius: 8, marginBottom: 3,
+                      fontSize: 13.5, fontWeight: isActive ? 600 : 500,
+                      color: isActive
+                        ? role === 'admin' ? '#ffffff' : '#EA580C'
+                        : '#64748B',
+                      background: isActive
+                        ? role === 'admin' ? '#18181b' : '#FFF7ED'
+                        : 'transparent',
+                      border: isActive && role !== 'admin' ? '1px solid #FED7AA' : '1px solid transparent',
+                      textDecoration: 'none',
+                      transition: 'all 0.15s ease',
+                    })}
+                  >
+                    <Icon size={16} />
+                    {link.label}
+                  </NavLink>
+                );
+              })}
 
-          <nav style={{ flex: 1, padding: '0 8px' }}>
-            {navLinks.map(link => {
-              const Icon = link.icon;
-              return (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  end={link.to === homeLink}
-                  style={({ isActive }) => ({
+              {/* Logout */}
+              {role !== 'viewer' && (
+                <button
+                  onClick={handleLogout}
+                  style={{
                     display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 14px', borderRadius: 0, marginBottom: 0,
-                    fontSize: 14, fontWeight: isActive ? 600 : 500,
-                    color: isActive ? '#000000' : '#64748B',
-                    background: 'transparent',
-                    textDecoration: 'none',
-                    borderLeft: isActive ? '3px solid #F97316' : '3px solid transparent',
-                    paddingLeft: '13px',
+                    padding: '8.5px 12px', borderRadius: 8,
+                    marginTop: 20,
+                    fontSize: 13.5, fontWeight: 500,
+                    color: '#64748B', background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer', width: '100%',
                     transition: 'all 0.15s ease',
-                  })}
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.color = '#dc2626';
+                    e.currentTarget.style.background = '#fef2f2';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.color = '#64748B';
+                    e.currentTarget.style.background = 'transparent';
+                  }}
                 >
-                  <Icon size={16} />
-                  {link.label}
-                </NavLink>
-              );
-            })}
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              )}
+            </nav>
 
-            {/* Logout */}
-            {role !== 'viewer' && (
-              <button
-                onClick={handleLogout}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 14px', borderRadius: 0,
-                  marginTop: 28,
-                  fontSize: 14, fontWeight: 600,
-                  color: '#DC2626', background: 'transparent',
-                  border: 'none', borderLeft: '3px solid #DC2626',
-                  cursor: 'pointer', width: '100%',
-                  paddingLeft: '13px',
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.color = '#EF4444';
-                  e.currentTarget.style.borderLeftColor = '#EF4444';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.color = '#DC2626';
-                  e.currentTarget.style.borderLeftColor = '#DC2626';
-                }}
-              >
-                <LogOut size={16} />
-                Logout
-              </button>
-            )}
-          </nav>
-
-          <div style={{ margin: '16px 12px 0', background: '#F8FAFC', border: '1px solid #EEF2F7', borderRadius: 14, padding: '14px 12px', textAlign: 'center' }}>
-            <GraduationCap size={28} style={{ color: '#F97316', marginBottom: 6 }} />
-            <p style={{ fontSize: 12, fontWeight: 800, color: '#000000', margin: '0 0 2px' }}>CSD &amp; CSIT</p>
-            <p style={{ fontSize: 10, color: '#CBD5E1', margin: 0 }}>Learn • Build • Lead</p>
-          </div>
-        </aside>
+            <div style={{
+              margin: '12px 10px 0',
+              background: role === 'admin' ? '#f8f9fa' : '#FFF7ED',
+              border: role === 'admin' ? '1px solid #edf0f2' : '1px solid #FED7AA',
+              borderRadius: 12, padding: '12px 10px', textAlign: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            }}>
+              <img
+                src={srkrLogo}
+                alt="SRKR Engineering College"
+                style={{ width: 36, height: 36, objectFit: 'contain', background: 'transparent' }}
+              />
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: role === 'admin' ? '#18181b' : '#C2410C', margin: '0 0 2px' }}>CSD &amp; CSIT</p>
+                <p style={{ fontSize: 10.5, color: role === 'admin' ? '#88929e' : '#EA580C', margin: 0 }}>SRKR Engineering College</p>
+              </div>
+            </div>
+          </aside>
         )}
 
         {/* ── MAIN CONTENT ── */}
@@ -412,26 +528,15 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           style={{ flex: 1, padding: '28px 32px', overflowY: 'auto', minWidth: 0 }}
           className="main-content"
         >
-          {/* Greeting header — only on dashboard home pages */}
-          {(routerLocation.pathname === '/student' || routerLocation.pathname === '/student/' || routerLocation.pathname === '/faculty' || routerLocation.pathname === '/faculty/' || routerLocation.pathname === '/hod' || routerLocation.pathname === '/hod/' || routerLocation.pathname === '/admin' || routerLocation.pathname === '/admin/') && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-              <div>
-                <h1 style={{ fontSize: 24, fontWeight: 800, color: '#000000', margin: '0 0 4px' }}>
-                  {greeting}, {firstName} 👋
-                </h1>
-                <p style={{ fontSize: 14, color: '#64748B', margin: 0 }}>
-                  Welcome to AttendEase – SRKR Engineering College
-                </p>
-              </div>
-              <span className="student-portal-badge" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px', borderRadius: 20,
-                background: '#FFF7ED', border: '1px solid #FED7AA',
-                fontSize: 12, fontWeight: 600, color: '#F97316',
-              }}>
-                <GraduationCap size={13} />
-                {role === 'student' ? 'Student Portal' : role === 'faculty' ? 'Faculty Portal' : role === 'hod' ? 'HOD Portal' : 'Admin Portal'}
-              </span>
+          {/* Greeting header — only on non-admin dashboard home pages */}
+          {role !== 'admin' && (routerLocation.pathname === '/student' || routerLocation.pathname === '/student/' || routerLocation.pathname === '/faculty' || routerLocation.pathname === '/faculty/' || routerLocation.pathname === '/hod' || routerLocation.pathname === '/hod/') && (
+            <div style={{ marginBottom: 24 }}>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
+                {greeting}, {user?.name || firstName}
+              </h1>
+              <p style={{ fontSize: 13.5, color: '#64748B', margin: 0, fontWeight: 500 }}>
+                Welcome to AttendEase • SRKR Engineering College
+              </p>
             </div>
           )}
 

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
@@ -17,6 +18,7 @@ import NewRequest from './pages/student/NewRequest';
 import RequestSuccess from './pages/student/RequestSuccess';
 import History from './pages/student/History';
 import StudentRequestDetails from './pages/student/RequestDetails';
+import EditRequest from './pages/student/EditRequest';
 import Profile from './pages/student/Profile';
 import StudentNotifications from './pages/student/Notifications';
 
@@ -42,10 +44,14 @@ import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
 import AdminCounseling from './pages/admin/Counseling';
 import AdminRequests from './pages/admin/Requests';
+import AdminDatabase from './pages/admin/Database';
 import AdminSettings from './pages/admin/Settings';
 
 // Shared / Admin — permissions
 import PermissionsPage from './pages/Permissions';
+import LandingPage from './pages/LandingPage';
+import Developers from './pages/Developers';
+import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,37 +63,44 @@ const queryClient = new QueryClient({
 function ProtectedRoute({
   children,
   role,
+  allowPasswordChange = false,
 }: {
   children: React.ReactNode;
   role: UserRole;
+  allowPasswordChange?: boolean;
 }) {
-  const { user, isLoading } = useAuth();
-  const location = useLocation();
+  const { user, isAuthenticated } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94A3B8' }}>
-        Loading...
-      </div>
-    );
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
   }
 
-  if (!user) {
-    return <Navigate to={role === 'admin' ? '/admin/login' : '/login'} state={{ from: location }} replace />;
+  if ((user as any)?.mustChangePassword && !allowPasswordChange) {
+    return <Navigate to="/change-password" replace />;
   }
 
-  if (user.role !== role && user.role !== 'admin') {
-    const roleRedirectMap: Record<string, string> = {
+  if (user?.role !== role) {
+    const roleHomeMap: Record<UserRole, string> = {
       student: '/student',
       faculty: '/faculty',
-      hod:     '/hod',
-      admin:   '/admin',
+      hod: '/hod',
+      admin: '/admin',
     };
-    const target = roleRedirectMap[user.role] || '/login';
-    return <Navigate to={target} replace />;
+    return <Navigate to={roleHomeMap[user?.role as UserRole] ?? '/'} replace />;
   }
 
   return <>{children}</>;
+}
+
+function ExternalRedirect({ url }: { url: string }) {
+  useEffect(() => {
+    window.location.replace(url);
+  }, [url]);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+      <p style={{ color: '#64748B', fontSize: 14 }}>Redirecting to {url}...</p>
+    </div>
+  );
 }
 
 function AppRoutes() {
@@ -97,7 +110,16 @@ function AppRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         {/* Public */}
-        <Route path="/" element={<PermissionsPage />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/home" element={<LandingPage />} />
+        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/developers" element={<Developers />} />
+        <Route path="/developer" element={<Navigate to="/developers" replace />} />
+        <Route path="/gowtham" element={<Navigate to="/developers" replace />} />
+        <Route path="/vivek" element={<Navigate to="/developers" replace />} />
+        <Route path="/team" element={<Navigate to="/developers" replace />} />
+        <Route path="/pavan" element={<Navigate to="/developers" replace />} />
+        <Route path="/manasa" element={<Navigate to="/developers" replace />} />
         <Route path="/login" element={<LoginPortal />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 
@@ -120,6 +142,7 @@ function AppRoutes() {
         <Route path="/student/new-request" element={<ProtectedRoute role="student"><NewRequest /></ProtectedRoute>} />
         <Route path="/student/success" element={<ProtectedRoute role="student"><RequestSuccess /></ProtectedRoute>} />
         <Route path="/student/history" element={<ProtectedRoute role="student"><History /></ProtectedRoute>} />
+        <Route path="/student/request/:id/edit" element={<ProtectedRoute role="student"><EditRequest /></ProtectedRoute>} />
         <Route path="/student/request/:id" element={<ProtectedRoute role="student"><StudentRequestDetails /></ProtectedRoute>} />
         <Route path="/student/profile" element={<ProtectedRoute role="student"><Profile /></ProtectedRoute>} />
         <Route path="/student/notifications" element={<ProtectedRoute role="student"><StudentNotifications /></ProtectedRoute>} />
@@ -149,10 +172,12 @@ function AppRoutes() {
         <Route path="/admin/users" element={<ProtectedRoute role="admin"><AdminUsers /></ProtectedRoute>} />
         <Route path="/admin/counseling" element={<ProtectedRoute role="admin"><AdminCounseling /></ProtectedRoute>} />
         <Route path="/admin/requests" element={<ProtectedRoute role="admin"><AdminRequests /></ProtectedRoute>} />
+        <Route path="/admin/database" element={<ProtectedRoute role="admin"><AdminDatabase /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* 404 Error Page */}
+        <Route path="/404" element={<NotFound />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
   );

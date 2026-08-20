@@ -27,6 +27,8 @@ enum RequestStatus {
 
 enum RequestReason {
   internship
+  startup
+  project_development
   medical
   sports
   family_emergency
@@ -45,6 +47,8 @@ model User {
   department  String
   password    String
   rollNumber  String?
+  year        String?
+  section     String?
   semester    Int?
   avatarUrl   String?
   designation String?
@@ -89,6 +93,7 @@ model Request {
   endTime             String
   description         String
   documentName        String?
+  documentUrl         String?
   status              RequestStatus @default(pending)
   rejectionReason     String?
   submittedAt         String

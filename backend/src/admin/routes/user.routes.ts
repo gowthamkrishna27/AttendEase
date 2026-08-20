@@ -14,13 +14,16 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  deleteMultipleUsers,
 } from '../controllers/user.controller.js';
 
 const router = Router();
 
-router.get('/',       getUsers);
-router.post('/',      createUser);
-router.put('/:id',    updateUser);
-router.delete('/:id', deleteUser);
+router.get('/',               getUsers);
+router.post('/',              createUser);
+router.post('/batch-delete',  deleteMultipleUsers);
+router.delete('/batch',       deleteMultipleUsers);
+router.put('/:id',            updateUser);
+router.delete('/:id',         deleteUser);
 
 export default router;

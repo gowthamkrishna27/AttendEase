@@ -479,6 +479,35 @@ router.post('/change-pin', verifyToken, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/auth/public-faculty
+ * Returns public list of faculty & HOD users dynamically from PostgreSQL for login selection dropdown.
+ */
+router.get('/public-faculty', async (_req: Request, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        role: { in: ['faculty', 'hod'] },
+      },
+      select: {
+        userId: true,
+        name: true,
+        email: true,
+        role: true,
+        department: true,
+        designation: true,
+        avatarUrl: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    res.json({ faculty: users });
+  } catch (err: any) {
+    console.error('Error fetching public faculty list:', err);
+    res.status(500).json({ error: 'Failed to fetch public faculty list' });
+  }
+});
+
+/**
  * POST /api/auth/logout — stateless (client drops token)
  */
 router.post('/logout', (_req: Request, res: Response) => {

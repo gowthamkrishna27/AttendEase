@@ -1,9 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Clock, FileText, Paperclip, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { X, Calendar, Clock, Paperclip, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { StatusBadge } from './StatusBadge';
-import { formatDate, formatTime } from '../../lib/utils';
+import { formatDate, formatTime, formatSubmittedAt } from '../../lib/utils';
 import type { AttendanceRequest } from '../../types';
+import { ProofPreviewModal } from './ProofPreviewModal';
 
 interface RequestOverviewModalProps {
   request: AttendanceRequest | null;
@@ -24,6 +26,8 @@ export function RequestOverviewModal({
   onFullDetails,
   role = 'faculty',
 }: RequestOverviewModalProps) {
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
   if (!open || !request) return null;
 
   return (
@@ -122,6 +126,16 @@ export function RequestOverviewModal({
               </div>
             </div>
 
+            {/* Submitted Time Box */}
+            {request.submittedAt && (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between text-[12px]">
+                <span className="font-semibold text-slate-500">Submitted Time:</span>
+                <span className="font-bold text-slate-800 font-mono">
+                  {formatSubmittedAt(request.submittedAt)}
+                </span>
+              </div>
+            )}
+
             {/* Uploaded Student Proof Document (Only rendered if proof was uploaded) */}
             {Boolean(request.documentName || request.documentUrl) && (
               <div className="p-3.5 bg-orange-50/60 rounded-xl border border-orange-200/80">
@@ -138,24 +152,41 @@ export function RequestOverviewModal({
                     <div className="flex items-center gap-3 mt-1.5">
                       <button
                         type="button"
-                        onClick={() => alert(`Previewing uploaded proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                        onClick={() => setIsPreviewOpen(true)}
                         className="text-[11px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 transition-colors cursor-pointer"
                       >
                         👁️ Preview Proof
                       </button>
                       <span className="text-slate-300">•</span>
-                      <button
-                        type="button"
-                        onClick={() => alert(`Downloading proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                      <a
+                        href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
+                        download={request.documentName || 'proof_document'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => {
+                          const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
+                          if (!targetUrl) {
+                            e.preventDefault();
+                            setIsPreviewOpen(true);
+                          }
+                        }}
                         className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 transition-colors cursor-pointer"
                       >
                         📥 Download
-                      </button>
+                      </a>
                     </div>
                   </div>
                 </div>
               </div>
             )}
+
+            {/* Proof Preview Modal Overlay */}
+            <ProofPreviewModal
+              isOpen={isPreviewOpen}
+              onClose={() => setIsPreviewOpen(false)}
+              documentUrl={request.documentUrl}
+              documentName={request.documentName}
+            />
 
             {/* Reason Description */}
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">

@@ -30,6 +30,17 @@ export function formatTimeAgo(dateStr: string): string {
   }
 }
 
+export function formatSubmittedAt(dateStr: string | undefined | null): string {
+  if (!dateStr) return '';
+  try {
+    const d = parseISO(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return format(d, "dd MMM yyyy, hh:mm a");
+  } catch {
+    return dateStr || '';
+  }
+}
+
 export function formatTime(time: string | undefined | null): string {
   if (!time || typeof time !== 'string') return '';
   const str = time.trim();
@@ -152,6 +163,8 @@ export function getPeriodsFromRequest(req: { periods?: string | null; startTime?
 
 export const REASON_LABELS: Record<string, string> = {
   internship: 'Internship',
+  startup: 'Startup Work',
+  project_development: 'Project Development',
   medical: 'Medical Leave',
   sports: 'Sports Event',
   family_emergency: 'Family Emergency',
@@ -163,18 +176,18 @@ export function extractRollSuffix(rawRoll: string): string {
   if (!rawRoll) return '';
   const str = rawRoll.trim().toUpperCase();
 
-  // 1. Explicit LE prefix/infix (e.g. "24B91A07LE1", "24B91A07LE05")
-  const leMatch = str.match(/LE0*([1-9]|1[0-2])$/i);
+  // 1. Explicit LE prefix/infix (e.g. "24B91A07LE1", "24B91A07LE13")
+  const leMatch = str.match(/LE0*([1-9]|[12][0-9]|30)$/i);
   if (leMatch) {
     return `LE${parseInt(leMatch[1], 10)}`;
   }
 
-  // 2. Lateral Entry scheme: 95A code (e.g. "25B95A0701" -> "LE1", "25B95A0712" -> "LE12")
+  // 2. Lateral Entry scheme: 95A code (e.g. "25B95A0701" -> "LE1", "25B95A0713" -> "LE13")
   if (str.includes('95A')) {
     const numMatch = str.match(/(\d{1,2})$/);
     if (numMatch) {
       const num = parseInt(numMatch[1], 10);
-      if (num >= 1 && num <= 12) {
+      if (num >= 1 && num <= 30) {
         return `LE${num}`;
       }
     }

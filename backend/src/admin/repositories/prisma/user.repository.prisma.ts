@@ -19,7 +19,6 @@ import type { CreateUserBody, UpdateUserBody } from '../../types/user.types.js';
 
 export async function listAllUsers(): ReturnType<IUserRepository['listAllUsers']> {
   const records = await prisma.user.findMany({
-    where:   { isActive: true },
     orderBy: [{ role: 'asc' }, { name: 'asc' }],
     omit:    { password: true },
   });
@@ -28,7 +27,9 @@ export async function listAllUsers(): ReturnType<IUserRepository['listAllUsers']
 
 export async function findUserByUserId(userId: string): ReturnType<IUserRepository['findUserByUserId']> {
   const record = await prisma.user.findFirst({
-    where: { userId, isActive: true },
+    where: {
+      OR: [{ userId }, { id: userId }],
+    },
     omit:  { password: true },
   });
   return record as Record<string, unknown> | null;
@@ -36,7 +37,7 @@ export async function findUserByUserId(userId: string): ReturnType<IUserReposito
 
 export async function findUserByEmail(email: string): ReturnType<IUserRepository['findUserByEmail']> {
   const record = await prisma.user.findFirst({
-    where: { email: email.toLowerCase(), isActive: true },
+    where: { email: email.toLowerCase() },
     omit:  { password: true },
   });
   return record as Record<string, unknown> | null;
@@ -46,7 +47,10 @@ export async function findUserWithPasswordByUserId(
   userId: string,
 ): ReturnType<IUserRepository['findUserWithPasswordByUserId']> {
   const record = await prisma.user.findFirst({
-    where:  { userId, isActive: true },
+    where:  {
+      OR: [{ userId }, { id: userId }],
+      isActive: true,
+    },
     select: { password: true },
   });
   return record;
@@ -73,8 +77,17 @@ export async function updateUser(
   patch: UpdateUserBody,
 ): ReturnType<IUserRepository['updateUser']> {
   try {
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [{ userId }, { id: userId }],
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!existing) return null;
+
     const record = await prisma.user.update({
-      where: { userId },
+      where: { id: existing.id },
       data:  patch,
       omit:  { password: true },
     });
@@ -86,13 +99,38 @@ export async function updateUser(
 
 export async function softDeleteUser(userId: string): ReturnType<IUserRepository['softDeleteUser']> {
   try {
-    await prisma.user.update({
-      where: { userId, isActive: true },
-      data:  { isActive: false },
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [{ userId }, { id: userId }],
+      },
+      select: { id: true },
+    });
+    if (!existing) return false;
+
+    // Hard delete — permanently removes the user record from the DB
+    await prisma.user.delete({
+      where: { id: existing.id },
     });
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function deleteMultipleUsers(userIds: string[]): ReturnType<IUserRepository['deleteMultipleUsers']> {
+  try {
+    if (!userIds || userIds.length === 0) return 0;
+    const result = await prisma.user.deleteMany({
+      where: {
+        OR: [
+          { userId: { in: userIds } },
+          { id: { in: userIds } },
+        ],
+      },
+    });
+    return result.count;
+  } catch {
+    return 0;
   }
 }
 
@@ -101,8 +139,17 @@ export async function updateUserPassword(
   hashedPassword: string,
 ): ReturnType<IUserRepository['updateUserPassword']> {
   try {
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [{ userId }, { id: userId }],
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!existing) return false;
+
     await prisma.user.update({
-      where: { userId, isActive: true },
+      where: { id: existing.id },
       data:  { password: hashedPassword },
     });
     return true;

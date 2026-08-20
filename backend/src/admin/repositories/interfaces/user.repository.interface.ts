@@ -26,8 +26,11 @@ export interface IUserRepository {
 
   updateUser(userId: string, patch: UpdateUserBody): Promise<Record<string, unknown> | null>;
 
-  /** Soft-delete: sets isActive = false. Returns true if a record was updated. */
+  /** Soft-delete/hard-delete: removes user. Returns true if a record was removed. */
   softDeleteUser(userId: string): Promise<boolean>;
+
+  /** Batch delete multiple users by their IDs or userIds. Returns the number of deleted records. */
+  deleteMultipleUsers(userIds: string[]): Promise<number>;
 
   /**
    * Stores a pre-hashed password. Bypasses any pre-save hooks.

@@ -12,11 +12,15 @@ import { Modal } from '../../components/shared/Modal';
 import { formatDate, formatTime } from '../../lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
+import { ProofPreviewModal } from '../../components/shared/ProofPreviewModal';
+import NotFound from '../NotFound';
 
 export default function HODRequestDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const [confirmModal, setConfirmModal] = useState<'approve' | 'reject' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -94,14 +98,10 @@ export default function HODRequestDetails() {
 
   if (!request) {
     return (
-      <PageWrapper role="hod">
-        <div className="max-w-xl mx-auto text-center py-20">
-          <p className="text-[16px] text-[#6B7280]">Request not found.</p>
-          <Button className="mt-4" onClick={() => navigate('/hod')}>
-            Back to Overview
-          </Button>
-        </div>
-      </PageWrapper>
+      <NotFound
+        code="404"
+        title="This attendance request could not be found."
+      />
     );
   }
 
@@ -249,22 +249,40 @@ export default function HODRequestDetails() {
                   <p className="text-[14px] font-semibold text-slate-900 truncate">{request.documentName || 'Uploaded_Proof_Document.pdf'}</p>
                   <div className="flex items-center gap-3 mt-1.5">
                     <button
-                      onClick={() => alert(`Previewing uploaded proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                      type="button"
+                      onClick={() => setIsPreviewOpen(true)}
                       className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       👁️ Preview Proof
                     </button>
                     <span className="text-slate-300">•</span>
-                    <button
-                      onClick={() => alert(`Downloading proof document: ${request.documentName || 'Uploaded_Proof_Document.pdf'}`)}
+                    <a
+                      href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
+                      download={request.documentName || 'proof_document'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
+                        if (!targetUrl) {
+                          e.preventDefault();
+                          setIsPreviewOpen(true);
+                        }
+                      }}
                       className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       📥 Download File
-                    </button>
+                    </a>
                   </div>
                 </div>
               </div>
             )}
+
+            <ProofPreviewModal
+              isOpen={isPreviewOpen}
+              onClose={() => setIsPreviewOpen(false)}
+              documentUrl={request.documentUrl}
+              documentName={request.documentName}
+            />
           </div>
         </div>
 
@@ -308,18 +326,16 @@ export default function HODRequestDetails() {
               {currentStatus === 'approved' ? '✓ Approved' : currentStatus === 'pending' ? 'Approve Request' : 'Force Approve (Override)'}
             </Button>
 
-            {currentStatus !== 'approved' && (
-              <Button
-                variant="secondary"
-                size="md"
-                disabled={reviewMutation.isPending}
-                className="w-full sm:flex-1 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold cursor-pointer"
-                onClick={() => setConfirmModal('reject')}
-              >
-                <X size={16} className="mr-1" />
-                {currentStatus === 'rejected' ? '✗ Rejected (Force Re-Reject)' : 'Reject Request'}
-              </Button>
-            )}
+            <Button
+              variant="secondary"
+              size="md"
+              disabled={reviewMutation.isPending}
+              className="w-full sm:flex-1 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold cursor-pointer"
+              onClick={() => setConfirmModal('reject')}
+            >
+              <X size={16} className="mr-1" />
+              {currentStatus === 'approved' ? 'Force Reject (Override)' : currentStatus === 'rejected' ? '✗ Rejected (Force Re-Reject)' : 'Reject Request'}
+            </Button>
           </div>
         </div>
 

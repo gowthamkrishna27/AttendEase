@@ -10,7 +10,8 @@ import { UploadArea } from '../../components/forms/UploadArea';
 import * as api from '../../lib/api';
 import {
   ArrowLeft, CalendarDays, Clock, FileText, Upload,
-  BookOpen, PenLine, Send, UserCheck, ChevronDown
+  BookOpen, PenLine, Send, UserCheck, ChevronDown,
+  Check, Zap, Calendar, ChevronsUpDown
 } from 'lucide-react';
 
 const schema = z
@@ -34,6 +35,8 @@ type FormData = z.infer<typeof schema>;
 
 const reasonOptions = [
   { value: 'internship', label: 'Internship' },
+  { value: 'startup', label: 'Startup Work' },
+  { value: 'project_development', label: 'Project Development' },
   { value: 'medical', label: 'Medical Leave' },
   { value: 'sports', label: 'Sports Event' },
   { value: 'family_emergency', label: 'Family Emergency' },
@@ -61,6 +64,16 @@ const inputStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 13, fontWeight: 600,
   color: '#374151', marginBottom: 6,
+};
+
+const glassIconStyle: React.CSSProperties = {
+  width: 34, height: 34, borderRadius: 10,
+  background: 'rgba(249, 115, 22, 0.12)',
+  backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+  border: '1px solid rgba(249, 115, 22, 0.25)',
+  boxShadow: '0 2px 8px rgba(249, 115, 22, 0.08)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  flexShrink: 0,
 };
 
 export default function NewRequest() {
@@ -145,21 +158,31 @@ export default function NewRequest() {
   });
 
   const mutation = useMutation({
-    mutationFn: (data: FormData) => api.createRequest({
-      reason: data.reason as api.RequestReason,
-      date: startDate,
-      ...(requestType === 'leave' && endDate ? { endDate } : {}),
-      periods: computedTimeRange.periodsStr,
-      startTime: computedTimeRange.start,
-      endTime: computedTimeRange.end,
-      description: data.description,
-      ...(selectedFacultyIds.length > 0
-        ? { facultyIds: selectedFacultyIds, facultyId: selectedFacultyIds[0] }
-        : data.facultyId
-          ? { facultyId: data.facultyId, facultyIds: [data.facultyId] }
-          : {}),
-      ...(file ? { documentName: file.name } : {}),
-    }),
+    mutationFn: async (data: FormData) => {
+      let uploadedDoc = { url: '', name: file ? file.name : '' };
+      if (file) {
+        uploadedDoc = await api.uploadProofDocument(file);
+      }
+
+      return api.createRequest({
+        reason: data.reason as api.RequestReason,
+        date: startDate,
+        ...(requestType === 'leave' && endDate ? { endDate } : {}),
+        periods: computedTimeRange.periodsStr,
+        startTime: computedTimeRange.start,
+        endTime: computedTimeRange.end,
+        description: data.description,
+        ...(selectedFacultyIds.length > 0
+          ? { facultyIds: selectedFacultyIds, facultyId: selectedFacultyIds[0] }
+          : data.facultyId
+            ? { facultyId: data.facultyId, facultyIds: [data.facultyId] }
+            : {}),
+        ...(file ? {
+          documentName: uploadedDoc.name || file.name,
+          documentUrl: uploadedDoc.url || undefined,
+        } : {}),
+      });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
       navigate('/student/success');
@@ -221,8 +244,8 @@ export default function NewRequest() {
           {/* Section 1 — Reason */}
           <div style={{ ...card({ padding: '22px 24px' }) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #F97316, #EA580C)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FileText size={14} style={{ color: '#fff' }} />
+              <div style={glassIconStyle}>
+                <FileText size={15} style={{ color: '#EA580C' }} />
               </div>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Reason for Absence</h2>
             </div>
@@ -356,20 +379,22 @@ export default function NewRequest() {
                             border: isSelected ? 'none' : '1.5px solid #CBD5E1',
                             background: isSelected ? '#F97316' : '#fff',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#fff', fontSize: 11, fontWeight: 800,
+                            color: '#fff',
                           }}>
-                            {isSelected && '✓'}
+                            {isSelected && <Check size={11} strokeWidth={3} />}
                           </div>
                         </div>
                       );
                     })}
                     {facultyList.length > 4 && (
                       <div style={{
-                        textAlign: 'center', padding: '6px 0 2px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        padding: '6px 0 2px',
                         fontSize: 11, color: '#94A3B8', borderTop: '1px solid #F1F5F9',
                         marginTop: 2,
                       }}>
-                        ↕ Scroll to see all {facultyList.length} faculty
+                        <ChevronsUpDown size={12} />
+                        <span>Scroll to see all {facultyList.length} faculty</span>
                       </div>
                     )}
                   </motion.div>
@@ -385,8 +410,8 @@ export default function NewRequest() {
           {/* Section 2 — Date, Duration & Period Selection */}
           <div style={{ ...card({ padding: '22px 24px' }) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #F97316, #EA580C)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <CalendarDays size={14} style={{ color: '#fff' }} />
+              <div style={glassIconStyle}>
+                <CalendarDays size={15} style={{ color: '#EA580C' }} />
               </div>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Request Type & Duration</h2>
             </div>
@@ -405,9 +430,11 @@ export default function NewRequest() {
                   background: requestType === 'permission' ? '#ffffff' : 'transparent',
                   color: requestType === 'permission' ? '#EA580C' : '#64748B',
                   boxShadow: requestType === 'permission' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}
               >
-                ⚡ Short Permission (By Hours/Periods)
+                <Zap size={14} />
+                <span>Short Permission (Hours/Periods)</span>
               </button>
               <button
                 type="button"
@@ -421,9 +448,11 @@ export default function NewRequest() {
                   background: requestType === 'leave' ? '#ffffff' : 'transparent',
                   color: requestType === 'leave' ? '#EA580C' : '#64748B',
                   boxShadow: requestType === 'leave' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}
               >
-                📅 Full-Day / Multi-Day Leave
+                <Calendar size={14} />
+                <span>Full-Day / Multi-Day Leave</span>
               </button>
             </div>
 
@@ -537,8 +566,8 @@ export default function NewRequest() {
           {/* Section 3 — Description */}
           <div style={{ ...card({ padding: '22px 24px' }) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #F97316, #EA580C)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <PenLine size={14} style={{ color: '#fff' }} />
+              <div style={glassIconStyle}>
+                <PenLine size={15} style={{ color: '#EA580C' }} />
               </div>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Description</h2>
             </div>
@@ -566,8 +595,8 @@ export default function NewRequest() {
           {/* Section 4 — Document */}
           <div style={{ ...card({ padding: '22px 24px' }) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #F97316, #EA580C)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Upload size={14} style={{ color: '#fff' }} />
+              <div style={glassIconStyle}>
+                <Upload size={15} style={{ color: '#EA580C' }} />
               </div>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Supporting Document <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 400 }}>(Optional)</span></h2>
             </div>

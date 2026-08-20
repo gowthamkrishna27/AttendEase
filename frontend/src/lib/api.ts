@@ -4,7 +4,7 @@
  * Attaches JWT from localStorage to every authenticated request
  */
 
-const getApiBase = (): string => {
+export const getApiBase = (): string => {
   // If running in browser on localhost / 127.0.0.1, always target local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:3000';
@@ -17,7 +17,7 @@ const getApiBase = (): string => {
   return 'https://attendease-apuw.onrender.com';
 };
 
-const BASE = getApiBase();
+export const BASE = getApiBase();
 
 const TOKEN_KEY = 'attendease_token';
 
@@ -43,7 +43,7 @@ export function clearStoredToken(): void {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
-export type RequestReason = 'internship' | 'medical' | 'sports' | 'family_emergency' | 'competition' | 'other';
+export type RequestReason = 'internship' | 'startup' | 'project_development' | 'medical' | 'sports' | 'family_emergency' | 'competition' | 'other';
 export type UserRole = 'student' | 'faculty' | 'hod' | 'admin';
 
 export interface AuthUser {
@@ -53,6 +53,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   department: string;
+  designation?: string;
   rollNumber?: string;
   semester?: number;
   year?: string;
@@ -76,6 +77,7 @@ export interface Student {
 
 export interface Faculty {
   id: string;
+  userId?: string;
   name: string;
   department: string;
   email: string;
@@ -108,23 +110,33 @@ export interface NotificationItem {
 
 export interface AttendanceRequest {
   id: string;
+  requestId?: string;
   publicId?: string;
   studentId: string;
   student?: Student;
+  studentName?: string;
+  rollNumber?: string;
+  department?: string;
+  semester?: number | string;
+  facultyName?: string;
   reason: RequestReason;
   reasonLabel: string;
   date: string;
+  endDate?: string;
+  periods?: string;
   startTime: string;
   endTime: string;
   description: string;
   documentName?: string;
   documentUrl?: string;
   status: RequestStatus;
+  rejectionReason?: string;
   submittedAt: string;
   facultyId?: string;
   faculty?: Faculty;
   primaryFacultyId?: string;
   primaryFaculty?: Faculty;
+  facultyIds?: string[];
   faculties?: Faculty[];
   reviewedAt?: string;
   finalDecisionBy?: 'Faculty' | 'HOD' | string;
@@ -250,11 +262,23 @@ export async function removeAllPasskeys(): Promise<{ success: boolean }> {
   return apiFetch('/api/auth/passkey/remove-all', { method: 'DELETE' });
 }
 
-export async function changePin(currentPin: string, newPin: string): Promise<{ success: boolean; message: string }> {
-  return apiFetch('/api/auth/change-pin', {
-    method: 'POST',
-    body: JSON.stringify({ currentPin, newPin }),
-  });
+export interface PublicFacultyMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  designation?: string;
+  avatarUrl?: string;
+}
+
+export async function getPublicFacultyList(): Promise<PublicFacultyMember[]> {
+  try {
+    const res = await apiFetch<{ faculty: PublicFacultyMember[] }>('/api/auth/public-faculty', {}, false);
+    return res.faculty;
+  } catch {
+    return [];
+  }
 }
 
 export async function logout(): Promise<void> {
@@ -266,7 +290,7 @@ export async function logout(): Promise<void> {
 
 // NOTE: ?department= param intentionally removed — scope is always derived from the
 // JWT on the backend. Param kept in signature to avoid call-site breakage.
-export async function getRequests(_params?: { department?: string }): Promise<AttendanceRequest[]> {
+export async function getRequests(_params?: { department?: string } | any): Promise<AttendanceRequest[]> {
   const res = await apiFetch<{ requests: AttendanceRequest[] }>('/api/requests');
   return res.requests;
 }
@@ -302,14 +326,76 @@ export interface CreateRequestPayload {
   endTime: string;
   description: string;
   documentName?: string;
+  documentUrl?: string;
   facultyId?: string;
   facultyIds?: string[];
+}
+
+export async function uploadProofDocument(file: File): Promise<{ url: string; name: string }> {
+  // 1. Try uploading via Backend Cloudinary upload route
+  try {
+    const reader = new FileReader();
+    const base64Promise = new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const dataUrl = await base64Promise;
+
+    const res = await apiFetch<{ url: string; documentName: string }>('/api/requests/upload-proof', {
+      method: 'POST',
+      body: JSON.stringify({ file: dataUrl, filename: file.name }),
+    });
+
+    if (res && res.url) {
+      console.log('Proof uploaded via backend Cloudinary endpoint:', res.url);
+      return { url: res.url, name: res.documentName || file.name };
+    }
+  } catch (err) {
+    console.warn('Backend upload-proof endpoint error, trying direct Cloudinary upload:', err);
+  }
+
+  // 2. Direct Cloudinary upload fallback
+  try {
+    const cloudName = import.meta.env['VITE_CLOUDINARY_CLOUD_NAME'] || 'yp5l3jrg';
+    const uploadPreset = import.meta.env['VITE_CLOUDINARY_UPLOAD_PRESET'] || 'attendease_proofs';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const directUrl = data.secure_url || data.url;
+      if (directUrl) {
+        console.log('Proof uploaded directly to Cloudinary:', directUrl);
+        return { url: directUrl, name: file.name };
+      }
+    }
+  } catch (err) {
+    console.warn('Direct Cloudinary upload error:', err);
+  }
+
+  return { url: '', name: file.name };
 }
 
 export async function createRequest(data: CreateRequestPayload): Promise<AttendanceRequest> {
   const res = await apiFetch<{ request: AttendanceRequest }>(
     '/api/requests',
     { method: 'POST', body: JSON.stringify(data) },
+  );
+  return res.request;
+}
+
+export async function updateRequest(id: string, data: Partial<CreateRequestPayload>): Promise<AttendanceRequest> {
+  const res = await apiFetch<{ request: AttendanceRequest }>(
+    `/api/requests/${id}`,
+    { method: 'PUT', body: JSON.stringify(data) },
   );
   return res.request;
 }
@@ -381,6 +467,7 @@ export interface UpdateProfilePayload {
   email?: string;
   avatarUrl?: string;
   phone?: string;
+  designation?: string;
   semester?: number;
   currentPassword?: string;
   password?: string;
@@ -437,11 +524,120 @@ export async function deleteUser(id: string): Promise<void> {
   await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
 }
 
+export async function deleteMultipleUsers(ids: string[]): Promise<{ success: boolean; deletedCount: number }> {
+  return apiFetch<{ success: boolean; deletedCount: number }>('/api/admin/users/batch-delete', {
+    method: 'POST',
+    body: JSON.stringify({ userIds: ids }),
+  });
+}
+
+
 export async function resetUserPassword(id: string, newPassword: string): Promise<void> {
   await apiFetch(`/api/admin/users/${id}/password`, {
     method: 'PATCH',
     body: JSON.stringify({ password: newPassword }),
   });
+}
+
+// ─── Database Explorer API ──────────────────────────────────────────────────
+
+export interface DBTableOverview {
+  name: string;
+  label: string;
+  description: string;
+  count: number;
+  columns: string[];
+}
+
+export interface DBOverviewResponse {
+  success: boolean;
+  database: string;
+  totalTables: number;
+  tables: DBTableOverview[];
+}
+
+export interface DBTableDataResponse {
+  success: boolean;
+  tableName: string;
+  label: string;
+  description: string;
+  page: number;
+  limit: number;
+  totalRows: number;
+  totalPages: number;
+  columns: string[];
+  rows: Record<string, any>[];
+}
+
+export async function getDatabaseOverview(): Promise<DBOverviewResponse> {
+  return apiFetch<DBOverviewResponse>('/api/admin/database/overview');
+}
+
+export async function getDatabaseTableData(
+  tableName: string,
+  params?: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }
+): Promise<DBTableDataResponse> {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.search) query.set('search', params.search);
+  if (params?.sortBy) query.set('sortBy', params.sortBy);
+  if (params?.sortOrder) query.set('sortOrder', params.sortOrder);
+  const qStr = query.toString() ? `?${query.toString()}` : '';
+  return apiFetch<DBTableDataResponse>(`/api/admin/database/tables/${tableName}${qStr}`);
+}
+
+export async function exportDatabaseTable(tableName: string): Promise<any> {
+  return apiFetch<any>(`/api/admin/database/export/${tableName}`);
+}
+
+export interface ImportReport {
+  inserted: number;
+  skipped: number;
+  upserted: number;
+  failed: Array<{ row?: number; rollNumber?: string; reason: string }>;
+}
+
+export async function importStudentsFile(file: File): Promise<ImportReport> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = getStoredToken();
+  const headers: Record<string, string> = {
+    'x-role-override': 'admin',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const bases = [BASE, '', 'http://localhost:3000', 'http://localhost:3001'].filter((v, i, a) => a.indexOf(v) === i);
+  let lastError: any = null;
+  let response: Response | null = null;
+
+  for (const b of bases) {
+    try {
+      const res = await fetch(`${b}/api/admin/students/import`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      if (res.status === 404) continue;
+      response = res;
+      break;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  if (!response) {
+    throw lastError || new Error('Failed to connect to backend server');
+  }
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to import students file');
+  }
+  return data.import;
 }
 
 // ─── Attendance API ──────────────────────────────────────────────────────────
@@ -479,6 +675,26 @@ export interface SubmitAttendancePayload {
   periods: string;
   periodLabel?: string;
   records: { rollNumber: string; status: 'present' | 'absent' }[];
+}
+
+export interface PublicSectionItem {
+  key: string;
+  department: string;
+  section: string;
+  year: string;
+  label: string;
+  value: string;
+  rollNumbers: string[];
+  studentCount: number;
+}
+
+export async function getPublicSections(year?: string): Promise<PublicSectionItem[]> {
+  const params = new URLSearchParams();
+  if (year) params.append('year', year);
+  const queryString = params.toString();
+  const url = `/api/requests/public-sections${queryString ? `?${queryString}` : ''}`;
+  const res = await apiFetch<{ sections: PublicSectionItem[] }>(url, {}, false);
+  return res.sections ?? [];
 }
 
 export async function getAttendanceSubmissions(date?: string, section?: string, year?: string): Promise<AttendanceSubmissionItem[]> {
@@ -547,4 +763,49 @@ export async function getShareRedirect(publicId: string): Promise<{ success: boo
   return apiFetch<{ success: boolean; redirectTo?: string; status?: number; error?: string }>(`/api/share/${encodeURIComponent(publicId)}`);
 }
 
+// ─── HOD Direct Exemption ─────────────────────────────────────────────────────
 
+export interface HODDirectExemptionPayload {
+  studentIds: string[];
+  reason: string;
+  startDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  periods?: string;
+  description?: string;
+}
+
+export async function grantHODDirectExemption(payload: HODDirectExemptionPayload): Promise<{ success: boolean; message: string; count: number; requests: AttendanceRequest[] }> {
+  return apiFetch('/api/requests/hod-direct-grant', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getAllStudents(): Promise<Student[]> {
+  const res = await apiFetch<{ students: Student[] }>('/api/users/students');
+  return res.students ?? [];
+}
+
+export async function changePin(currentPin: string, newPin: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>('/api/auth/change-pin', {
+    method: 'POST',
+    body: JSON.stringify({ currentPin, newPin }),
+  });
+}
+
+export async function sendChatMessage(messages: { role: string; content: string }[]): Promise<{ reply?: string; error?: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Chat server returned status ${res.status}`);
+  }
+
+  return res.json();
+}
