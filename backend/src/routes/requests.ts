@@ -527,7 +527,26 @@ function toApi(r: any) {
       )
     : null;
 
-  const finalDecisionName = lastDecisionAction?.performedBy?.name || (r.finalDecisionBy === 'HOD' ? 'HOD' : (r.primaryFaculty?.name || 'Faculty'));
+  let finalDecisionName = lastDecisionAction?.performedBy?.name;
+
+  if (!finalDecisionName && r.finalDecisionUserId) {
+    if (r.primaryFaculty && (r.primaryFaculty.userId === r.finalDecisionUserId || r.primaryFaculty.id === r.finalDecisionUserId)) {
+      finalDecisionName = r.primaryFaculty.name;
+    } else {
+      const matchInFaculties = allFacultyRows.find((f: any) => f && (f.userId === r.finalDecisionUserId || f.id === r.finalDecisionUserId));
+      if (matchInFaculties) {
+        finalDecisionName = matchInFaculties.name;
+      }
+    }
+  }
+
+  if (!finalDecisionName) {
+    if (r.finalDecisionBy === 'HOD') {
+      finalDecisionName = 'HOD';
+    } else if (r.finalDecisionBy === 'Faculty') {
+      finalDecisionName = faculty?.name || (allFacultyRows.length > 0 && allFacultyRows[0] ? allFacultyRows[0].name : 'Faculty');
+    }
+  }
 
   return {
     ...base,

@@ -576,6 +576,7 @@ export default function FacultyAttendance() {
       id: string;
       reasonLabel: string;
       description?: string;
+      assignedFaculty?: string;
       approvedBy?: string;
       timeRange?: string;
       date?: string;
@@ -616,6 +617,7 @@ export default function FacultyAttendance() {
       id: string;
       reasonLabel: string;
       description?: string;
+      assignedFaculty?: string;
       approvedBy?: string;
       timeRange?: string;
       date?: string;
@@ -625,12 +627,14 @@ export default function FacultyAttendance() {
       const timeStr = (permissionReq.startTime && permissionReq.endTime)
         ? `${formatTime(permissionReq.startTime)} - ${formatTime(permissionReq.endTime)}`
         : undefined;
-      const approvedByStr = permissionReq.finalDecisionName || permissionReq.faculty?.name || 'Faculty / HOD';
+      const assignedFacultyStr = permissionReq.faculty?.name || (permissionReq.faculties && permissionReq.faculties.length > 0 ? permissionReq.faculties.map((f: any) => f.name).join(', ') : undefined);
+      const approvedByStr = permissionReq.finalDecisionName || (permissionReq.finalDecisionBy === 'HOD' ? 'HOD' : permissionReq.faculty?.name) || 'Faculty / HOD';
 
       permissionData = {
         id: permissionReq.id,
         reasonLabel: permissionReq.reasonLabel || 'Official Permission',
         description: permissionReq.description,
+        assignedFaculty: assignedFacultyStr,
         approvedBy: approvedByStr,
         timeRange: timeStr,
         date: permissionReq.date,
@@ -1201,17 +1205,23 @@ export default function FacultyAttendance() {
                       </div>
                     )}
 
-                    <div className="space-y-1 text-[11px] text-slate-600 font-medium">
+                    <div className="space-y-1.5 text-[11px] text-slate-600 font-medium">
                       {selectedStudentModal.permission.timeRange && (
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500">Time Slot:</span>
                           <span className="font-bold text-slate-800">{selectedStudentModal.permission.timeRange}</span>
                         </div>
                       )}
+                      {selectedStudentModal.permission.assignedFaculty && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500">Assigned Faculty:</span>
+                          <span className="font-bold text-slate-800 truncate max-w-[160px]">{selectedStudentModal.permission.assignedFaculty}</span>
+                        </div>
+                      )}
                       {selectedStudentModal.permission.approvedBy && (
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500">Approved By:</span>
-                          <span className="font-bold text-slate-800 truncate max-w-[160px]">{selectedStudentModal.permission.approvedBy}</span>
+                          <span className="font-bold text-emerald-700 truncate max-w-[160px]">{selectedStudentModal.permission.approvedBy}</span>
                         </div>
                       )}
                     </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FileText, UserCheck } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Button } from '../../components/ui/Button';
@@ -169,6 +169,45 @@ export default function FacultyRequestDetails() {
                 )}
               </div>
             </div>
+
+            {/* Assigned Faculty */}
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center flex-shrink-0 border border-orange-100">
+                <UserCheck size={15} />
+              </div>
+              <div>
+                <p className="text-[13px] text-[#6B7280] mb-0.5">Assigned Faculty</p>
+                <p className="text-[14px] font-bold text-slate-900">
+                  {request.faculty?.name || (request.faculties && request.faculties.length > 0 ? request.faculties.map((f: any) => f.name).join(', ') : 'Department Faculty')}
+                </p>
+              </div>
+            </div>
+
+            {/* Approved / Decided By (if reviewed) */}
+            {request.status !== 'pending' && (
+              <div className="flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border ${
+                  request.status === 'approved'
+                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                    : 'bg-rose-50 text-rose-600 border-rose-200'
+                }`}>
+                  <UserCheck size={15} />
+                </div>
+                <div>
+                  <p className="text-[13px] text-[#6B7280] mb-0.5">
+                    {request.status === 'approved' ? 'Approved By' : 'Rejected By'}
+                  </p>
+                  <p className={`text-[14px] font-bold ${
+                    request.status === 'approved' ? 'text-emerald-800' : 'text-rose-800'
+                  }`}>
+                    {request.finalDecisionName || (request.finalDecisionBy === 'HOD' ? 'HOD' : request.faculty?.name || 'Faculty')}
+                    <span className="text-[11px] font-semibold text-slate-400 ml-1.5 font-normal">
+                      ({request.finalDecisionBy || 'Faculty'})
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
 
             {request.submittedAt && (
               <div className="flex items-start gap-3">
