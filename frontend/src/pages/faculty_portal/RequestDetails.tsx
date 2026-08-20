@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, FileText, UserCheck } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FileText, UserCheck, Eye, Download } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Button } from '../../components/ui/Button';
@@ -239,9 +239,10 @@ export default function FacultyRequestDetails() {
                     <button
                       type="button"
                       onClick={() => setIsPreviewOpen(true)}
-                      className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
+                      className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      👁️ Preview Proof
+                      <Eye size={13} />
+                      <span>Preview Proof</span>
                     </button>
                     <span className="text-slate-300">•</span>
                     <a
@@ -256,9 +257,10 @@ export default function FacultyRequestDetails() {
                           setIsPreviewOpen(true);
                         }
                       }}
-                      className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
+                      className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      📥 Download File
+                      <Download size={13} />
+                      <span>Download File</span>
                     </a>
                   </div>
                 </div>
