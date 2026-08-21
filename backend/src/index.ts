@@ -39,7 +39,7 @@ app.use((_req, res, next) => {
 });
 // ── CORS Configuration (Secure Whitelist) ───────────────────────────────────
 const explicitAllowedOrigins = [
-  'https://getattendease.vercel.app',
+  'https://iattendease.vercel.app',
   'https://getpermission.vercel.app',
   'https://attend-ease-hmi8.vercel.app',
   'http://localhost:5173',
