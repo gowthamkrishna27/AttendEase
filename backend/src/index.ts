@@ -38,21 +38,27 @@ app.use((_req, res, next) => {
   next();
 });
 // ── CORS Configuration (Secure Whitelist) ───────────────────────────────────
-const allowedOrigins = [
+const explicitAllowedOrigins = [
+  'https://getattendease.vercel.app',
+  'https://getpermission.vercel.app',
   'https://attend-ease-hmi8.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
   'http://localhost:4173',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:3002',
   'http://127.0.0.1:4173',
 ];
 
 if (process.env['FRONTEND_URL']) {
-  allowedOrigins.push(process.env['FRONTEND_URL'].replace(/\/+$/, ''));
+  explicitAllowedOrigins.push(process.env['FRONTEND_URL'].replace(/\/+$/, ''));
 }
 if (process.env['CORS_ALLOWED_ORIGINS']) {
-  allowedOrigins.push(...process.env['CORS_ALLOWED_ORIGINS'].split(',').map(s => s.trim()));
+  explicitAllowedOrigins.push(...process.env['CORS_ALLOWED_ORIGINS'].split(',').map(s => s.trim()));
 }
 
 app.use(cors({
@@ -61,8 +67,9 @@ app.use(cors({
     if (!origin) return callback(null, true);
 
     const isAllowed =
-      allowedOrigins.includes(origin) ||
-      /^https:\/\/attend-ease[a-zA-Z0-9-]*\.vercel\.app$/.test(origin);
+      explicitAllowedOrigins.includes(origin) ||
+      /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin);
 
     if (isAllowed) {
       callback(null, true);

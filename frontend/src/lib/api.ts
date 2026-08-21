@@ -167,8 +167,10 @@ async function apiFetch<T>(
   try {
     res = await fetch(`${BASE}${path}`, reqInit);
   } catch {
-    // If primary port fetch fails, iterate through local backend fallback ports (3000, 3001, 3002)
-    const fallbackBases = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== BASE);
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const fallbackBases = isLocal
+      ? ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== BASE)
+      : ['https://attendease-apuw.onrender.com'].filter(b => b !== BASE);
     for (const fb of fallbackBases) {
       try {
         const fbRes = await fetch(`${fb}${path}`, reqInit);
@@ -624,7 +626,10 @@ export async function importStudentsFile(file: File): Promise<ImportReport> {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const bases = [BASE, '', 'http://localhost:3000', 'http://localhost:3001'].filter((v, i, a) => a.indexOf(v) === i);
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const bases = isLocal
+    ? [BASE, '', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter((v, i, a) => a.indexOf(v) === i)
+    : [BASE, 'https://attendease-apuw.onrender.com'].filter((v, i, a) => a.indexOf(v) === i);
   let lastError: any = null;
   let response: Response | null = null;
 
