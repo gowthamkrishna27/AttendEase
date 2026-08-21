@@ -2,9 +2,10 @@
 <html lang="en">
 
 <head>
-  <!-- Primary Meta Tags -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.vercel.app https://ui-avatars.com https://srkrexams.in https://*.srkrec.ac.in https://res.cloudinary.com https://github.com https://*.githubusercontent.com; connect-src 'self' http://localhost:3000 http://localhost:3001 https://attendease-apuw.onrender.com https://*.onrender.com https://*.vercel.app https://*.supabase.co; frame-src 'self'; object-src 'none'; base-uri 'self';" />
   <title>AttendEase | Smart Attendance &amp; Permission Management System</title>
   <meta name="title" content="AttendEase | Smart Attendance &amp; Permission Management System" />
   <meta name="description"
@@ -17,15 +18,11 @@
   <meta name="application-name" content="AttendEase" />
   <meta name="google-site-verification" content="8c70e57fc3d144cc" />
 
-  <!-- Canonical Link -->
   <link rel="canonical" href="https://attend-ease-hmi8.vercel.app/" />
-
-  <!-- Favicons & App Icons -->
   <link rel="icon" type="image/png" href="/logo.png?v=3" />
   <link rel="apple-touch-icon" href="/logo.png?v=3" />
   <link rel="manifest" href="/site.webmanifest" />
 
-  <!-- Open Graph / Facebook / LinkedIn -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://attend-ease-hmi8.vercel.app/" />
   <meta property="og:site_name" content="AttendEase" />
@@ -38,7 +35,6 @@
   <meta property="og:image:height" content="512" />
   <meta property="og:locale" content="en_US" />
 
-  <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:url" content="https://attend-ease-hmi8.vercel.app/" />
   <meta name="twitter:title" content="AttendEase | Smart Attendance &amp; Permission Management System" />
@@ -47,18 +43,15 @@
   <meta name="twitter:image" content="https://attend-ease-hmi8.vercel.app/logo.png" />
   <meta name="twitter:image:alt" content="AttendEase Logo" />
 
-  <!-- Mobile & PWA Optimization -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="AttendEase" />
   <meta name="format-detection" content="telephone=no" />
 
-  <!-- Preconnect Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous" />
 
-  <!-- Structured Data: SoftwareApplication & FAQPage JSON-LD -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",

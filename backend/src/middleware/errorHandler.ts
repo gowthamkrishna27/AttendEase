@@ -59,6 +59,11 @@ export function globalErrorHandler(
 ): void {
   const status = resolveStatusCode(err);
 
+  // Enforce security headers on error responses
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none';");
+
   // Zod validation errors get a structured array of field-level messages
   if (err instanceof ZodError) {
     const fieldErrors = err.issues.map((issue) => ({

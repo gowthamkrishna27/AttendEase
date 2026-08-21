@@ -773,11 +773,41 @@ export async function unassignCounselingStudent(studentId: string): Promise<{ su
   });
 }
 
+export interface SharePassResponse {
+  success: boolean;
+  request?: AttendanceRequest;
+  authInfo?: {
+    isGuest?: boolean;
+    canReview?: boolean;
+    isStudentOwner?: boolean;
+    isAssignedFaculty?: boolean;
+    isHOD?: boolean;
+    role?: string;
+    user?: { id: string; name: string; email: string; role: string };
+    recommendedRedirect?: string;
+  };
+  error?: string;
+  status?: number;
+}
+
+export async function getSharePassView(publicId: string): Promise<SharePassResponse> {
+  return apiFetch<SharePassResponse>(`/api/share/view/${encodeURIComponent(publicId)}`);
+}
+
+export async function quickReviewSharePass(
+  publicId: string,
+  action: 'approve' | 'reject',
+  payload?: { rejectionReason?: string; remarks?: string; facultyPin?: string; facultyEmail?: string }
+): Promise<{ success: boolean; message: string; request: AttendanceRequest }> {
+  return apiFetch<{ success: boolean; message: string; request: AttendanceRequest }>(`/api/share/quick-review/${encodeURIComponent(publicId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...payload }),
+  });
+}
+
 export async function getShareRedirect(publicId: string): Promise<{ success: boolean; redirectTo?: string; status?: number; error?: string }> {
   return apiFetch<{ success: boolean; redirectTo?: string; status?: number; error?: string }>(`/api/share/${encodeURIComponent(publicId)}`);
 }
-
-// ─── HOD Direct Exemption ─────────────────────────────────────────────────────
 
 export interface HODDirectExemptionPayload {
   studentIds: string[];

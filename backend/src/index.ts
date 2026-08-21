@@ -21,8 +21,59 @@ import { globalErrorHandler } from './middleware/errorHandler.js';
 const app  = express();
 const PORT = process.env['PORT'] ?? 3000;
 
-// ── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors({ origin: true, credentials: true }));
+app.disable('x-powered-by');
+
+// ── Security Headers Middleware (Clickjacking, MIME, XSS Protection, Anti-Caching) ──
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none';");
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // Prevent intermediate and shared proxy caching of sensitive API data
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
+// ── CORS Configuration (Secure Whitelist) ───────────────────────────────────
+const allowedOrigins = [
+  'https://attend-ease-hmi8.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:4173',
+];
+
+if (process.env['FRONTEND_URL']) {
+  allowedOrigins.push(process.env['FRONTEND_URL'].replace(/\/+$/, ''));
+}
+if (process.env['CORS_ALLOWED_ORIGINS']) {
+  allowedOrigins.push(...process.env['CORS_ALLOWED_ORIGINS'].split(',').map(s => s.trim()));
+}
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g., mobile apps, server-to-server, curl)
+    if (!origin) return callback(null, true);
+
+    const isAllowed =
+      allowedOrigins.includes(origin) ||
+      /^https:\/\/attend-ease[a-zA-Z0-9-]*\.vercel\.app$/.test(origin);
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked: Origin ${origin} is not allowed.`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-role-override'],
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -38,7 +89,7 @@ app.use('/api/chat',          chatRoutes);
 
 // ── Root & Health check ───────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', db: 'postgresql', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', db: 'connected' });
 });
 
 app.get('/', (_req, res) => {
@@ -69,6 +120,9 @@ app.use(globalErrorHandler);
 
 // ── 404 fallback ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none';");
   res.status(404).json({ error: 'Not found' });
 });
 
