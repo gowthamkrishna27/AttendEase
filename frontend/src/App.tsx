@@ -43,11 +43,14 @@ import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
 import AdminCounseling from './pages/admin/Counseling';
 import AdminRequests from './pages/admin/Requests';
+import AdminDatabase from './pages/admin/Database';
 import AdminSettings from './pages/admin/Settings';
 
 // Shared / Admin — permissions
 import PermissionsPage from './pages/Permissions';
 import LandingPage from './pages/LandingPage';
+import Developers from './pages/Developers';
+import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,7 +68,16 @@ function ProtectedRoute({
   role: UserRole;
   allowPasswordChange?: boolean;
 }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  // Wait for token rehydration — show minimal spinner instead of blank screen (important on mobile)
+  if (isLoading) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50">
+        <div className="w-7 h-7 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -88,6 +100,8 @@ function ProtectedRoute({
   return <>{children}</>;
 }
 
+
+
 function AppRoutes() {
   const location = useLocation();
 
@@ -95,8 +109,16 @@ function AppRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         {/* Public */}
-        <Route path="/" element={<PermissionsPage />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/home" element={<LandingPage />} />
+        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/developers" element={<Developers />} />
+        <Route path="/developer" element={<Navigate to="/developers" replace />} />
+        <Route path="/gowtham" element={<Navigate to="/developers" replace />} />
+        <Route path="/vivek" element={<Navigate to="/developers" replace />} />
+        <Route path="/team" element={<Navigate to="/developers" replace />} />
+        <Route path="/pavan" element={<Navigate to="/developers" replace />} />
+        <Route path="/manasa" element={<Navigate to="/developers" replace />} />
         <Route path="/login" element={<LoginPortal />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 
@@ -149,10 +171,12 @@ function AppRoutes() {
         <Route path="/admin/users" element={<ProtectedRoute role="admin"><AdminUsers /></ProtectedRoute>} />
         <Route path="/admin/counseling" element={<ProtectedRoute role="admin"><AdminCounseling /></ProtectedRoute>} />
         <Route path="/admin/requests" element={<ProtectedRoute role="admin"><AdminRequests /></ProtectedRoute>} />
+        <Route path="/admin/database" element={<ProtectedRoute role="admin"><AdminDatabase /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* 404 Error Page */}
+        <Route path="/404" element={<NotFound />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
   );

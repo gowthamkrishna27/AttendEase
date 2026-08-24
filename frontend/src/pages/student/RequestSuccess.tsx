@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Check, Clock } from 'lucide-react';
+import { Check, Clock, Home, History } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { WhatsAppShareButton } from '../../components/shared/WhatsAppShareButton';
@@ -144,63 +144,45 @@ export default function RequestSuccess() {
               </div>
             </motion.div>
 
-            {/* ── Buttons ── */}
+            {/* ── Round WhatsApp Symbol & Navigation Icons ── */}
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.42 }}
               className="flex flex-col items-center gap-4 w-full"
             >
-              <button
-                onClick={() => navigate('/student')}
-                className="active:scale-[0.97] transition-all"
-                style={{
-                  width: '100%',
-                  height: 52,
-                  borderRadius: 14,
-                  background: '#F97316',
-                  color: '#ffffff',
-                  fontSize: 15,
-                  fontWeight: 700,
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                Back to Home
-              </button>
-
-              <button
-                onClick={() => navigate('/student/history')}
-                className="active:opacity-70 transition-all"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#64748B',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  padding: '4px 0',
-                  textDecoration: 'underline',
-                  textDecorationColor: 'transparent',
-                  textUnderlineOffset: 3,
-                }}
-                onMouseEnter={e => (e.currentTarget.style.textDecorationColor = '#94A3B8')}
-                onMouseLeave={e => (e.currentTarget.style.textDecorationColor = 'transparent')}
-              >
-                View History
-              </button>
-
-              {/* WhatsApp Share — shown when request is available in cache */}
-              {latestRequest && (
+              {/* Round WhatsApp Symbol Button */}
+              <div className="flex items-center justify-center gap-4">
                 <WhatsAppShareButton
                   request={latestRequest}
-                  variant="primary"
-                  className="w-full h-[52px] rounded-[14px] text-[15px]"
+                  variant="round"
+                  className="w-14 h-14 shadow-lg shadow-[#25D366]/35"
                 />
-              )}
+
+                <button
+                  type="button"
+                  title="Home"
+                  onClick={() => navigate('/student')}
+                  className="w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-lg shadow-orange-500/30 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Home size={22} />
+                </button>
+
+                <button
+                  type="button"
+                  title="History"
+                  onClick={() => navigate('/student/history')}
+                  className="w-14 h-14 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center border border-slate-200 active:scale-95 transition-all cursor-pointer"
+                >
+                  <History size={22} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-center gap-8 text-[11px] font-bold text-slate-400">
+                <span>WhatsApp</span>
+                <span>Home</span>
+                <span>History</span>
+              </div>
             </motion.div>
 
           </div>

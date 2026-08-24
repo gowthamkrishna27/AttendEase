@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,7 +12,7 @@ import { PageWrapper } from '../components/layout/PageWrapper';
 import * as api from '../lib/api';
 import type { AttendanceRequest } from '../types';
 import { formatTime, getPeriodsFromRequest } from '../lib/utils';
-import srkrEmblem from '../assets/srkr-emblem.png';
+import logo from '../assets/logo.png';
 
 export interface ExtendedAttendanceRequest extends AttendanceRequest {
   sectionName?: string;
@@ -54,6 +55,27 @@ export const sortRollNumbers = (rolls: string[]): string[] => {
 
     return a.localeCompare(b, undefined, { numeric: true });
   });
+};
+
+export const getStudentPhoto = (pass: { student?: { avatarUrl?: string; rollNumber?: string; department?: string; name?: string }; studentId?: string }): string => {
+  if (pass.student?.avatarUrl && (pass.student.avatarUrl.startsWith('http') || pass.student.avatarUrl.startsWith('data:'))) {
+    return pass.student.avatarUrl;
+  }
+  const raw = (pass.student?.rollNumber || pass.studentId || '').trim().toUpperCase();
+  if (!raw || raw.startsWith('STU-') || raw.startsWith('FAC-') || raw.startsWith('ADMIN-')) {
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(pass.student?.name || 'Student')}&background=0F172A&color=fff`;
+  }
+  if (raw.length >= 8 && /^[0-9]{2}[A-Z0-9]+$/i.test(raw)) {
+    return `https://srkrexams.in/SRKR/photo/${raw}.jpg`;
+  }
+  const isLE = /^LE\d+$/i.test(raw);
+  const dept = (pass.student?.department || '').includes('CSD') ? '62' : '07';
+  if (isLE) {
+    const num = raw.replace(/LE/i, '').padStart(2, '0');
+    return `https://srkrexams.in/SRKR/photo/25B95A${dept}${num}.jpg`;
+  }
+  const clean = raw.padStart(2, '0');
+  return `https://srkrexams.in/SRKR/photo/24B91A${dept}${clean}.jpg`;
 };
 
 export const PERIOD_TIMINGS: Record<number, { start: string; end: string }> = {
@@ -177,22 +199,6 @@ export const parseSubmissionPeriods = (periods: any): number[] => {
   return [];
 };
 
-export const getCurrentPeriodId = (): number | null => {
-  const now = new Date();
-  const mins = now.getHours() * 60 + now.getMinutes();
-
-  if (mins >= 540 && mins < 585) return 1;  // 09:00 - 09:45 AM (P1)
-  if (mins >= 585 && mins < 630) return 2;  // 09:45 - 10:30 AM (P2)
-  if (mins >= 630 && mins < 675) return 3;  // 10:30 - 11:15 AM (P3)
-  if (mins >= 675 && mins < 720) return 4;  // 11:15 - 12:00 PM (P4)
-  if (mins >= 810 && mins < 855) return 5;  // 01:30 - 02:15 PM (P5)
-  if (mins >= 855 && mins < 900) return 6;  // 02:15 - 03:00 PM (P6)
-  if (mins >= 900 && mins < 945) return 7;  // 03:00 - 03:45 PM (P7)
-  if (mins >= 945 && mins < 990) return 8;  // 03:45 - 04:30 PM (P8)
-
-  return null;
-};
-
 const getTodayDateString = () => {
   const d = new Date();
   const year = d.getFullYear();
@@ -211,6 +217,8 @@ interface RollButtonProps {
   rollNo: string;
   request?: ExtendedAttendanceRequest;
   markedStatus?: 'present' | 'absent';
+  isDbMarked?: boolean;
+  markedByName?: string;
   onClick: () => void;
 }
 
@@ -225,17 +233,17 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
   let badgeStyle = 'bg-white border-slate-200 text-slate-800 hover:border-slate-300 hover:bg-slate-50/40';
 
   if (isPermission) {
-    bgColor = '#FDE047'; // Yellow — Approved Permission
-    textColor = 'text-slate-900';
-    badgeStyle = 'bg-[#FDE047] border-amber-400 text-slate-900 shadow-amber-200/50 hover:bg-[#FACC15] ring-2 ring-amber-300/40 font-black';
+    bgColor = '#FEF08A'; // Bright Soft Yellow (Yellow-200) — Approved Permission
+    textColor = 'text-amber-950 font-black';
+    badgeStyle = 'bg-yellow-200 border-yellow-400 text-amber-950 shadow-xs hover:bg-yellow-300 ring-2 ring-yellow-400/30 font-black';
   } else if (isPresent) {
-    bgColor = '#5ff797ff'; // Light Green
+    bgColor = '#A7F3D0'; // Bright Soft Emerald (Emerald-200)
     textColor = 'text-emerald-950 font-black';
-    badgeStyle = 'bg-emerald-300 border-emerald-400 text-emerald-950 shadow-emerald-200/60 hover:bg-emerald-400 ring-2 ring-emerald-300/40 font-black';
+    badgeStyle = 'bg-emerald-200 border-emerald-400 text-emerald-950 shadow-xs hover:bg-emerald-300 ring-2 ring-emerald-400/30 font-black';
   } else if (isAbsent) {
-    bgColor = '#EF4444'; // Rose Red
-    textColor = 'text-white';
-    badgeStyle = 'bg-rose-500 border-rose-600 text-white shadow-rose-200/50 hover:bg-rose-600 ring-2 ring-rose-300/40';
+    bgColor = '#FECDD3'; // Bright Soft Rose (Rose-200)
+    textColor = 'text-rose-950 font-black';
+    badgeStyle = 'bg-rose-200 border-rose-400 text-rose-950 shadow-xs hover:bg-rose-300 ring-2 ring-rose-400/30 font-black';
   }
 
   return (
@@ -252,7 +260,7 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
         w-[56px] h-[56px] sm:w-[60px] sm:h-[60px]
         rounded-xl sm:rounded-[14px]
         font-extrabold text-[13px] sm:text-[14px]
-        flex items-center justify-center
+        flex flex-col items-center justify-center relative
         select-none cursor-pointer
         transition-all duration-150
         border shadow-2xs shrink-0
@@ -288,10 +296,11 @@ interface PermissionGridProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectPass: (pass: ExtendedAttendanceRequest) => void;
-  onRollClick: (rollNo: string, pass?: ExtendedAttendanceRequest) => void;
+  onRollClick: (rollNo: string, pass?: ExtendedAttendanceRequest, isDbMarked?: boolean, markedByName?: string, dbStatus?: 'present' | 'absent') => void;
   onMarkAll: (sectionKey: string, status: 'present' | 'absent') => void;
   onOpenWhatsApp: (sectionKey: string) => void;
   viewMode: 'grid' | 'list';
+  customRollNumbers?: string[];
 }
 
 const PermissionGrid = React.memo(({
@@ -308,16 +317,44 @@ const PermissionGrid = React.memo(({
   onMarkAll,
   onOpenWhatsApp,
   viewMode,
+  customRollNumbers,
 }: PermissionGridProps) => {
-  const rollNumbers = useMemo(() => getSectionRollNumbers(sectionKey), [sectionKey]);
+  const rollNumbers = useMemo(() => {
+    if (customRollNumbers && customRollNumbers.length > 0) {
+      return customRollNumbers;
+    }
+    return getSectionRollNumbers(sectionKey);
+  }, [customRollNumbers, sectionKey]);
   const totalStudents = rollNumbers.length;
 
   // Compute records map from faculty submissions for this section
+  const hasSelectedPeriods = selectedPeriodFilters.length > 0 || (selectedSubmissionId !== 'combined' && Boolean(selectedSubmissionId));
+
+  // Map of student database submission records for this section
   const submissionRecordsMap = useMemo(() => {
-    const map: Record<string, 'present' | 'absent'> = {};
-    let relevantSubmissions = selectedSubmissionId === 'combined'
+    const map: Record<string, { status: 'present' | 'absent'; markedByName?: string }> = {};
+
+    // ONLY display attendance when periods are selected
+    if (!hasSelectedPeriods) {
+      return map;
+    }
+
+    let relevantSubmissions = (selectedSubmissionId === 'combined'
       ? attendanceSubmissions
-      : attendanceSubmissions.filter(s => s.id === selectedSubmissionId);
+      : attendanceSubmissions.filter(s => s.id === selectedSubmissionId)
+    ).filter(sub => {
+      if (!sub.section) return true;
+      const subSec = (sub.section || '').toUpperCase().replace(/[\s-]/g, '');
+      const currentSec = sectionKey.toUpperCase().replace(/[\s-]/g, '');
+      if (currentSec.includes('CSD')) return subSec.includes('CSD');
+      if (currentSec.includes('CSIT')) {
+        if (currentSec.includes('B') || currentSec.includes('SECB')) {
+          return subSec.includes('B');
+        }
+        return !subSec.includes('B') || subSec.includes('A');
+      }
+      return subSec.includes(currentSec) || currentSec.includes(subSec);
+    });
 
     if (selectedPeriodFilters.length > 0) {
       relevantSubmissions = relevantSubmissions.filter(sub => {
@@ -327,24 +364,25 @@ const PermissionGrid = React.memo(({
     }
 
     relevantSubmissions.forEach(sub => {
+      const submitterName = sub.markedBy?.name || 'Faculty';
       sub.records.forEach(rec => {
         const raw = rec.rollNumber;
         const suffix = extractRollSuffix(raw);
         const status = rec.status as 'present' | 'absent';
 
-        map[raw] = status;
+        map[raw] = { status, markedByName: submitterName };
         if (suffix) {
-          map[suffix] = status;
+          map[suffix] = { status, markedByName: submitterName };
           const num = parseInt(suffix, 10);
           if (!isNaN(num)) {
-            map[String(num)] = status;
-            map[String(num).padStart(2, '0')] = status;
+            map[String(num)] = { status, markedByName: submitterName };
+            map[String(num).padStart(2, '0')] = { status, markedByName: submitterName };
           }
         }
       });
     });
     return map;
-  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters]);
+  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters, sectionKey, hasSelectedPeriods]);
 
   const permissionMap = useMemo(() => {
     const map = new Map<string, ExtendedAttendanceRequest>();
@@ -379,10 +417,17 @@ const PermissionGrid = React.memo(({
 
   const permissionCount = permissionMap.size;
 
-  // Combine manual click mode overrides with database submission records
+  // Combine database submission records with in-memory overrides (when no submission exists)
   const combinedAttendance = useMemo(() => {
-    return { ...submissionRecordsMap, ...markedAttendance };
-  }, [submissionRecordsMap, markedAttendance]);
+    if (!hasSelectedPeriods) {
+      return {};
+    }
+    const map: Record<string, 'present' | 'absent'> = {};
+    Object.entries(submissionRecordsMap).forEach(([k, v]) => {
+      map[k] = v.status;
+    });
+    return { ...map, ...markedAttendance };
+  }, [submissionRecordsMap, markedAttendance, hasSelectedPeriods]);
 
   const presentCount = useMemo(() => Object.values(combinedAttendance).filter(v => v === 'present').length, [combinedAttendance]);
   const absentCount = useMemo(() => Object.values(combinedAttendance).filter(v => v === 'absent').length, [combinedAttendance]);
@@ -397,17 +442,22 @@ const PermissionGrid = React.memo(({
         <div className="flex items-center gap-2.5">
           <span className="font-bold text-[14px] text-slate-900">{sectionKey}</span>
           <div className="flex items-center gap-1.5 text-[11px] font-bold">
-            <span className="px-2 py-0.5 rounded-full bg-amber-100/80 text-amber-800 border border-amber-200">
+            <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300/80">
               {permissionCount} Permission{permissionCount !== 1 ? 's' : ''}
             </span>
-            {presentCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-slate-900 text-orange-400 border border-slate-800">
+            {hasSelectedPeriods && presentCount > 0 && (
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300/80">
                 {presentCount} Present
               </span>
             )}
-            {absentCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+            {hasSelectedPeriods && absentCount > 0 && (
+              <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300/80">
                 {absentCount} Absent
+              </span>
+            )}
+            {!hasSelectedPeriods && (
+              <span className="text-[10.5px] font-medium text-slate-400 italic hidden sm:inline-block ml-1">
+                (Select period above to view attendance)
               </span>
             )}
           </div>
@@ -421,24 +471,32 @@ const PermissionGrid = React.memo(({
             {/* Fixed Legend Bar */}
             <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-slate-50/60 border-b border-slate-200/50 text-[11px] font-bold text-slate-700 gap-2">
               <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded bg-[#FDE047] border border-amber-400 inline-block shadow-2xs"></span>
+                <span className="w-3.5 h-3.5 rounded bg-yellow-200 border border-yellow-400 inline-block shadow-2xs"></span>
                 <span>Permission ({permissionCount})</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded bg-emerald-300 border border-emerald-400 inline-block shadow-2xs"></span>
-                <span>Present ({presentCount})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded bg-rose-500 border border-rose-600 inline-block shadow-2xs"></span>
-                <span>Absent ({absentCount})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded bg-white border border-amber-300 inline-block shadow-2xs"></span>
-                <span>Unmarked ({Math.max(0, totalStudents - permissionCount - presentCount - absentCount)})</span>
-              </div>
+              {hasSelectedPeriods ? (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded bg-emerald-200 border border-emerald-400 inline-block shadow-2xs"></span>
+                    <span>Present ({presentCount})</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded bg-rose-200 border border-rose-400 inline-block shadow-2xs"></span>
+                    <span>Absent ({absentCount})</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded bg-white border border-slate-300 inline-block shadow-2xs"></span>
+                    <span>Unmarked ({Math.max(0, totalStudents - permissionCount - presentCount - absentCount)})</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-1.5 text-slate-500 font-normal italic">
+                  <span>Regular Students ({Math.max(0, totalStudents - permissionCount)})</span>
+                </div>
+              )}
             </div>
 
-            {/* Quick Mark All Header Bar (Just below color identifications) */}
+            {/* Quick Mark All Header Bar */}
             <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-[11px]">
               <span className="font-extrabold text-slate-600 uppercase tracking-wider text-[10px]">
                 Quick Mark (In-Memory Only):
@@ -447,19 +505,19 @@ const PermissionGrid = React.memo(({
                 <button
                   type="button"
                   onClick={() => onMarkAll(sectionKey, 'present')}
-                  className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg font-bold text-[11px] transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                  className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-950 border border-emerald-400 rounded-lg font-bold text-[11px] transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
                   title="Mark all regular students in this section as Present (preserves yellow permission slips)"
                 >
-                  <CheckCircle2 size={13} className="text-emerald-600" />
+                  <CheckCircle2 size={13} className="text-emerald-800" />
                   <span>Mark Everyone Present</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onMarkAll(sectionKey, 'absent')}
-                  className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 rounded-lg font-bold text-[11px] transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                  className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-950 border border-rose-400 rounded-lg font-bold text-[11px] transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
                   title="Mark all regular students in this section as Absent (preserves yellow permission slips)"
                 >
-                  <RefreshCw size={12} className="text-rose-600" />
+                  <RefreshCw size={12} className="text-rose-800" />
                   <span>Mark Everyone Absent</span>
                 </button>
               </div>
@@ -467,21 +525,31 @@ const PermissionGrid = React.memo(({
 
             {/* Non-stretching fixed grid container */}
             <div className="p-4 sm:p-6 bg-slate-50/20">
-              <div className="flex flex-wrap justify-center gap-3 sm:gap-3.5 max-w-[680px] mx-auto">
-                {rollNumbers.map(numStr => {
-                  const req = permissionMap.get(numStr);
-                  const marked = combinedAttendance[numStr];
-                  return (
-                    <RollButton
-                      key={numStr}
-                      rollNo={numStr}
-                      request={req}
-                      markedStatus={marked}
-                      onClick={() => onRollClick(numStr, req)}
-                    />
-                  );
-                })}
-              </div>
+              {rollNumbers.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-[12px] font-medium">
+                  No registered students found for this section in the database.
+                </div>
+              ) : (
+                <div className="flex flex-wrap justify-center gap-3 sm:gap-3.5 max-w-[680px] mx-auto">
+                  {rollNumbers.map(numStr => {
+                    const req = permissionMap.get(numStr);
+                    const dbRecord = submissionRecordsMap[numStr];
+                    const isDbMarked = Boolean(dbRecord);
+                    const marked = dbRecord ? dbRecord.status : markedAttendance[numStr];
+                    return (
+                      <RollButton
+                        key={numStr}
+                        rollNo={numStr}
+                        request={req}
+                        markedStatus={marked}
+                        isDbMarked={isDbMarked}
+                        markedByName={dbRecord?.markedByName}
+                        onClick={() => onRollClick(numStr, req, isDbMarked, dbRecord?.markedByName, dbRecord?.status)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -524,7 +592,7 @@ const PermissionGrid = React.memo(({
                       </span>
                       <button
                         onClick={() => onSelectPass(pass)}
-                        className="h-7 px-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                        className="h-7 px-2.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-700 font-extrabold text-[10px] rounded-lg border border-orange-200/80 flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <Printer size={11} />
                         <span>Slip</span>
@@ -538,20 +606,20 @@ const PermissionGrid = React.memo(({
         )
       )}
 
-      {/* Attendance Grid Footer (WhatsApp Share Button & Database Lock Notice) */}
+      {/* Attendance Grid Footer (WhatsApp Share Card & Button) */}
       {!isCollapsed && (
-        <div className="px-4 py-3 bg-slate-50 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-[12px]">
-          <div className="flex items-center gap-2 text-slate-500 font-medium text-[11px]">
-            <Info size={14} className="text-orange-500 shrink-0" />
+        <div className="px-4 py-3 bg-emerald-50/60 border-t border-emerald-200/70 flex flex-wrap items-center justify-between gap-3 text-[12px] rounded-b-2xl">
+          <div className="flex items-center gap-2 text-emerald-900 font-medium text-[11px]">
+            <Info size={14} className="text-emerald-600 shrink-0" />
             <span>Public marked attendance is strictly temporary (in-memory) &amp; not saved to database.</span>
           </div>
           <button
             type="button"
             onClick={() => onOpenWhatsApp(sectionKey)}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-extrabold text-[12px] flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 shrink-0"
+            className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-950 border border-emerald-400 rounded-xl font-extrabold text-[12px] flex items-center gap-2 transition-all cursor-pointer shadow-2xs hover:scale-[1.02] active:scale-95 shrink-0"
             title="Format and send attendance report to WhatsApp"
           >
-            <WhatsappIcon size={17} />
+            <WhatsappIcon size={17} className="text-emerald-800" />
             <span>Share {sectionKey} to WhatsApp</span>
           </button>
         </div>
@@ -566,14 +634,15 @@ PermissionGrid.displayName = 'PermissionGrid';
 export default function PermissionsPage() {
   const [searchParams] = useSearchParams();
 
-  // Component State
+  // Component State (No default year selected)
   const [search] = useState('');
-  const [selectedYear, setSelectedYear] = useState('3rd Year');
+  const [selectedYear, setSelectedYear] = useState<string>('');
   const [isSectionDropdownOpen, setIsSectionDropdownOpen] = useState(false);
-  const [sectionFilter, setSectionFilter] = useState('CSIT-B');
+  const [sectionFilter, setSectionFilter] = useState<string>('all');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>('combined');
   const [selectedPeriodFilters, setSelectedPeriodFilters] = useState<number[]>([]);
-  const [dateMode, setDateMode] = useState<'today' | 'all'>('today');
+  const [dateMode, setDateMode] = useState<'today' | 'custom' | 'all'>('today');
+  const [customDate, setCustomDate] = useState<string>(getTodayDateString());
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [markedAttendance, setMarkedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
@@ -592,6 +661,7 @@ export default function PermissionsPage() {
   }, []);
 
   const handlePeriodToggle = useCallback((pNum: number) => {
+    setMarkedAttendance({});
     setSelectedPeriodFilters(prev => {
       let next: number[];
       if (prev.includes(pNum)) {
@@ -601,9 +671,9 @@ export default function PermissionsPage() {
       }
 
       if (next.length === 0) {
-        showToast('Showing All Periods Attendance');
+        showToast('Showing All Periods');
       } else {
-        showToast(`Filtered for Period(s) ${next.map(n => `P${n}`).join(', ')} Permissions & Attendance`);
+        showToast(`Filtered for Period(s) ${next.map(n => `P${n}`).join(', ')}`);
       }
       return next;
     });
@@ -616,48 +686,110 @@ export default function PermissionsPage() {
   }, [searchParams]);
 
   const todayStr = getTodayDateString();
+  const effectiveDate = dateMode === 'today' ? todayStr : dateMode === 'custom' ? customDate : undefined;
 
-  // Query Backend Requests from Database (Enabled only when section selected)
-  const { data: apiRequests = [], isLoading } = useQuery({
-    queryKey: ['public-approved-requests', todayStr, sectionFilter, selectedYear],
-    queryFn: () => api.getPublicApprovedRequests({
-      date: dateMode === 'today' ? todayStr : undefined,
-      section: sectionFilter !== 'none' ? sectionFilter : undefined,
-      year: selectedYear !== 'all' ? selectedYear : undefined,
-    }),
-    enabled: sectionFilter !== 'none',
-    retry: 1,
+  // Query Dynamic Sections List from Database for the academic year (Live DB Sync)
+  const { data: dbSections = [] } = useQuery<api.PublicSectionItem[]>({
+    queryKey: ['public-sections', selectedYear],
+    queryFn: () => api.getPublicSections(selectedYear || '3rd Year'),
+    refetchInterval: 3000,
+    refetchOnWindowFocus: true,
   });
 
-  // Query Faculty Attendance Submissions for TODAY ONLY (Enabled only when section selected)
+  // Dynamic Section Options for Dropdown
+  const sectionOptions = useMemo(() => {
+    if (dbSections.length > 0) {
+      const opts = dbSections.map(s => ({
+        label: s.label,
+        value: s.value,
+        key: s.key,
+      }));
+      return [...opts, { label: 'All Sections', value: 'all', key: 'All Sections' }];
+    }
+    return [
+      { label: 'CSD - Sec A', value: 'CSD-A', key: 'CSD — Section A' },
+      { label: 'CSIT - Sec A', value: 'CSIT-A', key: 'CSIT — Section A' },
+      { label: 'CSIT - Sec B', value: 'CSIT-B', key: 'CSIT — Section B' },
+      { label: 'All Sections', value: 'all', key: 'All Sections' },
+    ];
+  }, [dbSections]);
+
+  // Normalized Section Roll Numbers Map from DB
+  const sectionRollNumbersMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    const norm = (str: string) => (str || '').toUpperCase().replace(/[—–\s-]/g, '').replace(/SECTION/g, 'SEC');
+
+    dbSections.forEach(s => {
+      if (s.rollNumbers && s.rollNumbers.length > 0) {
+        map[s.key] = s.rollNumbers;
+        map[s.value] = s.rollNumbers;
+        map[s.key.replace(/[—–]/g, '-')] = s.rollNumbers;
+        map[s.key.replace(/-/g, '—')] = s.rollNumbers;
+        map[norm(s.key)] = s.rollNumbers;
+        map[norm(s.value)] = s.rollNumbers;
+      }
+    });
+    return map;
+  }, [dbSections]);
+
+  const getDynamicSectionRollNumbers = useCallback((sectionKey: string): string[] => {
+    const normKey = (sectionKey || '').toUpperCase().replace(/[—–\s-]/g, '').replace(/SECTION/g, 'SEC');
+    if (sectionRollNumbersMap[sectionKey] && sectionRollNumbersMap[sectionKey].length > 0) {
+      return sectionRollNumbersMap[sectionKey];
+    }
+    if (sectionRollNumbersMap[normKey] && sectionRollNumbersMap[normKey].length > 0) {
+      return sectionRollNumbersMap[normKey];
+    }
+    // Also try matching against dbSections directly
+    const foundSec = dbSections.find(s => {
+      const sNorm = (s.key || '').toUpperCase().replace(/[—–\s-]/g, '').replace(/SECTION/g, 'SEC');
+      const vNorm = (s.value || '').toUpperCase().replace(/[—–\s-]/g, '').replace(/SECTION/g, 'SEC');
+      return sNorm === normKey || vNorm === normKey || s.key === sectionKey;
+    });
+    if (foundSec && foundSec.rollNumbers && foundSec.rollNumbers.length > 0) {
+      return foundSec.rollNumbers;
+    }
+    return [];
+  }, [sectionRollNumbersMap, dbSections]);
+
+  // Query Backend Requests from Database (Live DB Sync)
+  const { data: apiRequests = [], isLoading } = useQuery({
+    queryKey: ['public-approved-requests', effectiveDate, dateMode],
+    queryFn: () => api.getPublicApprovedRequests({
+      date: effectiveDate,
+    }),
+    refetchInterval: 3000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Query Faculty Attendance Submissions for selected date (Always active for selected date)
   const { data: attendanceSubmissions = [] } = useQuery<api.AttendanceSubmissionItem[]>({
-    queryKey: ['public-attendance-submissions', todayStr, sectionFilter, selectedYear],
-    queryFn: () => api.getAttendanceSubmissions(todayStr, sectionFilter, selectedYear),
-    enabled: sectionFilter !== 'none',
+    queryKey: ['public-attendance-submissions', effectiveDate || todayStr],
+    queryFn: () => api.getAttendanceSubmissions(effectiveDate || todayStr),
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
   });
 
   /**
-   * Bug 9 Fix: Determine section from department + roll number range.
-   * The User model has NO `section` field. Section is derived:
-   *   - Department CSD → Section A only (CSD — Section A)
-   *   - Department CSIT, roll suffix 01–72 → CSIT — Section A
-   *   - Department CSIT, roll suffix 73–99 / A0-C9 / D0-D1 / LE1-LE12 → CSIT — Section B
+   * Determine section dynamically from student department + roll number range or explicit section.
    */
   const getStudentSectionKey = useCallback((req: any): string => {
     const dept = (req.student?.department ?? '').toUpperCase().trim();
     const rawRoll = (req.student?.rollNumber ?? req.studentId ?? '').toUpperCase().trim();
+    const explicitSec = ((req.student as any)?.section ?? '').toUpperCase().trim();
 
-    // CSD students are all in Section A
-    if (dept === 'CSD' || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
+    // CSD students are in Section A
+    if (dept === 'CSD' || rawRoll.includes('62') || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
       return 'CSD — Section A';
     }
 
-    // CSIT: extract the roll suffix (last 2 chars of 24B91A07XX)
+    // CSIT: extract the roll suffix
     // Roll numbers 01–72 → Section A; 73+ and alpha-suffix → Section B
     const suffix = extractRollSuffix(rawRoll);
-    if (!suffix) return 'CSIT — Section A'; // safe default
+    if (!suffix) {
+      if (explicitSec === 'B' || explicitSec === 'SECTION B') return 'CSIT — Section B';
+      return 'CSIT — Section A';
+    }
 
     // Pure numeric suffix
     if (/^\d+$/.test(suffix)) {
@@ -666,7 +798,14 @@ export default function PermissionsPage() {
     }
 
     // Alpha-suffix (A0-C9, D0, D1, LE1-LE12) → Section B
-    return 'CSIT — Section B';
+    if (dept === 'CSIT' || rawRoll.includes('07')) {
+      return 'CSIT — Section B';
+    }
+
+    if (explicitSec) {
+      return `${dept || 'CSIT'} — Section ${explicitSec.replace('SECTION', '').trim() || 'A'}`;
+    }
+    return `${dept || 'CSIT'} — Section A`;
   }, []);
 
   // Filtered Approved List
@@ -677,53 +816,101 @@ export default function PermissionsPage() {
       const rollNo = req.student?.rollNumber ?? '';
       const sectionKey = getStudentSectionKey(req);
 
-      const matchesDate = dateMode === 'all' || req.date === todayStr;
+      const matchesDate = dateMode === 'all' ? true : req.date === effectiveDate;
       const matchesSearch =
         studentName.toLowerCase().includes(search.toLowerCase()) ||
         rollNo.toLowerCase().includes(search.toLowerCase()) ||
         req.reasonLabel.toLowerCase().includes(search.toLowerCase());
 
-      // Bug 9 Fix: Use the derived sectionKey for accurate filtering
-      const matchesSection =
-        sectionFilter === 'all' ||
-        (sectionFilter === 'CSD-A' && sectionKey === 'CSD — Section A') ||
-        (sectionFilter === 'CSIT-A' && sectionKey === 'CSIT — Section A') ||
-        (sectionFilter === 'CSIT-B' && sectionKey === 'CSIT — Section B');
+      // Year Filter (Prioritize explicit student.year record from DB)
+      let matchesYear = true;
+      if (selectedYear) {
+        const targetDigit = (selectedYear.match(/([1-4])/) || [])[1] || '3';
+        if (req.student?.year) {
+          const digitMatch = req.student.year.match(/([1-4])/);
+          if (digitMatch) matchesYear = digitMatch[1] === targetDigit;
+        } else if (req.student?.semester && typeof req.student.semester === 'number') {
+          matchesYear = String(Math.ceil(req.student.semester / 2)) === targetDigit;
+        } else {
+          const upperRoll = rollNo.toUpperCase();
+          const isLateralEntry = upperRoll.includes('95A') || upperRoll.includes('LE') || /LE\d+$/i.test(upperRoll);
 
-      return matchesDate && matchesSearch && matchesSection;
+          if (targetDigit === '3') matchesYear = upperRoll.startsWith('24B') || (upperRoll.startsWith('25B') && isLateralEntry);
+          else if (targetDigit === '2') matchesYear = upperRoll.startsWith('25B') && !isLateralEntry;
+          else if (targetDigit === '1') matchesYear = upperRoll.startsWith('26B') && !isLateralEntry;
+          else if (targetDigit === '4') matchesYear = upperRoll.startsWith('23B') || (upperRoll.startsWith('24B') && isLateralEntry);
+        }
+      }
+
+      // Section Filter
+      let matchesSection = sectionFilter === 'all';
+      if (!matchesSection && sectionFilter !== 'none') {
+        const matchedSecObj = dbSections.find(s => s.value === sectionFilter);
+        if (matchedSecObj) {
+          matchesSection = sectionKey === matchedSecObj.key;
+        } else {
+          matchesSection =
+            (sectionFilter === 'CSD-A' && sectionKey === 'CSD — Section A') ||
+            (sectionFilter === 'CSIT-A' && sectionKey === 'CSIT — Section A') ||
+            (sectionFilter === 'CSIT-B' && sectionKey === 'CSIT — Section B');
+        }
+      }
+
+      // Period Filter
+      let matchesPeriod = true;
+      if (selectedPeriodFilters.length > 0) {
+        const reqPeriods = getPeriodsFromRequest(req);
+        matchesPeriod = selectedPeriodFilters.some(p => reqPeriods.includes(p));
+      }
+
+      return matchesDate && matchesSearch && matchesYear && matchesSection && matchesPeriod;
     });
-  }, [apiRequests, dateMode, search, sectionFilter, todayStr, getStudentSectionKey]);
+  }, [apiRequests, dateMode, effectiveDate, search, selectedYear, sectionFilter, getStudentSectionKey, dbSections, selectedPeriodFilters]);
 
-  // Group by Section (Ensure standard section keys exist so grids are always rendered)
+  // Group by Section (Dynamically seeded from DB sections for the academic year)
   const { sectionsMap, sectionKeys } = useMemo(() => {
-    const map: Record<string, ExtendedAttendanceRequest[]> = {
-      'CSD — Section A': [],
-      'CSIT — Section A': [],
-      'CSIT — Section B': [],
-    };
+    const map: Record<string, ExtendedAttendanceRequest[]> = {};
+
+    const availableKeys = dbSections.length > 0
+      ? dbSections.map(s => s.key)
+      : ['CSD — Section A', 'CSIT — Section A', 'CSIT — Section B'];
+
+    availableKeys.forEach(k => {
+      map[k] = [];
+    });
 
     filteredApproved.forEach(req => {
       const key = getStudentSectionKey(req);
-      if (!map[key]) map[key] = [];
-      map[key].push(req as ExtendedAttendanceRequest);
-    });
+      const matchedKey = availableKeys.find(k =>
+        k === key ||
+        k.replace(/[—–\s]/g, '') === key.replace(/[—–\s]/g, '')
+      ) || key;
 
-    if (sectionFilter === 'none') {
-      return { sectionsMap: map, sectionKeys: [] };
-    }
+      if (!map[matchedKey]) map[matchedKey] = [];
+      map[matchedKey].push(req as ExtendedAttendanceRequest);
+    });
 
     let keys = Object.keys(map).sort();
 
-    if (sectionFilter === 'CSD-A') {
-      keys = keys.filter(k => k.includes('CSD') && k.includes('Section A'));
-    } else if (sectionFilter === 'CSIT-A') {
-      keys = keys.filter(k => k.includes('CSIT') && k.includes('Section A'));
-    } else if (sectionFilter === 'CSIT-B') {
-      keys = keys.filter(k => k.includes('CSIT') && (k.includes('Section B') || k.includes('CSIT-B')));
+    if (sectionFilter !== 'all' && sectionFilter !== 'none') {
+      const matchedSecObj = dbSections.find(s => s.value === sectionFilter);
+      if (matchedSecObj) {
+        keys = keys.filter(k =>
+          k === matchedSecObj.key ||
+          k.replace(/[—–\s]/g, '') === matchedSecObj.key.replace(/[—–\s]/g, '')
+        );
+      } else {
+        keys = keys.filter(k => {
+          if (sectionFilter === 'CSD-A') return k.includes('CSD');
+          if (sectionFilter === 'CSIT-A') return k.includes('CSIT') && k.includes('A');
+          if (sectionFilter === 'CSIT-B') return k.includes('CSIT') && k.includes('B');
+          return true;
+        });
+      }
     }
 
     return { sectionsMap: map, sectionKeys: keys };
-  }, [filteredApproved, sectionFilter, getStudentSectionKey]);
+  }, [filteredApproved, sectionFilter, getStudentSectionKey, dbSections]);
 
   // Filter attendance submissions for current section filter so submissions don't bleed across sections
   const activeSectionSubmissions = useMemo(() => {
@@ -736,20 +923,46 @@ export default function PermissionsPage() {
   }, [attendanceSubmissions, sectionFilter]);
 
   const handleOpenWhatsApp = useCallback((secKey?: string) => {
-    const targetSec = secKey || (sectionKeys.length > 0 ? sectionKeys[0] : 'CSIT — Section B');
+    const targetSec = secKey || (sectionKeys.length > 0 ? sectionKeys[0] : (dbSections[0]?.key ?? 'CSIT — Section B'));
     setActiveWhatsAppSection(targetSec);
     setIsWhatsAppModalOpen(true);
-  }, [sectionKeys]);
+  }, [sectionKeys, dbSections]);
 
   // WhatsApp Export Calculation
-  const whatsAppSectionKey = activeWhatsAppSection || (sectionKeys[0] ?? 'CSIT — Section B');
-  const whatsAppRollNumbers = useMemo(() => getSectionRollNumbers(whatsAppSectionKey), [whatsAppSectionKey]);
+  const whatsAppSectionKey = activeWhatsAppSection || (sectionKeys[0] ?? (dbSections[0]?.key ?? 'CSIT — Section B'));
+  const whatsAppRollNumbers = useMemo(() => getDynamicSectionRollNumbers(whatsAppSectionKey), [whatsAppSectionKey, getDynamicSectionRollNumbers]);
 
   const whatsAppAttendanceMap = useMemo(() => {
     const map: Record<string, 'present' | 'absent'> = {};
-    const relevantSubmissions = selectedSubmissionId === 'combined'
-      ? activeSectionSubmissions
-      : activeSectionSubmissions.filter(s => s.id === selectedSubmissionId);
+
+    // Filter submissions for this specific section being shared
+    let relevantSubmissions = (selectedSubmissionId === 'combined'
+      ? attendanceSubmissions
+      : attendanceSubmissions.filter(s => s.id === selectedSubmissionId)
+    ).filter(sub => {
+      if (!sub.section) return true;
+      const subSec = (sub.section || '').toUpperCase().replace(/[\s-]/g, '');
+      const currentSec = whatsAppSectionKey.toUpperCase().replace(/[\s-]/g, '');
+      if (currentSec.includes('CSD')) return subSec.includes('CSD');
+      if (currentSec.includes('CSIT')) {
+        if (currentSec.includes('B') || currentSec.includes('SECB')) {
+          return subSec.includes('B');
+        }
+        return !subSec.includes('B') || subSec.includes('A');
+      }
+      return subSec.includes(currentSec) || currentSec.includes(subSec);
+    });
+
+    // Strictly filter by currently selected periods so previous data from other periods doesn't appear
+    if (selectedPeriodFilters.length > 0) {
+      relevantSubmissions = relevantSubmissions.filter(sub => {
+        const subPeriods = parseSubmissionPeriods(sub.periods);
+        return selectedPeriodFilters.some(p => subPeriods.includes(p));
+      });
+    } else {
+      // If no periods are selected, do not load any old period submission records
+      relevantSubmissions = [];
+    }
 
     relevantSubmissions.forEach(sub => {
       sub.records.forEach(rec => {
@@ -768,7 +981,33 @@ export default function PermissionsPage() {
       });
     });
     return { ...map, ...markedAttendance };
-  }, [activeSectionSubmissions, selectedSubmissionId, markedAttendance, whatsAppSectionKey]);
+  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters, markedAttendance, whatsAppSectionKey]);
+
+  const whatsAppPermissionRollsSet = useMemo(() => {
+    const set = new Set<string>();
+    const secPasses = sectionsMap[whatsAppSectionKey] || [];
+
+    secPasses.forEach(p => {
+      // If periods are selected, check period overlap
+      if (selectedPeriodFilters.length > 0) {
+        const passPeriods = getPeriodsFromRequest(p);
+        const hasOverlap = selectedPeriodFilters.some(pNum => passPeriods.includes(pNum));
+        if (!hasOverlap) return;
+      }
+      const rollStr = p.student?.rollNumber ?? p.studentId;
+      const suffix = extractRollSuffix(rollStr);
+      if (suffix) {
+        set.add(suffix);
+        const num = parseInt(suffix, 10);
+        if (!isNaN(num)) {
+          set.add(String(num));
+          set.add(String(num).padStart(2, '0'));
+        }
+      }
+    });
+
+    return set;
+  }, [sectionsMap, whatsAppSectionKey, selectedPeriodFilters]);
 
   const { whatsAppPresentRolls, whatsAppAbsentRolls } = useMemo(() => {
     const present: string[] = [];
@@ -776,29 +1015,34 @@ export default function PermissionsPage() {
 
     whatsAppRollNumbers.forEach(numStr => {
       const status = whatsAppAttendanceMap[numStr];
-      if (status === 'present') {
+      const isPermission = whatsAppPermissionRollsSet.has(numStr);
+
+      if (status === 'present' || isPermission) {
         present.push(numStr);
-      } else if (status === 'absent') {
+      } else {
+        // Non-selected (unmarked / absent) students are automatically included in Absentees
         absent.push(numStr);
       }
     });
 
     return {
-      whatsAppPresentRolls: sortRollNumbers(present).map(formatRollNumberForDisplay),
-      whatsAppAbsentRolls: sortRollNumbers(absent).map(formatRollNumberForDisplay),
+      whatsAppPresentRolls: sortRollNumbers([...new Set(present)]).map(formatRollNumberForDisplay),
+      whatsAppAbsentRolls: sortRollNumbers([...new Set(absent)]).map(formatRollNumberForDisplay),
     };
-  }, [whatsAppRollNumbers, whatsAppAttendanceMap]);
+  }, [whatsAppRollNumbers, whatsAppAttendanceMap, whatsAppPermissionRollsSet]);
 
   const formattedWhatsAppText = useMemo(() => {
     const yearNum = selectedYear.replace(/[^0-9]/g, '') || '3';
     const presentText = whatsAppPresentRolls.length > 0 ? whatsAppPresentRolls.join(', ') : 'None';
     const absentText = whatsAppAbsentRolls.length > 0 ? whatsAppAbsentRolls.join(', ') : 'None';
 
-    const dateStr = getFormattedDateString();
-    const timeStr = getFormattedTimeString(selectedPeriodFilters);
+    const dateStr = dateMode === 'today' ? getTodayFormattedDate() : (customDate || getTodayFormattedDate());
+    const periodsStr = selectedPeriodFilters.length > 0
+      ? [...selectedPeriodFilters].sort((a, b) => a - b).join(', ')
+      : 'All Periods';
 
-    return `*Year:* ${yearNum} / 4\n*Branch Name:* ${whatsAppSectionKey}\n*Date:* ${dateStr}\n*Time:* ${timeStr}\n\n*Presentees:*\n${presentText}\n\n*Absentees:*\n${absentText}`;
-  }, [selectedYear, whatsAppSectionKey, whatsAppPresentRolls, whatsAppAbsentRolls, selectedPeriodFilters]);
+    return `*Year:* ${yearNum} / 4\n*Branch Name:* ${whatsAppSectionKey}\n*Date:* ${dateStr}\n*Periods:* ${periodsStr}\n\n*Presentees:*\n${presentText}\n\n*Absentees:*\n${absentText}`;
+  }, [selectedYear, whatsAppSectionKey, whatsAppPresentRolls, whatsAppAbsentRolls, selectedPeriodFilters, dateMode, customDate]);
 
   const toggleSection = useCallback((key: string) => {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -810,7 +1054,7 @@ export default function PermissionsPage() {
 
   // Handle Mark Everyone Present / Absent (In-Memory Only)
   const handleMarkAll = useCallback((secKey: string, status: 'present' | 'absent') => {
-    const rolls = getSectionRollNumbers(secKey);
+    const rolls = getDynamicSectionRollNumbers(secKey);
     const secPasses = sectionsMap[secKey] || [];
 
     // Extract roll suffixes of approved permissions in this section to preserve them
@@ -836,12 +1080,23 @@ export default function PermissionsPage() {
       showToast(`Marked ${updatedCount} students in ${secKey} as ${status.toUpperCase()} (Permissions preserved)`);
       return copy;
     });
-  }, [sectionsMap, showToast]);
+  }, [sectionsMap, getDynamicSectionRollNumbers, showToast]);
 
-  // Handle Roll Button Click (Interactive in-memory tracker: Unmarked -> Present -> Absent -> Unmarked)
-  const handleRollClick = useCallback((rollNo: string, pass?: ExtendedAttendanceRequest) => {
+  // Handle Roll Button Click (Locks when already submitted by faculty; otherwise in-memory tracker)
+  const handleRollClick = useCallback((
+    rollNo: string,
+    pass?: ExtendedAttendanceRequest,
+    isDbMarked?: boolean,
+    markedByName?: string,
+    dbStatus?: 'present' | 'absent'
+  ) => {
     if (pass) {
       setSelectedPass(pass);
+      return;
+    }
+
+    if (isDbMarked) {
+      showToast(`🔒 Roll #${rollNo} is marked ${dbStatus?.toUpperCase() || 'OFFICIAL'} by ${markedByName || 'Faculty'} (Locked DB Record)`);
       return;
     }
 
@@ -869,19 +1124,22 @@ export default function PermissionsPage() {
       <div className="max-w-[820px] mx-auto space-y-4">
 
         {/* Toast Alert */}
-        <AnimatePresence>
-          {toastMsg && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="fixed top-4 right-4 z-50 px-3.5 py-2 rounded-xl bg-slate-900 text-white text-[12px] shadow-lg flex items-center gap-2 print:hidden"
-            >
-              <Info size={15} className="text-orange-400" />
-              <span>{toastMsg}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {createPortal(
+          <AnimatePresence>
+            {toastMsg && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="fixed top-4 right-4 z-[99999] px-3.5 py-2 rounded-xl bg-orange-950/85 backdrop-blur-md text-orange-100 border border-orange-500/30 text-[12px] shadow-xl flex items-center gap-2 print:hidden"
+              >
+                <Info size={15} className="text-orange-400" />
+                <span>{toastMsg}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
 
         {/* ── On-Screen Page UI (Hidden when printing) ── */}
         <div className="space-y-4 print:hidden">
@@ -902,8 +1160,8 @@ export default function PermissionsPage() {
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${viewMode === 'grid'
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-orange-500 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                     }`}
                   title="Grid View (Roll 1-72)"
                 >
@@ -913,8 +1171,8 @@ export default function PermissionsPage() {
                 <button
                   onClick={() => setViewMode('list')}
                   className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${viewMode === 'list'
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-orange-500 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                     }`}
                   title="List View"
                 >
@@ -938,36 +1196,48 @@ export default function PermissionsPage() {
                 </button>
               )}
 
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-[11px] font-bold">
                 <button
-                  onClick={() => setDateMode('today')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${dateMode === 'today'
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                  type="button"
+                  onClick={() => {
+                    setDateMode('today');
+                    showToast(`Showing Today's Permissions (${todayStr})`);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg cursor-pointer transition-all ${dateMode === 'today'
+                    ? 'bg-orange-500 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                     }`}
                 >
                   Today ({getTodayFormattedDate()})
                 </button>
-                <button
-                  onClick={() => setDateMode('all')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${dateMode === 'all'
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                  All Dates
-                </button>
-              </div>
 
-              <button
-                type="button"
-                onClick={() => handleOpenWhatsApp()}
-                className="h-[28px] px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs hover:scale-105 active:scale-95 shrink-0"
-                title="Format and send attendance report to WhatsApp"
-              >
-                <WhatsappIcon size={14} />
-                <span>WhatsApp Report</span>
-              </button>
+                {/* Calendar Symbol Icon Button with Date Picker Functionality */}
+                <div
+                  className={`relative flex items-center justify-center px-2 py-1 rounded-lg cursor-pointer transition-all ${dateMode === 'custom'
+                    ? 'bg-orange-500 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  title={dateMode === 'custom' ? `Selected Date: ${customDate} (Click to change)` : 'Pick a date from calendar'}
+                >
+                  <Calendar size={14} className={dateMode === 'custom' ? 'text-white' : 'text-orange-500'} />
+                  {dateMode === 'custom' && (
+                    <span className="ml-1 text-[11px] font-bold">{customDate}</span>
+                  )}
+                  <input
+                    type="date"
+                    value={customDate}
+                    onChange={e => {
+                      if (e.target.value) {
+                        setCustomDate(e.target.value);
+                        setDateMode('custom');
+                        showToast(`Showing Permissions for ${e.target.value}`);
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    title="Select date from calendar"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -990,11 +1260,14 @@ export default function PermissionsPage() {
                   <button
                     key={yr.value}
                     type="button"
-                    onClick={() => setSelectedYear(yr.value)}
+                    onClick={() => {
+                      setSelectedYear(selectedYear === yr.value ? '' : yr.value);
+                      setSectionFilter('all');
+                    }}
                     title={yr.value}
                     className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${selectedYear === yr.value
-                        ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-500/20 scale-105'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
+                      ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-500/20 scale-105'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
                       }`}
                   >
                     {yr.label}
@@ -1014,15 +1287,18 @@ export default function PermissionsPage() {
                   <Building2 size={16} className="text-orange-500" />
                   <span className="text-slate-400 font-medium">Select Target Section:</span>
                   <span className="text-slate-900 font-bold">
-                    {sectionFilter === 'CSD-A'
-                      ? 'CSD — Section A'
-                      : sectionFilter === 'CSIT-A'
-                        ? 'CSIT — Section A'
-                        : sectionFilter === 'CSIT-B'
-                          ? 'CSIT — Section B'
-                          : sectionFilter === 'all'
-                            ? 'All Sections'
-                            : 'Choose Section...'}
+                    {!selectedYear
+                      ? 'Select Year First...'
+                      : dbSections.length === 0
+                        ? `No Sections for ${selectedYear}`
+                        : sectionFilter === 'all'
+                          ? 'All Sections'
+                          : sectionFilter === 'none'
+                            ? 'Choose Section...'
+                            : (sectionOptions.find(opt => opt.value === sectionFilter)?.key ||
+                              sectionOptions.find(opt => opt.value === sectionFilter)?.label ||
+                              sectionFilter ||
+                              'Choose Section...')}
                   </span>
                 </div>
                 <ChevronDown size={16} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
@@ -1035,28 +1311,33 @@ export default function PermissionsPage() {
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 4 }}
-                    className="absolute left-0 right-0 top-[48px] z-30 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1"
+                    className="absolute left-0 right-0 top-[48px] z-30 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1 max-h-64 overflow-y-auto"
                   >
-                    {[
-                      { label: 'CSD - Sec A', value: 'CSD-A' },
-                      { label: 'CSIT - Sec A', value: 'CSIT-A' },
-                      { label: 'CSIT - Sec B', value: 'CSIT-B' },
-                      { label: 'All Sections', value: 'all' },
-                    ].map(sec => (
-                      <button
-                        key={sec.value}
-                        type="button"
-                        onClick={() => {
-                          setSectionFilter(sec.value);
-                          setIsSectionDropdownOpen(false);
-                        }}
-                        className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
-                          }`}
-                      >
-                        <span>{sec.label}</span>
-                        {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
-                      </button>
-                    ))}
+                    {!selectedYear ? (
+                      <div className="px-4 py-3 text-center text-slate-400 text-[12px]">
+                        Please select an Academic Year first
+                      </div>
+                    ) : sectionOptions.length === 0 ? (
+                      <div className="px-4 py-3 text-center text-slate-400 text-[12px]">
+                        No sections available for {selectedYear}
+                      </div>
+                    ) : (
+                      sectionOptions.map(sec => (
+                        <button
+                          key={sec.value}
+                          type="button"
+                          onClick={() => {
+                            setSectionFilter(sec.value);
+                            setIsSectionDropdownOpen(false);
+                          }}
+                          className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
+                            }`}
+                        >
+                          <span>{sec.label}</span>
+                          {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
+                        </button>
+                      ))
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1065,21 +1346,21 @@ export default function PermissionsPage() {
             {/* ── 8 Linear Period Selector Boxes Widget (Multi-Select Enabled) ── */}
             <div className="pt-2.5 border-t border-slate-100 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  Select Period (1 to 8 Attendance View):
-                  {getCurrentPeriodId() && (
-                    <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200 text-[9.5px] font-bold animate-pulse">
-                      ⚡ Period {getCurrentPeriodId()} Live Now
+                <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
+                  <span>Period Filter:</span>
+                  {selectedPeriodFilters.length === 0 ? (
+                    <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                      All Periods
                     </span>
-                  )}
-                  {selectedPeriodFilters.length > 0 && (
+                  ) : (
                     <button
                       type="button"
                       onClick={() => {
+                        setMarkedAttendance({});
                         setSelectedPeriodFilters([]);
-                        showToast('Showing All Periods Attendance');
+                        showToast('Showing all periods');
                       }}
-                      className="px-2 py-0.5 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 text-[9.5px] font-bold transition-colors cursor-pointer"
+                      className="px-2 py-0.5 rounded-full bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300 text-[9.5px] font-bold transition-colors cursor-pointer"
                     >
                       Clear Filter (P{selectedPeriodFilters.join(', P')}) ✕
                     </button>
@@ -1091,110 +1372,53 @@ export default function PermissionsPage() {
               </div>
 
               {/* 8 Linear Square Boxes Row */}
-              <div className="flex flex-wrap items-center justify-between gap-1.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60">
-                {/* Morning Session: Periods 1-4 */}
-                <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
-                  {[1, 2, 3, 4].map(pNum => {
-                    const sub = activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
-                    const isSelected = selectedPeriodFilters.includes(pNum);
-                    const isSubmitted = !!sub;
-                    const isLiveNow = getCurrentPeriodId() === pNum;
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(pNum => {
+                  const sub = sectionFilter !== 'all'
+                    ? activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum))
+                    : null;
+                  const isSelected = selectedPeriodFilters.includes(pNum);
+                  const isSubmitted = Boolean(sub);
 
-                    return (
-                      <button
-                        key={pNum}
-                        type="button"
-                        onClick={() => handlePeriodToggle(pNum)}
-                        className={`
-                          flex-1 h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
-                          transition-all duration-150 cursor-pointer border select-none relative
-                          ${isSelected
-                            ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
-                            : isLiveNow
-                              ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-400/60 shadow-xs'
-                              : isSubmitted
-                                ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
-                                : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
-                          }
-                        `}
-                        title={
-                          sub
-                            ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
-                            : isLiveNow
-                              ? `Period ${pNum}: Live Active Period Right Now`
-                              : `Period ${pNum}: Click to toggle period selection`
+                  return (
+                    <button
+                      key={pNum}
+                      type="button"
+                      onClick={() => handlePeriodToggle(pNum)}
+                      className={`
+                        h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
+                        transition-all duration-150 cursor-pointer border select-none relative
+                        ${isSelected
+                          ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
+                          : isSubmitted
+                            ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
+                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
                         }
-                      >
-                        {isLiveNow && (
-                          <span className="absolute -top-1.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[7.5px] font-black tracking-widest shadow-2xs uppercase animate-pulse">
-                            Live
-                          </span>
-                        )}
-                        <span className="text-[13px] leading-none">P{pNum}</span>
+                      `}
+                      title={
+                        sub
+                          ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
+                          : `Period ${pNum}: Click to toggle period selection`
+                      }
+                    >
+                      <span className="text-[13px] leading-none">P{pNum}</span>
+                      {sectionFilter !== 'all' ? (
                         <span className="text-[8px] font-bold opacity-80 mt-0.5">
                           {isSubmitted ? (sub?.markedBy?.name ? sub.markedBy.name.split(' ')[0] : 'Done') : 'Pending'}
                         </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Lunch Break Divider */}
-                <div className="px-2 py-1 bg-amber-100/90 text-amber-900 border border-amber-300/80 rounded-lg text-[9.5px] font-black uppercase tracking-wider shrink-0 text-center">
-                  Lunch<br />12:00 - 1:30
-                </div>
-
-                {/* Afternoon Session: Periods 5-8 */}
-                <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
-                  {[5, 6, 7, 8].map(pNum => {
-                    const sub = activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum));
-                    const isSelected = selectedPeriodFilters.includes(pNum);
-                    const isSubmitted = !!sub;
-                    const isLiveNow = getCurrentPeriodId() === pNum;
-
-                    return (
-                      <button
-                        key={pNum}
-                        type="button"
-                        onClick={() => handlePeriodToggle(pNum)}
-                        className={`
-                          flex-1 h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
-                          transition-all duration-150 cursor-pointer border select-none relative
-                          ${isSelected
-                            ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
-                            : isLiveNow
-                              ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-400/60 shadow-xs'
-                              : isSubmitted
-                                ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
-                                : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
-                          }
-                        `}
-                        title={
-                          sub
-                            ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
-                            : isLiveNow
-                              ? `Period ${pNum}: Live Active Period Right Now`
-                              : `Period ${pNum}: Click to toggle period selection`
-                        }
-                      >
-                        {isLiveNow && (
-                          <span className="absolute -top-1.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[7.5px] font-black tracking-widest shadow-2xs uppercase animate-pulse">
-                            Live
-                          </span>
-                        )}
-                        <span className="text-[13px] leading-none">P{pNum}</span>
-                        <span className="text-[8px] font-bold opacity-80 mt-0.5">
-                          {isSubmitted ? (sub?.markedBy?.name ? sub.markedBy.name.split(' ')[0] : 'Done') : 'Pending'}
+                      ) : (
+                        <span className="text-[8px] font-bold text-slate-400 mt-0.5">
+                          Period {pNum}
                         </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* ── Faculty Attendance Submissions Switcher Bar ── */}
-            {attendanceSubmissions.length > 0 && (
+            {/* ── Faculty Attendance Submissions Switcher Bar (Only for specific section view) ── */}
+            {sectionFilter !== 'all' && activeSectionSubmissions.length > 0 && (
               <div className="pt-2 border-t border-slate-100 space-y-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Faculty Attendance Submissions:
@@ -1204,20 +1428,20 @@ export default function PermissionsPage() {
                     type="button"
                     onClick={() => setSelectedSubmissionId('combined')}
                     className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer ${selectedSubmissionId === 'combined'
-                        ? 'bg-slate-900 text-white shadow-2xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-orange-500 text-white shadow-2xs'
+                      : 'bg-orange-500/10 text-orange-800 hover:bg-orange-500/20 border border-orange-200/60'
                       }`}
                   >
                     Combined Overview
                   </button>
-                  {attendanceSubmissions.map(sub => (
+                  {activeSectionSubmissions.map(sub => (
                     <button
                       key={sub.id}
                       type="button"
                       onClick={() => setSelectedSubmissionId(sub.id)}
                       className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${selectedSubmissionId === sub.id
-                          ? 'bg-orange-500 text-white shadow-2xs'
-                          : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
+                        ? 'bg-orange-500 text-white shadow-2xs'
+                        : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
                         }`}
                     >
                       <span>{sub.markedBy?.name}:</span>
@@ -1231,14 +1455,29 @@ export default function PermissionsPage() {
           </div>
 
           {/* Section Grid Content */}
-          {sectionFilter === 'none' ? (
+          {!selectedYear || sectionFilter === 'none' ? (
             <div className="bg-white border border-slate-200/90 rounded-2xl p-8 text-center space-y-3 shadow-2xs">
               <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto shadow-xs">
                 <Building2 size={24} />
               </div>
-              <h3 className="font-bold text-slate-800 text-[15px]">Select Section & Year to View Today's Attendance</h3>
+              <h3 className="font-bold text-slate-800 text-[15px]">
+                {!selectedYear ? "Select Year & Section to View Today's Attendance" : "Select Section to View Today's Attendance"}
+              </h3>
               <p className="text-slate-500 text-[12px] max-w-md mx-auto">
-                Please select your section (CSD, CSIT-A, CSIT-B) and Year above to load today's live attendance & approved permission passes.
+                {!selectedYear
+                  ? "Please select your Year (1st, 2nd, 3rd, 4th) and target section above to load attendance & approved permission passes."
+                  : `Please select your target section for ${selectedYear} above to load attendance & approved permission passes.`
+                }
+              </p>
+            </div>
+          ) : dbSections.length === 0 ? (
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-8 text-center space-y-3 shadow-2xs">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto shadow-xs">
+                <Building2 size={24} />
+              </div>
+              <h3 className="font-bold text-slate-800 text-[15px]">No Data Available for {selectedYear}</h3>
+              <p className="text-slate-500 text-[12px] max-w-md mx-auto">
+                There are currently no active students, sections, or attendance records registered for {selectedYear} in the database.
               </p>
             </div>
           ) : isLoading ? (
@@ -1252,6 +1491,7 @@ export default function PermissionsPage() {
                 <PermissionGrid
                   key={sectionKey}
                   sectionKey={sectionKey}
+                  customRollNumbers={getDynamicSectionRollNumbers(sectionKey)}
                   passes={sectionsMap[sectionKey] || []}
                   markedAttendance={markedAttendance}
                   attendanceSubmissions={activeSectionSubmissions}
@@ -1271,294 +1511,485 @@ export default function PermissionsPage() {
         </div>
 
         {/* WhatsApp Attendance Export Modal */}
-        <AnimatePresence>
-          {isWhatsAppModalOpen && (
-            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 print:hidden">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200"
-              >
-                {/* Modal Header */}
-                <div className="bg-emerald-700 px-5 py-4 text-white flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center shadow-inner">
-                      <WhatsappIcon size={20} className="text-white" />
+        {createPortal(
+          <AnimatePresence>
+            {isWhatsAppModalOpen && (
+              <div className="fixed inset-0 z-[99999] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 print:hidden">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200"
+                >
+                  {/* Modal Header (Light Green Card) */}
+                  <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-4 text-emerald-950 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center shadow-xs">
+                        <WhatsappIcon size={22} className="text-emerald-800" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-[16px] text-emerald-950 leading-tight">Send Attendance to WhatsApp</h3>
+                        <p className="text-[11.5px] text-emerald-800 font-medium mt-0.5">Formatted presentees &amp; absentees report</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-extrabold text-[16px] leading-tight">Send Attendance to WhatsApp</h3>
-                      <p className="text-[11px] text-emerald-100 font-medium">Formatted presentees &amp; absentees report</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setIsWhatsAppModalOpen(false)}
-                    className="w-8 h-8 rounded-full bg-emerald-800/60 hover:bg-emerald-800 text-white flex items-center justify-center transition-colors cursor-pointer text-sm font-bold"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Modal Body */}
-                <div className="p-5 space-y-4">
-                  {/* Section Selector */}
-                  <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-[12px]">
-                    <span className="font-bold text-slate-700">Target Section:</span>
-                    <select
-                      value={whatsAppSectionKey}
-                      onChange={(e) => setActiveWhatsAppSection(e.target.value)}
-                      className="bg-white border border-slate-300 font-bold text-slate-900 px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                    >
-                      {sectionKeys.map(k => (
-                        <option key={k} value={k}>{k}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Metrics */}
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-emerald-50 border border-emerald-200/80 p-2.5 rounded-xl">
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Present</span>
-                      <span className="text-[18px] font-black text-emerald-900">{whatsAppPresentRolls.length}</span>
-                    </div>
-                    <div className="bg-rose-50 border border-rose-200/80 p-2.5 rounded-xl">
-                      <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider block">Absent</span>
-                      <span className="text-[18px] font-black text-rose-900">{whatsAppAbsentRolls.length}</span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Students</span>
-                      <span className="text-[18px] font-black text-slate-800">{whatsAppRollNumbers.length}</span>
-                    </div>
-                  </div>
-
-                  {/* Message Preview */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-                      <span>Formatted WhatsApp Message:</span>
-                      <span className="text-emerald-700 font-mono">Sorted Ascending</span>
-                    </div>
-                    <textarea
-                      readOnly
-                      value={formattedWhatsAppText}
-                      rows={8}
-                      className="w-full p-3.5 bg-emerald-950/5 border border-emerald-200/80 rounded-xl font-mono text-[12.5px] text-slate-800 leading-relaxed focus:outline-none select-all resize-none shadow-inner"
-                    />
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="flex items-center gap-2 pt-1">
                     <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(formattedWhatsAppText);
-                        setCopiedWhatsApp(true);
-                        showToast('Copied formatted WhatsApp message to clipboard!');
-                        setTimeout(() => setCopiedWhatsApp(false), 2500);
-                      }}
-                      className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[12px] rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-slate-200"
+                      onClick={() => setIsWhatsAppModalOpen(false)}
+                      className="w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 flex items-center justify-center transition-colors cursor-pointer text-sm font-bold"
                     >
-                      {copiedWhatsApp ? (
-                        <>
-                          <Check size={16} className="text-emerald-600" />
-                          <span className="text-emerald-700 font-extrabold">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={16} />
-                          <span>Copy Message</span>
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = `https://wa.me/?text=${encodeURIComponent(formattedWhatsAppText)}`;
-                        window.open(url, '_blank');
-                      }}
-                      className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[12px] rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-600/20 transition-all hover:scale-[1.02] active:scale-95"
-                    >
-                      <WhatsappIcon size={18} />
-                      <span>Send directly to WhatsApp</span>
+                      ✕
                     </button>
                   </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+
+                  {/* Modal Body */}
+                  <div className="p-5 space-y-4">
+                    {/* Section Selector */}
+                    <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 text-[12px]">
+                      <div className="flex items-center gap-2">
+                        <Building2 size={15} className="text-emerald-600" />
+                        <span className="font-bold text-slate-700">Target Section:</span>
+                      </div>
+                      <select
+                        value={whatsAppSectionKey}
+                        onChange={(e) => setActiveWhatsAppSection(e.target.value)}
+                        className="bg-white border border-slate-300 font-bold text-slate-900 px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer text-[12px]"
+                      >
+                        {sectionKeys.map(k => (
+                          <option key={k} value={k}>{k}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Metrics */}
+                    <div className="grid grid-cols-3 gap-2.5 text-center">
+                      <div className="bg-emerald-500/20 border border-emerald-400/90 p-2.5 rounded-xl">
+                        <span className="text-[10px] font-extrabold text-emerald-900 uppercase tracking-wider block">Present</span>
+                        <span className="text-[19px] font-black text-emerald-950 leading-tight mt-0.5">{whatsAppPresentRolls.length}</span>
+                      </div>
+                      <div className="bg-rose-500/20 border border-rose-400/90 p-2.5 rounded-xl">
+                        <span className="text-[10px] font-extrabold text-rose-900 uppercase tracking-wider block">Absent</span>
+                        <span className="text-[19px] font-black text-rose-950 leading-tight mt-0.5">{whatsAppAbsentRolls.length}</span>
+                      </div>
+                      <div className="bg-slate-100/80 border border-slate-200 p-2.5 rounded-xl">
+                        <span className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Total Students</span>
+                        <span className="text-[19px] font-black text-slate-800 leading-tight mt-0.5">{whatsAppRollNumbers.length}</span>
+                      </div>
+                    </div>
+
+                    {/* Message Preview */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                        <span>Formatted WhatsApp Message:</span>
+                        <span className="text-emerald-700 font-mono text-[10.5px] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">Sorted Ascending</span>
+                      </div>
+                      <textarea
+                        readOnly
+                        value={formattedWhatsAppText}
+                        rows={8}
+                        className="w-full p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl font-mono text-[12px] text-slate-800 leading-relaxed focus:outline-none select-all resize-none shadow-inner"
+                      />
+                    </div>
+
+                    {/* Buttons */}
+                    <div className="flex items-center gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(formattedWhatsAppText);
+                          setCopiedWhatsApp(true);
+                          showToast('Copied formatted WhatsApp message to clipboard!');
+                          setTimeout(() => setCopiedWhatsApp(false), 2500);
+                        }}
+                        className="flex-1 h-11 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-[12px] rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-slate-200"
+                      >
+                        {copiedWhatsApp ? (
+                          <>
+                            <Check size={16} className="text-emerald-600" />
+                            <span className="text-emerald-700 font-extrabold">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={16} />
+                            <span>Copy Message</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `https://wa.me/?text=${encodeURIComponent(formattedWhatsAppText)}`;
+                          window.open(url, '_blank');
+                        }}
+                        className="flex-1 h-11 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-950 border border-emerald-400 font-extrabold text-[12px] rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-all hover:scale-[1.02] active:scale-95"
+                      >
+                        <WhatsappIcon size={18} className="text-emerald-800" />
+                        <span>Send to WhatsApp</span>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
 
         {/* Printable Slip Modal */}
-        <AnimatePresence>
-          {selectedPass && (
-            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 print:static print:bg-white print:p-0 print:inset-auto print:z-auto">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-xl max-w-md w-full p-4 shadow-2xl border border-slate-200 print:hidden"
-              >
-                <div className="text-center pb-3 border-b-2 border-slate-900">
-                  <p className="text-[10px] font-extrabold uppercase text-slate-500">SRKR Engineering College</p>
-                  <h2 className="text-[17px] font-black text-slate-900 uppercase">Permission Slip</h2>
-                  <p className="text-[10px] text-orange-600 font-bold bg-orange-50 inline-block px-2 py-0.5 rounded-full border border-orange-200 mt-1">
-                    APPROVED • #{selectedPass.id.toUpperCase()}
-                  </p>
-                </div>
+        {createPortal(
+          <AnimatePresence>
+            {selectedPass && (
+              <div className="attendease-slip-portal fixed inset-0 z-[99999] bg-orange-950/20 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+                <style>{`
+                  @media screen {
+                    .attendease-printable-slip {
+                      display: none !important;
+                    }
+                  }
+                  @media print {
+                    @page {
+                      size: A4 portrait;
+                      margin: 8mm 12mm;
+                    }
+                    body > * {
+                      visibility: hidden !important;
+                    }
+                    .attendease-slip-portal,
+                    .attendease-slip-portal * {
+                      visibility: visible !important;
+                    }
+                    .attendease-slip-portal {
+                      position: absolute !important;
+                      left: 0 !important;
+                      top: 0 !important;
+                      width: 100% !important;
+                      background: #ffffff !important;
+                      padding: 0 !important;
+                      margin: 0 !important;
+                      z-index: 9999999 !important;
+                    }
+                    .attendease-printable-slip {
+                      display: flex !important;
+                      visibility: visible !important;
+                      background: #ffffff !important;
+                      color: #000000 !important;
+                      width: 100% !important;
+                      min-height: 255mm !important;
+                      padding: 6mm 8mm !important;
+                      box-sizing: border-box !important;
+                    }
+                    .attendease-screen-modal {
+                      display: none !important;
+                    }
+                  }
+                `}</style>
 
-                <div className="py-4 space-y-2 text-[12px]">
-                  <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200/60">
-                    <img
-                      src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${selectedPass.student?.rollNumber || selectedPass.studentId}.jpg`}
-                      alt="Student Avatar"
-                      className="w-12 h-14 object-cover rounded-md border border-slate-300 shrink-0"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=0F172A&color=fff`;
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] text-slate-500 font-mono">Roll Number:</p>
-                      <p className="font-mono font-bold text-slate-900 text-[14px]">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</p>
-                      <p className="font-bold text-slate-800 text-[12px] truncate mt-0.5">{selectedPass.student?.name ?? selectedPass.studentId}</p>
-                    </div>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Reason / Category:</span>
-                    <span className="font-bold text-orange-600">{selectedPass.reasonLabel}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Date &amp; Time Slot:</span>
-                    <span className="font-bold text-slate-800">{selectedPass.date} ({formatTime(selectedPass.startTime)} - {formatTime(selectedPass.endTime)})</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Approved By:</span>
-                    <span className="font-bold text-slate-900">{selectedPass.finalDecisionName || selectedPass.faculty?.name || 'Faculty Advisor'}</span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-lg text-[11px] text-slate-600 italic">
-                    "{selectedPass.description}"
-                  </div>
-                </div>
-
-                <div className="mt-4 flex items-center gap-2">
-                  <button
-                    onClick={() => window.print()}
-                    className="flex-1 h-9 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[12px] rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all"
-                  >
-                    <Printer size={13} />
-                    <span>Print Letter Format</span>
-                  </button>
-                  <button
-                    onClick={() => setSelectedPass(null)}
-                    className="h-9 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[12px] rounded-lg cursor-pointer"
-                  >
-                    Close
-                  </button>
-                </div>
-              </motion.div>
-
-              {/* Printable Letter Format */}
-              <div className="hidden print:block bg-white p-6 sm:p-8 text-slate-900 font-sans leading-relaxed w-full min-h-[255mm] flex flex-col justify-between mx-auto text-[12px]">
-                <div>
-                  <div className="border-b-2 border-slate-900 pb-3 mb-4 text-center">
-                    <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
-                      SAGI RAMAKRISHNAM RAJU ENGINEERING COLLEGE (AUTONOMOUS)
-                    </h2>
-                    <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
-                      CHINA AMIRAM, BHIMAVARAM — 534 204, W.G. Dist., Andhra Pradesh, India
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-12 items-start text-[12px] font-medium mb-4 gap-2 border-b border-slate-200/80 pb-3">
-                    <div className="col-span-5 space-y-0.5">
-                      <p className="font-bold text-slate-900 uppercase text-[11px]">From:</p>
-                      <p className="font-bold text-slate-900">{selectedPass.student?.name ?? selectedPass.studentId}</p>
-                      <p className="font-mono text-slate-700 font-bold">Roll No: {selectedPass.student?.rollNumber ?? selectedPass.studentId}</p>
-                      <p className="text-slate-600 text-[11.5px]">Department of {selectedPass.student?.department ?? 'CSD'} &amp; CSIT</p>
-                      <p className="text-slate-600 text-[11.5px]">SRKR Engineering College (Autonomous)</p>
-                    </div>
-
-                    <div className="col-span-4 text-center space-y-1 self-center">
-                      <div className="inline-block px-3 py-1 bg-slate-50 border border-slate-300 rounded-md">
-                        <p className="font-bold text-slate-900 text-[11.5px]">Date: {selectedPass.date}</p>
-                        <p className="font-mono text-slate-600 text-[10.5px]">Ref: SRKR/PERM/{selectedPass.id.toUpperCase()}</p>
-                      </div>
-                    </div>
-
-                    <div className="col-span-3 flex justify-end">
-                      <div className="w-[72px] h-[90px] border-2 border-slate-900 rounded-sm bg-white overflow-hidden flex flex-col items-center justify-center relative shadow-2xs">
-                        <img
-                          src={selectedPass.student?.avatarUrl || `https://srkrexams.in/SRKR/photo/${(selectedPass.student?.rollNumber || selectedPass.studentId).toUpperCase()}.jpg`}
-                          alt="Student Photo"
-                          className="w-full h-full object-cover block"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=0F172A&color=fff`;
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-[12px] font-medium mb-4 space-y-0.5">
-                    <p className="font-bold text-slate-900 uppercase text-[11px]">To:</p>
-                    <p className="font-bold text-slate-900">The Head of the Department (HOD)</p>
-                    <p className="text-slate-700">Department of {selectedPass.student?.department ?? 'CSD'}</p>
-                    <p className="text-slate-700">SRKR Engineering College (Autonomous), Bhimavaram</p>
-                  </div>
-
-                  <div className="my-4 p-3 bg-slate-50 border-y border-slate-300 font-bold text-[12px] sm:text-[13px] text-slate-900 leading-snug">
-                    Subject: Application requesting official permission for {selectedPass.reasonLabel} — "{selectedPass.description}"
-                  </div>
-
-                  <div className="space-y-3 text-[12px] leading-relaxed text-slate-800">
-                    <p className="font-bold text-slate-900">Respected Sir/Madam,</p>
-                    <p>
-                      I am writing to formally request your approval for an official permission slip. I am <strong>{selectedPass.student?.name ?? selectedPass.studentId}</strong>, bearing Roll Number <strong className="font-mono">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</strong>, studying in 3rd Year, Department of <strong>{selectedPass.student?.department ?? 'CSD'}</strong> (Section <strong>{selectedPass.student?.section ?? (selectedPass as unknown as ExtendedAttendanceRequest).sectionName ?? 'A'}</strong>).
-                    </p>
-                    <p>
-                      I am requesting permission for <strong>{selectedPass.reasonLabel}</strong> on <strong>{selectedPass.date}</strong> for the time duration of <strong>{selectedPass.startTime} to {selectedPass.endTime}</strong>.
-                    </p>
-
-                    <div className="pl-4 space-y-2 border-l-2 border-orange-500 bg-orange-50/40 p-3 rounded-r-lg text-[11.5px]">
-                      <p><strong>Permission Reason:</strong> {selectedPass.reasonLabel}</p>
-                      <p><strong>Purpose &amp; Description:</strong> "{selectedPass.description || 'Permission request for academic/personal reasons.'}"</p>
-                      <p><strong>Date &amp; Time Slot:</strong> {selectedPass.date} ({formatTime(selectedPass.startTime)} – {formatTime(selectedPass.endTime)})</p>
-                      <p><strong>Approved Faculty Advisor:</strong> {selectedPass.faculty?.name ?? 'Faculty Advisor'}</p>
-                    </div>
-
-                    <p>
-                      I assure you that I will make up for any missed coursework or lab sessions promptly. I kindly request you to grant me permission for the specified duration.
-                    </p>
-                    <p>Thank you for your time, consideration, and continuous support.</p>
-                  </div>
-                </div>
-
-                <div className="mt-8 pt-4 border-t-2 border-slate-900 flex items-end justify-between gap-4 text-[11px] font-sans">
+                {/* On-screen Modal */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 247, 237, 0.90) 100%)',
+                    backdropFilter: 'blur(24px) saturate(190%)',
+                    WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+                    border: '1px solid rgba(254, 215, 170, 0.75)',
+                    boxShadow: '0 24px 60px -10px rgba(249, 115, 22, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.8) inset',
+                  }}
+                  className="attendease-screen-modal rounded-3xl max-w-md w-full p-5 sm:p-6 max-h-[92vh] flex flex-col justify-between overflow-y-auto"
+                >
+                  {/* Modal Top Header with Close Button */}
                   <div>
-                    <p className="font-bold text-slate-900 mb-4">Yours sincerely,</p>
-                    <div className="h-7 border-b border-slate-400 w-40 mb-1"></div>
-                    <p className="font-bold text-slate-900">{selectedPass.student?.name ?? selectedPass.studentId}</p>
-                  </div>
-
-                  <div className="text-center">
-                    <p className="font-bold text-slate-900 mb-4">Forwarded &amp; Approved by:</p>
-                    <div className="h-7 border-b border-slate-400 w-44 mb-1 mx-auto flex items-end justify-center pb-0.5">
-                      <span className="text-[10px] font-bold text-orange-600 font-serif italic">Verified &amp; Approved</span>
+                    <div className="flex items-start justify-between pb-3.5 border-b border-orange-500/25 gap-2">
+                      <div className="min-w-0 flex-1 text-center sm:text-left">
+                        <p className="text-[10px] font-extrabold uppercase text-orange-600/80 tracking-wider">SRKR Engineering College</p>
+                        <h2 className="text-[20px] font-black text-slate-900 uppercase leading-tight mt-0.5">Permission Slip</h2>
+                        <div className="mt-1.5 flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
+                          <span
+                            style={{
+                              background: 'rgba(249, 115, 22, 0.12)',
+                              backdropFilter: 'blur(8px)',
+                              border: '1px solid rgba(249, 115, 22, 0.35)',
+                              color: '#EA580C',
+                            }}
+                            className="text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full"
+                          >
+                            APPROVED
+                          </span>
+                          <span
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.75)',
+                              backdropFilter: 'blur(8px)',
+                              border: '1px solid rgba(254, 215, 170, 0.6)',
+                              color: '#C2410C',
+                            }}
+                            className="text-[10.5px] font-mono font-bold px-2 py-0.5 rounded-full"
+                          >
+                            #{selectedPass.id.toUpperCase().slice(-8)}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedPass(null)}
+                        style={{
+                          background: 'rgba(255, 247, 237, 0.9)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(254, 215, 170, 0.8)',
+                          color: '#EA580C',
+                        }}
+                        className="w-8 h-8 rounded-full hover:bg-orange-600 hover:text-white flex items-center justify-center transition-all cursor-pointer text-sm font-bold shrink-0 shadow-xs"
+                        title="Close slip"
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <p className="font-bold text-slate-900">{selectedPass.faculty?.name ?? 'Faculty Advisor'}</p>
+
+                    {/* Student Details Glassy Orange Card */}
+                    <div className="py-3.5 space-y-3 text-[12px]">
+                      <div
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.80)',
+                          backdropFilter: 'blur(12px)',
+                          border: '1px solid rgba(254, 215, 170, 0.65)',
+                          boxShadow: '0 4px 16px rgba(249, 115, 22, 0.05)',
+                        }}
+                        className="flex items-stretch rounded-2xl overflow-hidden"
+                      >
+                        {/* Photo — flush left, full height */}
+                        <div className="shrink-0 w-[72px] sm:w-[88px]">
+                          <img
+                            src={getStudentPhoto(selectedPass)}
+                            alt="Student Avatar"
+                            className="w-full h-full object-cover block"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=EA580C&color=fff`;
+                            }}
+                          />
+                        </div>
+                        {/* Text content */}
+                        <div className="min-w-0 flex-1 p-3.5">
+                          <p className="text-[10px] text-orange-600 font-bold uppercase tracking-wider">Student Name &amp; Roll</p>
+                          <p className="font-extrabold text-slate-900 text-[14px] truncate leading-snug">{selectedPass.student?.name ?? selectedPass.studentId}</p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className="font-mono font-black text-slate-900 text-[13px]">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</span>
+                            <span
+                              style={{
+                                background: 'rgba(249, 115, 22, 0.12)',
+                                border: '1px solid rgba(249, 115, 22, 0.28)',
+                                color: '#EA580C',
+                              }}
+                              className="px-2 py-0.5 rounded-md font-bold text-[10px]"
+                            >
+                              {selectedPass.student?.department || 'CSIT'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Metadata Glassy Grid */}
+                      <div
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.65)',
+                          backdropFilter: 'blur(10px)',
+                          border: '1px solid rgba(254, 215, 170, 0.55)',
+                        }}
+                        className="space-y-2.5 p-3.5 rounded-2xl text-[12px]"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-500 font-semibold">Category / Reason:</span>
+                          <span
+                            style={{
+                              background: 'rgba(249, 115, 22, 0.14)',
+                              border: '1px solid rgba(249, 115, 22, 0.3)',
+                              color: '#EA580C',
+                            }}
+                            className="font-extrabold px-2.5 py-0.5 rounded-lg text-[11.5px]"
+                          >
+                            {selectedPass.reasonLabel}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-500 font-semibold">Date:</span>
+                          <span className="font-bold text-slate-800">{selectedPass.date}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-500 font-semibold">Time Duration:</span>
+                          <span className="font-bold text-slate-800 font-mono text-[11.5px]">{formatTime(selectedPass.startTime)} - {formatTime(selectedPass.endTime)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-500 font-semibold">Approved By:</span>
+                          <span className="font-bold text-slate-900 truncate max-w-[200px] text-right">{selectedPass.finalDecisionName || selectedPass.faculty?.name || 'Faculty Advisor'}</span>
+                        </div>
+                      </div>
+
+                      {/* Reason Description Glass Box */}
+                      {selectedPass.description && (
+                        <div
+                          style={{
+                            background: 'rgba(255, 247, 237, 0.85)',
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(254, 215, 170, 0.75)',
+                          }}
+                          className="p-3.5 rounded-2xl text-[11.5px] text-orange-950 leading-relaxed"
+                        >
+                          <span className="font-bold text-orange-800 block mb-1 text-[10px] uppercase tracking-wider">Purpose / Description:</span>
+                          "{selectedPass.description}"
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex flex-col items-center justify-center text-center">
-                    <div className="w-20 h-20 border-2 border-orange-500 rounded-full flex flex-col items-center justify-center bg-orange-50/70 shadow-2xs transform -rotate-12 p-1 border-dashed">
-                      <img src={srkrEmblem} alt="SRKR Emblem" className="w-7 h-7 object-contain mb-0.5 opacity-90" />
-                      <span className="text-[7.5px] font-black uppercase text-orange-600 tracking-tighter leading-none">ATTENDEASE</span>
-                      <span className="text-[6.5px] font-bold uppercase text-slate-700 tracking-tighter leading-none">OFFICIAL SEAL</span>
+                  {/* Modal Footer Buttons with Glassy Orange styling */}
+                  <div className="pt-3 flex flex-col sm:flex-row items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.95) 0%, rgba(234, 88, 12, 1) 100%)',
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255, 255, 255, 0.4)',
+                        boxShadow: '0 8px 24px -4px rgba(249, 115, 22, 0.45)',
+                      }}
+                      className="w-full sm:flex-1 h-10.5 text-white font-extrabold text-[12.5px] rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                    >
+                      <Printer size={15} />
+                      <span>Print Official Slip</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPass(null)}
+                      style={{
+                        background: 'rgba(255, 247, 237, 0.85)',
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(254, 215, 170, 0.8)',
+                        color: '#EA580C',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = '#EA580C';
+                        e.currentTarget.style.color = '#ffffff';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(255, 247, 237, 0.85)';
+                        e.currentTarget.style.color = '#EA580C';
+                      }}
+                      className="w-full sm:w-auto h-10.5 px-5 font-extrabold text-[12px] rounded-xl cursor-pointer transition-colors shadow-xs"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </motion.div>
+
+                {/* Printable Letter Format */}
+                <div className="attendease-printable-slip bg-white p-6 sm:p-8 text-slate-900 font-sans leading-relaxed w-full min-h-[255mm] flex flex-col justify-between mx-auto text-[12px]">
+                  <div>
+                    <div className="border-b-2 border-slate-900 pb-3 mb-4 text-center">
+                      <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
+                        SAGI RAMAKRISHNAM RAJU ENGINEERING COLLEGE (AUTONOMOUS)
+                      </h2>
+                      <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                        CHINA AMIRAM, BHIMAVARAM — 534 204, W.G. Dist., Andhra Pradesh, India
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-12 items-start text-[12px] font-medium mb-4 gap-2 border-b border-slate-200/80 pb-3">
+                      <div className="col-span-5 space-y-0.5">
+                        <p className="font-bold text-slate-900 uppercase text-[11px]">From:</p>
+                        <p className="font-bold text-slate-900">{selectedPass.student?.name ?? selectedPass.studentId}</p>
+                        <p className="font-mono text-slate-700 font-bold">Roll No: {selectedPass.student?.rollNumber ?? selectedPass.studentId}</p>
+                        <p className="text-slate-600 text-[11.5px]">Department of {selectedPass.student?.department ?? 'CSD'} &amp; CSIT</p>
+                        <p className="text-slate-600 text-[11.5px]">SRKR Engineering College (Autonomous)</p>
+                      </div>
+
+                      <div className="col-span-4 text-center space-y-1 self-center">
+                        <div className="inline-block px-3 py-1 bg-slate-50 border border-slate-300 rounded-md">
+                          <p className="font-bold text-slate-900 text-[11.5px]">Date: {selectedPass.date}</p>
+                          <p className="font-mono text-slate-600 text-[10.5px]">Ref: SRKR/PERM/{selectedPass.id.toUpperCase()}</p>
+                        </div>
+                      </div>
+
+                      <div className="col-span-3 flex flex-col items-end">
+                        <div className="w-[64px] h-[64px] sm:w-[88px] sm:h-[88px] bg-white overflow-hidden flex flex-col items-center justify-center relative">
+                          <img
+                            src={getStudentPhoto(selectedPass)}
+                            alt="Student Photo"
+                            className="w-full h-full object-cover block"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=0F172A&color=fff`;
+                            }}
+                          />
+                        </div>
+                        <div className="text-center w-[64px] sm:w-[88px] mt-1 space-y-0.5">
+                          <p className="font-bold text-[10px] text-slate-900 leading-tight truncate">
+                            {selectedPass.student?.name ?? selectedPass.studentId}
+                          </p>
+                          <p className="font-mono font-black text-[9.5px] text-slate-800 uppercase tracking-tight">
+                            {selectedPass.student?.rollNumber ?? selectedPass.studentId}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-[12px] font-medium mb-4 space-y-0.5">
+                      <p className="font-bold text-slate-900 uppercase text-[11px]">To:</p>
+                      <p className="font-bold text-slate-900">The Head of the Department (HOD)</p>
+                      <p className="text-slate-700">Department of {selectedPass.student?.department ?? 'CSD'} &amp; CSIT</p>
+                      <p className="text-slate-700">SRKR Engineering College (Autonomous), Bhimavaram</p>
+                    </div>
+
+                    <div className="my-4 p-3 bg-slate-50 border-y border-slate-300 font-bold text-[12px] sm:text-[13px] text-slate-900 leading-snug">
+                      Subject: Application requesting official permission for {selectedPass.reasonLabel} — "{selectedPass.description}"
+                    </div>
+
+                    <div className="space-y-3 text-[12px] leading-relaxed text-slate-800">
+                      <p className="font-bold text-slate-900">Respected Sir/Madam,</p>
+                      <p>
+                        I am writing to formally request your approval for an official permission slip. I am <strong>{selectedPass.student?.name ?? selectedPass.studentId}</strong>, bearing Roll Number <strong className="font-mono">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</strong>, studying in 3rd Year, Department of <strong>{selectedPass.student?.department ?? 'CSD'}</strong> (Section <strong>{selectedPass.student?.section ?? (selectedPass as unknown as ExtendedAttendanceRequest).sectionName ?? 'A'}</strong>).
+                      </p>
+                      <p>
+                        I am requesting permission for <strong>{selectedPass.reasonLabel}</strong> on <strong>{selectedPass.date}</strong> for the time duration of <strong>{selectedPass.startTime} to {selectedPass.endTime}</strong>.
+                      </p>
+
+                      <div className="pl-4 space-y-2 border-l-2 border-orange-500 bg-orange-50/40 p-3 rounded-r-lg text-[11.5px]">
+                        <p><strong>Permission Reason:</strong> {selectedPass.reasonLabel}</p>
+                        <p><strong>Purpose &amp; Description:</strong> "{selectedPass.description || 'Permission request for academic/personal reasons.'}"</p>
+                        <p><strong>Date &amp; Time Slot:</strong> {selectedPass.date} ({formatTime(selectedPass.startTime)} – {formatTime(selectedPass.endTime)})</p>
+                        <p><strong>Approved Faculty Advisor:</strong> {selectedPass.faculty?.name ?? 'Faculty Advisor'}</p>
+                      </div>
+
+                      <p>
+                        I assure you that I will make up for any missed coursework or lab sessions promptly. I kindly request you to grant me permission for the specified duration.
+                      </p>
+                      <p>Thank you for your time, consideration, and continuous support.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-4 border-t-2 border-slate-900 flex items-end justify-between gap-4 text-[11px] font-sans">
+                    <div>
+                      <p className="font-bold text-slate-900 mb-4">Yours sincerely,</p>
+                      <div className="h-7 border-b border-slate-400 w-40 mb-1"></div>
+                      <p className="font-bold text-slate-900">{selectedPass.student?.name ?? selectedPass.studentId}</p>
+                    </div>
+
+                    <div className="text-center">
+                      <p className="font-bold text-slate-900 mb-4">Forwarded &amp; Approved by:</p>
+                      <div className="h-7 border-b border-slate-400 w-44 mb-1 mx-auto flex items-end justify-center pb-0.5">
+                        <span className="text-[10px] font-bold text-orange-600 font-serif italic">Verified &amp; Approved</span>
+                      </div>
+                      <p className="font-bold text-slate-900">{selectedPass.faculty?.name ?? 'Faculty Advisor'}</p>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center text-center">
+                      <div className="w-20 h-20 flex flex-col items-center justify-center bg-transparent transform -rotate-12">
+                        <img src={logo} alt="AttendEase Official Seal" className="w-16 h-16 object-contain bg-transparent" />
+                        <span className="text-[7.5px] font-black uppercase text-orange-600 tracking-wider leading-none mt-1">OFFICIAL SEAL</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
 
       </div>
     </PageWrapper>

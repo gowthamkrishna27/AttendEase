@@ -217,7 +217,7 @@ router.get('/', async (req: Request, res: Response) => {
     res.json({ submissions });
   } catch (error) {
     console.error('Error fetching attendance submissions:', error);
-    res.status(500).json({ error: 'Failed to fetch attendance submissions' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -416,7 +416,7 @@ router.post('/submit', verifyToken, async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error submitting attendance:', error);
-    res.status(500).json({ error: 'Failed to submit attendance' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

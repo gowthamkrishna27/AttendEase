@@ -111,7 +111,7 @@ router.post('/login', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('Login error:', err);
-    res.status(500).json({ error: err.message || 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -158,7 +158,7 @@ router.post('/passkey/register-challenge', async (req: Request, res: Response) =
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to generate challenge' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -219,7 +219,7 @@ router.post('/passkey/register', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('Passkey registration error:', err);
-    res.status(500).json({ error: err.message || 'Failed to register passkey' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -277,7 +277,7 @@ router.post('/passkey/login-challenge', async (req: Request, res: Response) => {
       })),
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -358,7 +358,7 @@ router.post('/passkey/verify', async (req: Request, res: Response) => {
     const token = signToken(payload);
     res.json({ token, user: payload });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Passkey verification failed' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -388,7 +388,7 @@ router.get('/passkey/list', verifyToken, async (req: Request, res: Response) => 
 
     res.json({ devices });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to list passkeys' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -415,7 +415,7 @@ router.delete('/passkey/remove/:id', verifyToken, async (req: Request, res: Resp
 
     res.json({ success: true, message: 'Passkey device removed' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to remove passkey' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -437,7 +437,7 @@ router.delete('/passkey/remove-all', verifyToken, async (req: Request, res: Resp
 
     res.json({ success: true, message: 'All passkey devices removed' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to remove all passkeys' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -474,7 +474,7 @@ router.post('/change-pin', verifyToken, async (req: Request, res: Response) => {
 
     res.json({ success: true, message: '4-digit PIN updated in PostgreSQL successfully' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to update PIN' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -503,7 +503,7 @@ router.get('/public-faculty', async (_req: Request, res: Response) => {
     res.json({ faculty: users });
   } catch (err: any) {
     console.error('Error fetching public faculty list:', err);
-    res.status(500).json({ error: 'Failed to fetch public faculty list' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

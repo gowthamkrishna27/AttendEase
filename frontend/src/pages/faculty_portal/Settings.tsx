@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, Shield, Eye, Moon, AlertTriangle, LogOut } from 'lucide-react';
+import { Bell, Shield, Eye, AlertTriangle, LogOut, Camera, Loader2, Check } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
+import { FaceAlignedImage } from '../../components/shared/FaceAlignedImage';
 import { useAuth } from '../../context/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 
 type Toggle = {
@@ -22,6 +24,9 @@ const TOGGLES: Toggle[] = [
 
 export default function FacultySettings() {
   const { user, logout, updateProfile } = useAuth();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [name, setName]   = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [states, setStates] = useState<Record<string, boolean>>(() =>
@@ -29,6 +34,38 @@ export default function FacultySettings() {
   );
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoMessage, setPhotoMessage] = useState<string | null>(null);
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setPhotoMessage('Please select an image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    setPhotoMessage(null);
+    try {
+      const { url } = await api.uploadProofDocument(file);
+      if (url) {
+        await updateProfile({ avatarUrl: url });
+        void queryClient.invalidateQueries({ queryKey: ['faculty'] });
+        void queryClient.invalidateQueries({ queryKey: ['requests'] });
+        setPhotoMessage('Photo uploaded to Cloudinary and updated everywhere!');
+        setTimeout(() => setPhotoMessage(null), 4000);
+      } else {
+        throw new Error('Failed to upload photo to Cloudinary');
+      }
+    } catch (err: any) {
+      console.error('Photo upload error:', err);
+      setPhotoMessage(err?.message || 'Failed to upload photo. Please try again.');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleToggle = (id: string) => {
     setStates(prev => ({ ...prev, [id]: !prev[id] }));
@@ -72,21 +109,77 @@ export default function FacultySettings() {
           className="card px-6 py-5 mb-4"
         >
           <h2 className="text-[13px] font-bold text-slate-400 uppercase tracking-wider mb-4">Profile</h2>
-          <div className="flex items-center gap-4 mb-5">
-            <div style={{
-              width: 56, height: 56, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #F97316 0%, #ea580c 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontSize: 20, fontStyle: 'bold', flexShrink: 0,
-            }}>
-              {user?.name?.charAt(0) ?? 'F'}
+          
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 pb-5 border-b border-slate-100">
+            <div className="flex items-center gap-4">
+              <div
+                className="relative group cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+                title="Click to change photo"
+              >
+                <FaceAlignedImage
+                  src={user?.avatarUrl}
+                  fallbackName={user?.name || 'Faculty'}
+                  alt={user?.name || 'Faculty'}
+                  containerClassName="w-16 h-16 rounded-2xl border-2 border-orange-200 shadow-sm flex-shrink-0"
+                  className="w-full h-full"
+                />
+                <div className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200">
+                  <Camera size={18} />
+                  <span className="text-[9px] font-bold mt-0.5">Change</span>
+                </div>
+                {isUploadingPhoto && (
+                  <div className="absolute inset-0 rounded-2xl bg-orange-600/80 flex items-center justify-center text-white">
+                    <Loader2 size={20} className="animate-spin" />
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-[16px] font-bold text-slate-900">{user?.name}</p>
+                <p className="text-[13px] text-slate-400">Faculty · {user?.department ?? 'Computer Science & Engineering'}</p>
+                <p className="text-[12px] text-slate-300 mt-0.5">{user?.email}</p>
+              </div>
             </div>
+
             <div>
-              <p className="text-[16px] font-bold text-slate-900">{user?.name}</p>
-              <p className="text-[13px] text-slate-400">Faculty · {user?.department ?? 'Computer Science & Engineering'}</p>
-              <p className="text-[12px] text-slate-300 mt-0.5">{user?.email}</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoSelect}
+              />
+              <button
+                type="button"
+                disabled={isUploadingPhoto}
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 bg-orange-50 hover:bg-orange-100 active:bg-orange-200 text-orange-600 font-bold text-[12.5px] rounded-xl border border-orange-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isUploadingPhoto ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Uploading to Cloudinary...</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera size={14} />
+                    <span>Change Photo</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
+
+          {photoMessage && (
+            <div className={`mb-4 px-3.5 py-2 rounded-xl text-[12px] font-semibold flex items-center gap-2 ${
+              photoMessage.includes('Cloudinary') 
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
+            }`}>
+              {photoMessage.includes('Cloudinary') ? <Check size={14} /> : <AlertTriangle size={14} />}
+              <span>{photoMessage}</span>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Full Name</label>
@@ -242,7 +335,7 @@ export default function FacultySettings() {
               onClick={async () => {
                 try {
                   const userEmail = user?.email || '';
-                  const challengeRes = await api.registerPasskeyChallenge(userEmail);
+                  await api.registerPasskeyChallenge(userEmail);
                   const challengeBytes = new Uint8Array(32);
                   window.crypto.getRandomValues(challengeBytes);
                   const userIdBytes = new TextEncoder().encode(userEmail);

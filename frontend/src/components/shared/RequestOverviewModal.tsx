@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import React, { useState } from 'react';
-import { X, Calendar, Clock, FileText, Paperclip, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { X, Calendar, Clock, Paperclip, CheckCircle2, XCircle, ArrowRight, Eye, Download } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { StatusBadge } from './StatusBadge';
 import { formatDate, formatTime, formatSubmittedAt } from '../../lib/utils';
@@ -153,9 +153,10 @@ export function RequestOverviewModal({
                       <button
                         type="button"
                         onClick={() => setIsPreviewOpen(true)}
-                        className="text-[11px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 transition-colors cursor-pointer"
+                        className="text-[11px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
                       >
-                        👁️ Preview Proof
+                        <Eye size={12} />
+                        <span>Preview Proof</span>
                       </button>
                       <span className="text-slate-300">•</span>
                       <a
@@ -170,9 +171,10 @@ export function RequestOverviewModal({
                             setIsPreviewOpen(true);
                           }
                         }}
-                        className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 transition-colors cursor-pointer"
+                        className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
                       >
-                        📥 Download
+                        <Download size={12} />
+                        <span>Download</span>
                       </a>
                     </div>
                   </div>

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, UserCheck, ShieldAlert, Award, Percent, Users, Phone, Mail } from 'lucide-react';
+import { Search, UserCheck, ShieldAlert, Award, Users, Phone, Mail } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Avatar } from '../../components/shared/Avatar';
 import { EmptyState } from '../../components/shared/EmptyState';
@@ -169,16 +169,13 @@ export default function FacultyStudents() {
                   const pct = stats.percentage;
 
                   let badgeBg = 'bg-orange-50 text-orange-700 border-orange-200';
-                  let barBg = 'bg-orange-500';
                   let statusText = 'Good Standing (85%+ Good)';
 
                   if (pct < 75) {
                     badgeBg = 'bg-rose-50 text-rose-700 border-rose-200';
-                    barBg = 'bg-rose-500';
                     statusText = 'Critical Shortage (<75% Risk)';
                   } else if (pct < 85) {
                     badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
-                    barBg = 'bg-amber-500';
                     statusText = 'Borderline Warning (75-84%)';
                   }
 

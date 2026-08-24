@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, FileText, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FileText, UserCheck, Eye, Download, ShieldOff, ShieldAlert } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Button } from '../../components/ui/Button';
@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import { formatDate, formatTime, formatSubmittedAt } from '../../lib/utils';
 import { ProofPreviewModal } from '../../components/shared/ProofPreviewModal';
+import NotFound from '../NotFound';
 
 
 export default function FacultyRequestDetails() {
@@ -22,87 +23,84 @@ export default function FacultyRequestDetails() {
   const { data: request, isLoading, isError, error } = useQuery({
     queryKey: ['request', id],
     queryFn: async () => {
-      try {
-        return await api.getRequest(id!);
-      } catch (err) {
-        const cachedList = queryClient.getQueryData<api.AttendanceRequest[]>(['requests']) || [];
-        const cached = cachedList.find(r => r.id === id || (r as any).requestId === id);
-        if (cached) return cached;
-        throw err;
-      }
+      // Re-throw errors so isError=true fires — especially important for 403
+      return await api.getRequest(id!);
     },
     enabled: !!id,
+    retry: false, // Don't retry 403/404 — they are definitive
   });
 
   const reviewMutation = useMutation({
-    mutationFn: ({ action, reason }: { action: 'approve' | 'reject'; reason?: string }) =>
-      api.reviewRequest(id!, action, reason),
-    onMutate: async ({ action }) => {
-      await queryClient.cancelQueries({ queryKey: ['request', id] });
-      await queryClient.cancelQueries({ queryKey: ['requests'] });
-
-      const newStatus = action === 'approve' ? 'approved' : 'rejected';
-      queryClient.setQueryData<api.AttendanceRequest>(['request', id], old =>
-        old ? { ...old, status: newStatus as any } : old
-      );
-
-      queryClient.setQueryData<api.AttendanceRequest[]>(['requests'], old =>
-        (old || []).map(r => r.id === id ? { ...r, status: newStatus as any } : r)
-      );
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      void queryClient.invalidateQueries({ queryKey: ['request', id] });
+    // Faculty reviews as faculty (asHod=false) so backend applies assignment checks
+    mutationFn: (payload: { action: 'approve' | 'reject'; reason?: string }) =>
+      api.reviewRequest(id!, payload.action, payload.reason, false),
+    onSuccess: (updatedReq) => {
+      queryClient.setQueryData(['request', id], updatedReq);
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['facultyRequests'] });
       setConfirmModal(null);
+      setRejectionReason('');
     },
   });
+
 
   if (isLoading) {
     return (
       <PageWrapper role="faculty" showGreeting={false}>
         <div className="max-w-xl mx-auto text-center py-20">
-          <p className="text-[16px] text-[#6B7280]">Loading...</p>
+          <p className="text-[14px] text-[#6B7280]">Loading request details...</p>
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  // 403 Forbidden — faculty is not assigned to this request
+  const errorMsg = (error as Error)?.message || '';
+  const isForbidden = isError && (
+    errorMsg.toLowerCase().includes('not assigned') ||
+    errorMsg.toLowerCase().includes('forbidden') ||
+    errorMsg.toLowerCase().includes('403')
+  );
+
+  if (isForbidden) {
+    return (
+      <PageWrapper role="faculty" showGreeting={false}>
+        <div className="max-w-md mx-auto pt-16 pb-8 flex flex-col items-center text-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center">
+            <ShieldOff size={28} className="text-rose-500" />
+          </div>
+          <div>
+            <h1 className="text-[22px] font-bold text-slate-900 mb-1">Access Denied</h1>
+            <p className="text-[14px] text-slate-500 leading-relaxed">
+              This request has not been assigned to you. Only the faculty member
+              selected by the student can review this request.
+            </p>
+          </div>
+          <div className="w-full bg-rose-50 border border-rose-200 rounded-xl px-5 py-4">
+            <p className="text-[13px] font-semibold text-rose-700">
+              403 &mdash; You are not assigned to review this request.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => navigate('/faculty/requests')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft size={15} />
+            Back to My Requests
+          </Button>
         </div>
       </PageWrapper>
     );
   }
 
   if (isError || !request) {
-    const isForbidden = error instanceof Error && 
-      (error.message.includes('not assigned') || error.message.includes('Forbidden') || error.message.includes('Forbidden'));
-
     return (
-      <PageWrapper role="faculty" showGreeting={false}>
-        <div className="max-w-md mx-auto py-12 px-4">
-          {isForbidden ? (
-            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center">
-              <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-5 shadow-inner">
-                <ShieldAlert size={32} />
-              </div>
-              <span className="text-xs font-bold text-rose-600 uppercase tracking-widest bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
-                403 Forbidden
-              </span>
-              <h1 className="text-xl font-extrabold text-slate-900 mt-4 mb-2">Access Denied</h1>
-              <p className="text-sm text-slate-500 leading-relaxed mb-6">
-                You do not have authorization to view this attendance request. Shared request links are strictly restricted to the assigned student, designated faculty reviewers, and HOD.
-              </p>
-              <Button className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold" onClick={() => navigate('/faculty')}>
-                Back to Dashboard
-              </Button>
-            </div>
-          ) : (
-            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center">
-              <h1 className="text-xl font-extrabold text-slate-900 mb-2">Request Not Found</h1>
-              <p className="text-[14px] text-[#6B7280] mb-6">
-                {error instanceof Error ? error.message : 'The requested attendance permission request could not be found.'}
-              </p>
-              <Button className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold" onClick={() => navigate('/faculty')}>
-                Back to Dashboard
-              </Button>
-            </div>
-          )}
-        </div>
-      </PageWrapper>
+      <NotFound
+        code="404"
+        title="This attendance request could not be found."
+      />
     );
   }
 
@@ -120,11 +118,11 @@ export default function FacultyRequestDetails() {
       <div className="max-w-xl mx-auto">
         {/* Back */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/faculty/requests')}
           className="flex items-center gap-2 text-[14px] text-[#6B7280] hover:text-[#111111] transition-colors mb-6"
         >
           <ArrowLeft size={16} />
-          Back to Dashboard
+          Back to Requests
         </button>
 
         {/* Header */}
@@ -139,23 +137,6 @@ export default function FacultyRequestDetails() {
           </div>
           <StatusBadge status={currentStatus} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
         </div>
-
-        {/* HOD Decision Banner */}
-        {request.finalDecisionBy === 'HOD' && (
-          <div className="mb-6 p-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between text-[13px] text-white font-medium shadow-2xs">
-            <div>
-              <p className="font-bold text-[14px] text-orange-400 flex items-center gap-1.5">
-                👑 Official Decision by Head of Department (HOD)
-              </p>
-              <p className="text-[12px] text-slate-300 mt-0.5">
-                Head of Department (HOD) holds the official rights to override permission requests.
-              </p>
-            </div>
-            <span className="px-2.5 py-1 bg-orange-500 text-white font-bold text-[11px] rounded-lg shrink-0">
-              HOD Overridden
-            </span>
-          </div>
-        )}
 
         {/* Student info card */}
         <div
@@ -230,6 +211,45 @@ export default function FacultyRequestDetails() {
               </div>
             </div>
 
+            {/* Assigned Faculty */}
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center flex-shrink-0 border border-orange-100">
+                <UserCheck size={15} />
+              </div>
+              <div>
+                <p className="text-[13px] text-[#6B7280] mb-0.5">Assigned Faculty</p>
+                <p className="text-[14px] font-bold text-slate-900">
+                  {request.faculty?.name || (request.faculties && request.faculties.length > 0 ? request.faculties.map((f: any) => f.name).join(', ') : 'Department Faculty')}
+                </p>
+              </div>
+            </div>
+
+            {/* Approved / Decided By (if reviewed) */}
+            {request.status !== 'pending' && (
+              <div className="flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border ${
+                  request.status === 'approved'
+                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                    : 'bg-rose-50 text-rose-600 border-rose-200'
+                }`}>
+                  <UserCheck size={15} />
+                </div>
+                <div>
+                  <p className="text-[13px] text-[#6B7280] mb-0.5">
+                    {request.status === 'approved' ? 'Approved By' : 'Rejected By'}
+                  </p>
+                  <p className={`text-[14px] font-bold ${
+                    request.status === 'approved' ? 'text-emerald-800' : 'text-rose-800'
+                  }`}>
+                    {request.finalDecisionName || (request.finalDecisionBy === 'HOD' ? 'HOD' : request.faculty?.name || 'Faculty')}
+                    <span className="text-[11px] font-semibold text-slate-400 ml-1.5 font-normal">
+                      ({request.finalDecisionBy || 'Faculty'})
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+
             {request.submittedAt && (
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[#F3F4F6] flex items-center justify-center flex-shrink-0">
@@ -260,9 +280,10 @@ export default function FacultyRequestDetails() {
                     <button
                       type="button"
                       onClick={() => setIsPreviewOpen(true)}
-                      className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
+                      className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      👁️ Preview Proof
+                      <Eye size={13} />
+                      <span>Preview Proof</span>
                     </button>
                     <span className="text-slate-300">•</span>
                     <a
@@ -277,9 +298,10 @@ export default function FacultyRequestDetails() {
                           setIsPreviewOpen(true);
                         }
                       }}
-                      className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
+                      className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      📥 Download File
+                      <Download size={13} />
+                      <span>Download File</span>
                     </a>
                   </div>
                 </div>

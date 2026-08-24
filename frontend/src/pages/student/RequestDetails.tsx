@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, FileText, User } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FileText, User, Eye, Pencil, Trash2, Download } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { WhatsAppShareButton } from '../../components/shared/WhatsAppShareButton';
@@ -68,11 +68,11 @@ export default function RequestDetails() {
       <div className="max-w-xl mx-auto">
         {/* Back */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/student/history')}
           className="flex items-center gap-2 text-[14px] text-[#6B7280] hover:text-[#111111] transition-colors mb-6"
         >
           <ArrowLeft size={16} />
-          Back
+          Back to History
         </button>
 
         {/* Title row */}
@@ -89,23 +89,6 @@ export default function RequestDetails() {
             <StatusBadge status={request.status} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />
           </div>
         </div>
-
-        {/* HOD Decision Banner */}
-        {request.finalDecisionBy === 'HOD' && (
-          <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-2xl flex items-center justify-between text-[13px] text-purple-900 font-medium shadow-2xs">
-            <div>
-              <p className="font-bold text-[14px] text-purple-950 flex items-center gap-1.5">
-                👑 Official Decision by Head of Department (HOD)
-              </p>
-              <p className="text-[12px] text-purple-700 mt-0.5">
-                Head of Department (HOD) holds the official rights to override permission requests.
-              </p>
-            </div>
-            <span className="px-2.5 py-1 bg-purple-600 text-white font-bold text-[11px] rounded-lg shrink-0">
-              HOD Overridden
-            </span>
-          </div>
-        )}
 
         {/* Info grid */}
         <div className="card p-5 mb-4">
@@ -174,15 +157,38 @@ export default function RequestDetails() {
                 <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center flex-shrink-0">
                   <FileText size={15} />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-[13px] text-[#6B7280] mb-0.5">Proof Document</p>
-                  <button
-                    type="button"
-                    onClick={() => setIsPreviewOpen(true)}
-                    className="text-[13px] font-bold text-orange-600 hover:underline truncate max-w-[200px] block cursor-pointer"
-                  >
-                    👁️ {request.documentName || 'View Proof Document'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-bold text-slate-900 truncate max-w-[150px]">
+                      {request.documentName || 'Proof Document'}
+                    </span>
+                    <button
+                      type="button"
+                      title="Preview Proof"
+                      onClick={() => setIsPreviewOpen(true)}
+                      className="w-7 h-7 rounded-full bg-orange-100 hover:bg-orange-200 text-orange-600 flex items-center justify-center transition-colors cursor-pointer"
+                    >
+                      <Eye size={14} />
+                    </button>
+                    <a
+                      href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
+                      download={request.documentName || 'proof_document'}
+                      title="Download Proof"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
+                        if (!targetUrl) {
+                          e.preventDefault();
+                          setIsPreviewOpen(true);
+                        }
+                      }}
+                      className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                    >
+                      <Download size={14} />
+                    </a>
+                  </div>
                 </div>
               </div>
             )}
@@ -242,44 +248,54 @@ export default function RequestDetails() {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3 mt-6">
-          {request.status === 'pending' && (
-            <>
-              <button
-                onClick={() => setIsEditOpen(true)}
-                className="flex-1 h-11 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-[14px] transition-colors cursor-pointer border-none shadow-sm"
-              >
-                ✏️ Edit Request
-              </button>
-              <button
-                onClick={async () => {
-                  if (window.confirm('Are you sure you want to cancel and delete this request?')) {
-                    try {
-                      await api.deleteRequest(request.id);
-                      navigate('/student/history');
-                    } catch (err) {
-                      alert('Failed to delete request.');
-                    }
-                  }
-                }}
-                className="flex-1 h-11 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[14px] transition-colors cursor-pointer border border-red-200"
-              >
-                🗑️ Cancel Request
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => navigate('/student/history')}
-            className="flex-1 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[14px] transition-colors cursor-pointer border-none"
-          >
-            Back to History
-          </button>
-        </div>
+        {/* Round Icon Action Buttons */}
+        <div className="flex flex-col items-center justify-center gap-2 mt-6 pt-2">
+          <div className="flex items-center justify-center gap-4">
+            <WhatsAppShareButton
+              request={request}
+              variant="round"
+              className="w-13 h-13 shadow-md shadow-[#25D366]/30"
+            />
 
-        {/* WhatsApp Share */}
-        <div className="mt-4">
-          <WhatsAppShareButton request={request} variant="primary" className="w-full h-11 rounded-xl text-[14px]" />
+            {request.status === 'pending' && (
+              <>
+                <button
+                  type="button"
+                  title="Edit Request"
+                  onClick={() => setIsEditOpen(true)}
+                  className="w-13 h-13 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/25 active:scale-95 transition-all cursor-pointer border-none"
+                >
+                  <Pencil size={20} />
+                </button>
+                <button
+                  type="button"
+                  title="Cancel Request"
+                  onClick={async () => {
+                    if (window.confirm('Are you sure you want to cancel and delete this request?')) {
+                      try {
+                        await api.deleteRequest(request.id);
+                        navigate('/student/history');
+                      } catch (err) {
+                        alert('Failed to delete request.');
+                      }
+                    }
+                  }}
+                  className="w-13 h-13 rounded-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              title="Back to History"
+              onClick={() => navigate('/student/history')}
+              className="w-13 h-13 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center border border-slate-200 active:scale-95 transition-all cursor-pointer"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Inline Edit Request Modal Overlay */}

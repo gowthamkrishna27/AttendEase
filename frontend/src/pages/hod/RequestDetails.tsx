@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, Clock, FileText,
-  Check, X, ShieldAlert
+  Check, X, ShieldAlert, Eye, Download
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
@@ -13,6 +13,7 @@ import { formatDate, formatTime } from '../../lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import { ProofPreviewModal } from '../../components/shared/ProofPreviewModal';
+import NotFound from '../NotFound';
 
 export default function HODRequestDetails() {
   const { id } = useParams<{ id: string }>();
@@ -44,7 +45,7 @@ export default function HODRequestDetails() {
   const reviewMutation = useMutation({
     mutationFn: async ({ action, reason }: { action: 'approve' | 'reject'; reason?: string }) => {
       try {
-        return await api.reviewRequest(id!, action, reason);
+        return await api.reviewRequest(id!, action, reason, true);
       } catch (err) {
         console.warn('API reviewRequest error, applying local optimistic override:', err);
         const updatedReq: any = {
@@ -97,14 +98,10 @@ export default function HODRequestDetails() {
 
   if (!request) {
     return (
-      <PageWrapper role="hod">
-        <div className="max-w-xl mx-auto text-center py-20">
-          <p className="text-[16px] text-[#6B7280]">Request not found.</p>
-          <Button className="mt-4" onClick={() => navigate('/hod')}>
-            Back to Overview
-          </Button>
-        </div>
-      </PageWrapper>
+      <NotFound
+        code="404"
+        title="This attendance request could not be found."
+      />
     );
   }
 
@@ -129,7 +126,7 @@ export default function HODRequestDetails() {
 
         {/* Back */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/hod')}
           className="flex items-center gap-2 text-[14px] text-[#6B7280] hover:text-[#111111] transition-colors"
         >
           <ArrowLeft size={16} />
@@ -254,9 +251,10 @@ export default function HODRequestDetails() {
                     <button
                       type="button"
                       onClick={() => setIsPreviewOpen(true)}
-                      className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
+                      className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      👁️ Preview Proof
+                      <Eye size={13} />
+                      <span>Preview Proof</span>
                     </button>
                     <span className="text-slate-300">•</span>
                     <a
@@ -271,9 +269,10 @@ export default function HODRequestDetails() {
                           setIsPreviewOpen(true);
                         }
                       }}
-                      className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1 transition-colors cursor-pointer"
+                      className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      📥 Download File
+                      <Download size={13} />
+                      <span>Download File</span>
                     </a>
                   </div>
                 </div>

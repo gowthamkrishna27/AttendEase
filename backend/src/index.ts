@@ -21,8 +21,66 @@ import { globalErrorHandler } from './middleware/errorHandler.js';
 const app  = express();
 const PORT = process.env['PORT'] ?? 3000;
 
-// ── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors({ origin: true, credentials: true }));
+app.disable('x-powered-by');
+
+// ── Security Headers Middleware (Clickjacking, MIME, XSS Protection, Anti-Caching) ──
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none';");
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // Prevent intermediate and shared proxy caching of sensitive API data
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
+// ── CORS Configuration (Secure Whitelist) ───────────────────────────────────
+const explicitAllowedOrigins = [
+  'https://iattendease.vercel.app',
+  'https://getpermission.vercel.app',
+  'https://attend-ease-hmi8.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:3002',
+  'http://127.0.0.1:4173',
+];
+
+if (process.env['FRONTEND_URL']) {
+  explicitAllowedOrigins.push(process.env['FRONTEND_URL'].replace(/\/+$/, ''));
+}
+if (process.env['CORS_ALLOWED_ORIGINS']) {
+  explicitAllowedOrigins.push(...process.env['CORS_ALLOWED_ORIGINS'].split(',').map(s => s.trim()));
+}
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g., mobile apps, server-to-server, curl)
+    if (!origin) return callback(null, true);
+
+    const isAllowed =
+      explicitAllowedOrigins.includes(origin) ||
+      /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin);
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked: Origin ${origin} is not allowed.`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-role-override'],
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -38,7 +96,7 @@ app.use('/api/chat',          chatRoutes);
 
 // ── Root & Health check ───────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', db: 'postgresql', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', db: 'connected' });
 });
 
 app.get('/', (_req, res) => {
@@ -69,8 +127,46 @@ app.use(globalErrorHandler);
 
 // ── 404 fallback ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none';");
   res.status(404).json({ error: 'Not found' });
 });
+
+// ── Auto-sync Postgres Enums ──────────────────────────────────────────────────
+async function syncDatabaseEnums() {
+  const reasons = [
+    'internship',
+    'startup',
+    'project_development',
+    'medical',
+    'sports',
+    'family_emergency',
+    'competition',
+    'other',
+  ];
+  for (const val of reasons) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "RequestReason" ADD VALUE IF NOT EXISTS '${val}'`);
+    } catch {
+      // Ignore if table/enum not created yet or already exists
+    }
+  }
+
+  const statuses = ['pending', 'approved', 'rejected', 'cancelled'];
+  for (const val of statuses) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "RequestStatus" ADD VALUE IF NOT EXISTS '${val}'`);
+    } catch {}
+  }
+
+  const roles = ['student', 'faculty', 'hod', 'admin'];
+  for (const val of roles) {
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "Role" ADD VALUE IF NOT EXISTS '${val}'`);
+    } catch {}
+  }
+}
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 async function bootstrap() {
@@ -78,6 +174,9 @@ async function bootstrap() {
     // Connect to PostgreSQL
     await prisma.$connect();
     console.log('✅  PostgreSQL connected (Prisma)');
+
+    // Ensure database enums match Prisma schema
+    await syncDatabaseEnums();
 
     let currentPort = Number(PORT);
 
@@ -101,9 +200,10 @@ async function bootstrap() {
 
       server.on('error', (err: NodeJS.ErrnoException) => {
         if (err.code === 'EADDRINUSE') {
-          console.warn(`⚠️  Port ${p} is in use. Trying port ${p + 1}...`);
-          server.close();
-          tryListen(p + 1);
+          console.warn(`⚠️  Port ${p} busy during reload. Retrying in 400ms...`);
+          setTimeout(() => {
+            tryListen(p);
+          }, 400);
         } else {
           console.error('❌  Server error:', err);
           process.exit(1);

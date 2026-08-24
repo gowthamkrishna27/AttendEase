@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { Router, Request, Response } from 'express';
-import pdf from 'pdf-parse';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const router = Router();
 
@@ -12,9 +14,19 @@ async function initKnowledgeBase() {
     const pdfPath = path.resolve(process.cwd(), 'knowledge-base.pdf');
     if (fs.existsSync(pdfPath)) {
       const dataBuffer = fs.readFileSync(pdfPath);
-      const parsed = await (pdf as any)(dataBuffer);
-      knowledgeBaseText = String(parsed.text || '').trim();
-      console.log(`🤖 Chatbot loaded knowledge base (${knowledgeBaseText.length} chars)`);
+      let pdfParser: any = null;
+      try {
+        // @ts-ignore
+        const mod = await import('pdf-parse');
+        pdfParser = (mod as any).default || mod;
+      } catch (e) {
+        console.warn('pdf-parse module not loaded, fallback to plain text parsing if needed');
+      }
+      if (typeof pdfParser === 'function') {
+        const parsed = await pdfParser(dataBuffer);
+        knowledgeBaseText = String(parsed.text || '').trim();
+        console.log(`🤖 Chatbot loaded knowledge base (${knowledgeBaseText.length} chars)`);
+      }
     } else {
       console.warn('⚠️ knowledge-base.pdf not found in backend directory');
     }
@@ -42,52 +54,59 @@ router.post('/', async (req: Request, res: Response) => {
     const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 
     if (openRouterApiKey) {
-      try {
-        const systemPrompt = `You are the AttendEase AI Support Assistant for SAGI RAMAKRISHNAM RAJU (SRKR) ENGINEERING COLLEGE.
+      const modelsToTry = [
+        'meta-llama/llama-3.3-70b-instruct',
+        'deepseek/deepseek-chat',
+        'openai/gpt-4o-mini',
+      ];
+
+      const systemPrompt = `You are the AttendEase AI Support Assistant for SAGI RAMAKRISHNAM RAJU (SRKR) ENGINEERING COLLEGE.
 You help students, faculty, and HODs with attendance tracking, permission requests, exemption slips, and portal features.
 
-=== BEGIN DOCUMENT CONTEXT ===
+=== BEGIN ATTENDEASE KNOWLEDGE CONTEXT ===
 ${knowledgeBaseText.slice(0, 8000)}
-=== END DOCUMENT CONTEXT ===
+=== END ATTENDEASE KNOWLEDGE CONTEXT ===
 
 Instructions:
-- Be polite, concise, encouraging, and clear.
-- Use bullet points for steps or features when helpful.
-- If asked about login, permissions, faculty approval, or attendance, explain AttendEase workflows accurately.
-- Keep answers relevant to AttendEase.`;
+- Be polite, concise, helpful, and clear.
+- Provide accurate step-by-step guidance for student permission applications, faculty period attendance marking (P1-P8), HOD direct exemptions, and WhatsApp export formatting.
+- Keep answers concise and directly actionable.`;
 
-        const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openRouterApiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'http://localhost:5173',
-            'X-Title': 'AttendEase AI Assistant',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.0-flash-001',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
-            ],
-            temperature: 0.4,
-            max_tokens: 600,
-          }),
-        });
+      for (const model of modelsToTry) {
+        try {
+          const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openRouterApiKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://attendease.srkrec.edu.in',
+              'X-Title': 'AttendEase AI Assistant',
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                ...messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
+              ],
+              temperature: 0.4,
+              max_tokens: 500,
+            }),
+          });
 
-        if (openRouterResponse.ok) {
-          const data: any = await openRouterResponse.json();
-          const reply = data.choices?.[0]?.message?.content?.trim();
-          if (reply) {
-            res.json({ reply, success: true, model: 'openrouter/gemini-2.0-flash' });
-            return;
+          if (openRouterResponse.ok) {
+            const data: any = await openRouterResponse.json();
+            const reply = data.choices?.[0]?.message?.content?.trim();
+            if (reply) {
+              res.json({ reply, success: true, model });
+              return;
+            }
+          } else {
+            const errorText = await openRouterResponse.text();
+            console.warn(`OpenRouter ${model} error:`, errorText);
           }
-        } else {
-          const errorText = await openRouterResponse.text();
-          console.warn('OpenRouter API returned error:', errorText);
+        } catch (llmErr) {
+          console.warn(`OpenRouter call error on ${model}:`, llmErr);
         }
-      } catch (llmErr) {
-        console.error('OpenRouter call error:', llmErr);
       }
     }
 
@@ -99,7 +118,7 @@ Instructions:
     res.json({ reply: fallbackReply, success: true, fallback: true });
   } catch (err: any) {
     console.error('Error in /api/chat route:', err);
-    res.status(500).json({ error: 'Failed to process chat message' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

@@ -8,15 +8,284 @@ import type { Prisma, RequestStatus } from '@prisma/client';
 
 const router = Router();
 
+// Helper to extract roll suffix in backend
+function extractRollSuffixBackend(rawRoll: string): string {
+  if (!rawRoll) return '';
+  const str = rawRoll.trim().toUpperCase();
+
+  const leMatch = str.match(/LE0*([1-9]|1[0-2])$/i);
+  if (leMatch) {
+    return `LE${parseInt(leMatch[1], 10)}`;
+  }
+
+  if (str.includes('95A')) {
+    const numMatch = str.match(/(\d{1,2})$/);
+    if (numMatch) {
+      const num = parseInt(numMatch[1], 10);
+      if (num >= 1 && num <= 20) {
+        return `LE${num}`;
+      }
+    }
+  }
+
+  const suffixMatch = str.match(/([A-D][0-9]|[0-9]{1,2})$/i);
+  if (suffixMatch) {
+    const val = suffixMatch[1];
+    if (/^\d+$/.test(val)) {
+      return String(parseInt(val, 10));
+    }
+    return val;
+  }
+  return str;
+}
+
+function sortRolls(rolls: string[]): string[] {
+  return [...rolls].sort((a, b) => {
+    const isNumA = /^\d+$/.test(a);
+    const isNumB = /^\d+$/.test(b);
+    if (isNumA && isNumB) return parseInt(a, 10) - parseInt(b, 10);
+    if (isNumA) return -1;
+    if (isNumB) return 1;
+
+    const isLeA = /^LE\d+$/i.test(a);
+    const isLeB = /^LE\d+$/i.test(b);
+    if (isLeA && isLeB) {
+      const numA = parseInt(a.replace(/LE/i, ''), 10);
+      const numB = parseInt(b.replace(/LE/i, ''), 10);
+      return numA - numB;
+    }
+    if (isLeA) return 1;
+    if (isLeB) return -1;
+
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+}
+
+// Public endpoint for sections list and section-wise student rosters from database
+router.get('/public-sections', async (req: Request, res: Response) => {
+  try {
+    const { year } = req.query;
+    const targetYear = (typeof year === 'string' && year.trim() && year !== 'all')
+      ? year.trim().toLowerCase()
+      : '3rd year';
+
+    const targetDigitMatch = targetYear.match(/([1-4])/);
+    const targetDigit = targetDigitMatch ? targetDigitMatch[1] : '3';
+    const yearLabel = `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`;
+
+    // Fetch all student users from DB
+    const students = (await prisma.user.findMany({
+      where: {
+        role: 'student',
+        isActive: true,
+      },
+      select: {
+        userId: true,
+        name: true,
+        rollNumber: true,
+        department: true,
+        year: true,
+        section: true,
+        semester: true,
+      } as any,
+      orderBy: { rollNumber: 'asc' },
+    })) as unknown as Array<{
+      userId: string;
+      name: string;
+      rollNumber: string | null;
+      department: string;
+      year?: string | null;
+      section?: string | null;
+      semester: number | null;
+    }>;
+
+    // Filter students by academic year (prioritizing explicit DB year record)
+    const yearStudents = students.filter(s => {
+      const studentYear = (s as any).year as string | undefined;
+      if (studentYear) {
+        const digitMatch = studentYear.match(/([1-4])/);
+        if (digitMatch) return digitMatch[1] === targetDigit;
+      }
+      const sem = s.semester;
+      if (sem && typeof sem === 'number') {
+        const derivedYearNum = String(Math.ceil(sem / 2));
+        return derivedYearNum === targetDigit;
+      }
+      const roll = (s.rollNumber || '').toUpperCase();
+      const isLateralEntry = roll.includes('95A') || roll.includes('LE') || /LE\d+$/i.test(roll);
+
+      if (targetDigit === '3') {
+        return roll.startsWith('24B') || (roll.startsWith('25B') && isLateralEntry);
+      }
+      if (targetDigit === '2') {
+        return roll.startsWith('25B') && !isLateralEntry;
+      }
+      if (targetDigit === '1') {
+        return roll.startsWith('26B') && !isLateralEntry;
+      }
+      if (targetDigit === '4') {
+        return roll.startsWith('23B') || (roll.startsWith('24B') && isLateralEntry);
+      }
+      return targetDigit === '3';
+    });
+
+    // Map of sectionKey -> Section metadata
+    const sectionMap = new Map<string, {
+      key: string;
+      department: string;
+      section: string;
+      year: string;
+      label: string;
+      value: string;
+      rollNumbers: Set<string>;
+      studentCount: number;
+    }>();
+
+    // Default base sections for standard years
+    sectionMap.set('CSD — Section A', {
+      key: 'CSD — Section A',
+      department: 'CSD',
+      section: 'A',
+      year: yearLabel,
+      label: 'CSD - Sec A',
+      value: 'CSD-A',
+      rollNumbers: new Set<string>(),
+      studentCount: 0,
+    });
+    sectionMap.set('CSIT — Section A', {
+      key: 'CSIT — Section A',
+      department: 'CSIT',
+      section: 'A',
+      year: yearLabel,
+      label: 'CSIT - Sec A',
+      value: 'CSIT-A',
+      rollNumbers: new Set<string>(),
+      studentCount: 0,
+    });
+    sectionMap.set('CSIT — Section B', {
+      key: 'CSIT — Section B',
+      department: 'CSIT',
+      section: 'B',
+      year: yearLabel,
+      label: 'CSIT - Sec B',
+      value: 'CSIT-B',
+      rollNumbers: new Set<string>(),
+      studentCount: 0,
+    });
+
+    yearStudents.forEach(s => {
+      const dept = (s.department || 'CSIT').toUpperCase().trim();
+      const rawRoll = (s.rollNumber || s.userId || '').toUpperCase().trim();
+      const suffix = extractRollSuffixBackend(rawRoll);
+
+      let secKey = '';
+      let secValue = '';
+      let secLabel = '';
+      let secLetter = 'A';
+
+      const rawSec = ((s as any).section || '') as string;
+      const explicitSec = rawSec.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
+      if (explicitSec === 'A' || explicitSec === 'B' || explicitSec === 'C' || explicitSec === 'D') {
+        secLetter = explicitSec;
+        secKey = `${dept} — Section ${explicitSec}`;
+        secValue = `${dept}-${explicitSec}`;
+        secLabel = `${dept} - Sec ${explicitSec}`;
+      } else if (dept === 'CSD' || rawRoll.includes('62') || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
+        secKey = 'CSD — Section A';
+        secValue = 'CSD-A';
+        secLabel = 'CSD - Sec A';
+        secLetter = 'A';
+      } else if (dept === 'CSIT' || rawRoll.includes('07')) {
+        let isSecB = false;
+        if (/^\d+$/.test(suffix)) {
+          const num = parseInt(suffix, 10);
+          isSecB = num >= 73;
+        } else {
+          isSecB = true;
+        }
+        if (isSecB) {
+          secKey = 'CSIT — Section B';
+          secValue = 'CSIT-B';
+          secLabel = 'CSIT - Sec B';
+          secLetter = 'B';
+        } else {
+          secKey = 'CSIT — Section A';
+          secValue = 'CSIT-A';
+          secLabel = 'CSIT - Sec A';
+          secLetter = 'A';
+        }
+      } else {
+        secKey = `${dept} — Section A`;
+        secValue = `${dept}-A`;
+        secLabel = `${dept} - Sec A`;
+        secLetter = 'A';
+      }
+
+      if (!sectionMap.has(secKey)) {
+        sectionMap.set(secKey, {
+          key: secKey,
+          department: dept,
+          section: secLetter,
+          year: `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`,
+          label: secLabel,
+          value: secValue,
+          rollNumbers: new Set<string>(),
+          studentCount: 0,
+        });
+      }
+
+      const secObj = sectionMap.get(secKey)!;
+      if (suffix) {
+        secObj.rollNumbers.add(suffix);
+      }
+      secObj.studentCount += 1;
+    });
+
+    // Return only the sections and real student rolls from DB (no dummy fallback data)
+    const result = Array.from(sectionMap.values())
+      .filter(sec => sec.studentCount > 0 || sec.rollNumbers.size > 0)
+      .map(sec => {
+        const rolls = Array.from(sec.rollNumbers);
+        return {
+          key: sec.key,
+          department: sec.department,
+          section: sec.section,
+          year: sec.year,
+          label: sec.label,
+          value: sec.value,
+          rollNumbers: sortRolls(rolls),
+          studentCount: sec.studentCount,
+        };
+      });
+
+    res.json({ sections: result });
+  } catch (error) {
+    console.error('Error fetching public sections:', error);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
 // Public endpoint for permissions page viewer & attendance pre-highlighting
 router.get('/public-approved', async (req: Request, res: Response) => {
   try {
-    const { date, department, section, year } = req.query;
+    const { date } = req.query;
 
     const where: Prisma.RequestWhereInput = {
       status: 'approved',
-      ...(date && { date: String(date).trim() }),
     };
+
+    if (date && typeof date === 'string' && date.trim()) {
+      const targetDate = date.trim().slice(0, 10);
+      where.OR = [
+        { date: { startsWith: targetDate } },
+        {
+          AND: [
+            { date: { lte: targetDate } },
+            { endDate: { gte: targetDate } },
+          ],
+        },
+      ];
+    }
 
     const requests = await prisma.request.findMany({
       where,
@@ -24,55 +293,11 @@ router.get('/public-approved', async (req: Request, res: Response) => {
       orderBy: { date: 'desc' },
     });
 
-    let filtered = requests.map(toApi);
-
-    // Filter by department if specified
-    if (department && typeof department === 'string' && department.trim() && department !== 'all') {
-      const depNorm = department.trim().toLowerCase();
-      filtered = filtered.filter(r => (r.student?.department || '').toLowerCase() === depNorm);
-    }
-
-    // Filter by section if specified ('CSD-A', 'CSIT-A', 'CSIT-B', 'A', 'B', etc.)
-    if (section && typeof section === 'string' && section.trim() && section !== 'none' && section !== 'all') {
-      const secNorm = section.trim().toUpperCase();
-      const isSecB = secNorm.includes('B') || secNorm === 'CSIT-B';
-      filtered = filtered.filter(r => {
-        const studentSec = ((r.student as any)?.section || '').toUpperCase();
-        if (studentSec) {
-          return studentSec === secNorm || secNorm.includes(studentSec) || studentSec.includes(secNorm);
-        }
-        // Fallback: derive from roll number
-        const roll = (r.student?.rollNumber || r.studentId || '').toUpperCase();
-        const isRollB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B') || roll.includes('95A') || roll.includes('LE');
-        return isSecB ? isRollB : !isRollB;
-      });
-    }
-
-    // Filter by year if specified ('1st Year', '2nd Year', '3rd Year', '4th Year', '1', '2', '3', '4', etc.)
-    if (year && typeof year === 'string' && year.trim() && year !== 'all') {
-      const yrNorm = year.trim().toLowerCase();
-      const yearDigitMatch = yrNorm.match(/([1-4])/);
-      const targetNum = yearDigitMatch ? yearDigitMatch[1] : '';
-
-      filtered = filtered.filter(r => {
-        const reqYear = ((r.student as any)?.year || '').toLowerCase();
-        if (reqYear) {
-          if (reqYear === yrNorm) return true;
-          if (targetNum && reqYear.includes(targetNum)) return true;
-        }
-        const sem = r.student?.semester;
-        if (sem && typeof sem === 'number' && targetNum) {
-          const derivedYear = String(Math.ceil(sem / 2));
-          return derivedYear === targetNum;
-        }
-        return !targetNum || targetNum === '3';
-      });
-    }
-
-    res.json({ requests: filtered });
+    const mapped = requests.map(toApi);
+    res.json({ requests: mapped });
   } catch (error) {
     console.error('Error fetching public approved requests:', error);
-    res.status(500).json({ error: 'Failed to fetch public approved requests' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -184,7 +409,7 @@ router.post('/upload-proof', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('Upload proof error:', err);
-    res.status(500).json({ error: err.message || 'Failed to upload proof document' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -222,6 +447,7 @@ function toApi(r: any) {
     name:        student.name,
     rollNumber:  student.rollNumber ?? fallbackRoll,
     department:  student.department ?? 'CSIT',
+    year:        student.year       ?? undefined,
     semester:    student.semester   ?? 1,
     email:       student.email,
     avatarUrl:   student.avatarUrl  ?? undefined,
@@ -230,6 +456,7 @@ function toApi(r: any) {
     name:        r.studentName || fallbackRoll,
     rollNumber:  fallbackRoll,
     department:  'CSIT',
+    year:        undefined,
     semester:    1,
     email:       `${fallbackRoll.toLowerCase()}@srkrec.ac.in`,
     avatarUrl:   undefined,
@@ -300,7 +527,26 @@ function toApi(r: any) {
       )
     : null;
 
-  const finalDecisionName = lastDecisionAction?.performedBy?.name || (r.finalDecisionBy === 'HOD' ? 'HOD' : (r.primaryFaculty?.name || 'Faculty'));
+  let finalDecisionName = lastDecisionAction?.performedBy?.name;
+
+  if (!finalDecisionName && r.finalDecisionUserId) {
+    if (r.primaryFaculty && (r.primaryFaculty.userId === r.finalDecisionUserId || r.primaryFaculty.id === r.finalDecisionUserId)) {
+      finalDecisionName = r.primaryFaculty.name;
+    } else {
+      const matchInFaculties = allFacultyRows.find((f: any) => f && (f.userId === r.finalDecisionUserId || f.id === r.finalDecisionUserId));
+      if (matchInFaculties) {
+        finalDecisionName = matchInFaculties.name;
+      }
+    }
+  }
+
+  if (!finalDecisionName) {
+    if (r.finalDecisionBy === 'HOD') {
+      finalDecisionName = 'HOD';
+    } else if (r.finalDecisionBy === 'Faculty') {
+      finalDecisionName = faculty?.name || (allFacultyRows.length > 0 && allFacultyRows[0] ? allFacultyRows[0].name : 'Faculty');
+    }
+  }
 
   return {
     ...base,
@@ -372,7 +618,7 @@ router.get('/', async (req: Request, res: Response) => {
     res.json({ requests: docs.map(toApi) });
   } catch (err) {
     console.error('GET /requests error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -398,20 +644,37 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    const user = req.user!;
-    const userEmail = (user.email || '').toLowerCase().trim();
-    const userId = (user.id || '').toLowerCase().trim();
-    const userName = (user.name || '').toLowerCase().trim();
+    const tokenUser = req.user!;
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { userId: { equals: tokenUser.id, mode: 'insensitive' } },
+          { id:     { equals: tokenUser.id, mode: 'insensitive' } },
+          { email:  { equals: tokenUser.email, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!dbUser) {
+      res.status(401).json({ error: 'User account not found' });
+      return;
+    }
+
+    const userEmail = dbUser.email.toLowerCase().trim();
+    const userId = dbUser.userId.toLowerCase().trim();
+    const userDbId = dbUser.id.toLowerCase().trim();
+    const userName = dbUser.name.toLowerCase().trim();
 
     // Students can only view their own requests
-    if (user.role === 'student') {
+    if (dbUser.role === 'student') {
       const stuUserId = (doc.studentId || doc.student?.userId || '').toLowerCase().trim();
       const stuRoll = (doc.student?.rollNumber || '').toLowerCase().trim();
       const stuEmail = (doc.student?.email || '').toLowerCase().trim();
-      const userRoll = (user.rollNumber || '').toLowerCase().trim();
+      const userRoll = (dbUser.rollNumber || '').toLowerCase().trim();
 
       const isStudentMatch =
         stuUserId === userId ||
+        stuUserId === userDbId ||
         (userRoll && stuRoll === userRoll) ||
         (userEmail && stuEmail === userEmail);
 
@@ -422,24 +685,55 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     // Faculty can view requests assigned to them
-    if (user.role === 'faculty') {
-      const assignedFacultyIds = doc.faculties.map(rf => (rf.facultyId || '').toLowerCase());
-      const assignedEmails     = doc.faculties.map(rf => (rf.faculty.email || '').toLowerCase());
-      const assignedNames      = doc.faculties.map(rf => (rf.faculty.name || '').toLowerCase());
+    if (dbUser.role === 'faculty') {
+      const primaryFacId = (doc.primaryFacultyId || '').toLowerCase().trim();
+      const primaryFacUserId = (doc.primaryFaculty?.userId || '').toLowerCase().trim();
+      const primaryFacDbId = (doc.primaryFaculty?.id || '').toLowerCase().trim();
+      const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase().trim();
+      const primaryName = (doc.primaryFaculty?.name || '').toLowerCase().trim();
 
-      const primaryFacId = (doc.primaryFacultyId || '').toLowerCase();
-      const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase();
-      const primaryName  = (doc.primaryFaculty?.name || '').toLowerCase();
+      const assignedIds = doc.faculties.map(rf => (rf.facultyId || '').toLowerCase().trim());
+      const assignedUserIds = doc.faculties.map(rf => (rf.faculty?.userId || '').toLowerCase().trim());
+      const assignedDbIds = doc.faculties.map(rf => (rf.faculty?.id || '').toLowerCase().trim());
+      const assignedEmails = doc.faculties.map(rf => (rf.faculty?.email || '').toLowerCase().trim());
+      const assignedNames = doc.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
+
+      console.log('GET /requests/:id faculty check:', {
+        userId,
+        userDbId,
+        userEmail,
+        userName,
+        primaryFacId,
+        primaryFacUserId,
+        primaryFacDbId,
+        primaryEmail,
+        primaryName,
+        assignedIds,
+        assignedUserIds,
+        assignedDbIds,
+        assignedEmails,
+        assignedNames
+      });
 
       const isAssignedFaculty =
-        (primaryFacId && primaryFacId === userId) ||
-        assignedFacultyIds.includes(userId) ||
+        (primaryFacId && (primaryFacId === userId || primaryFacId === userDbId)) ||
+        (primaryFacUserId && (primaryFacUserId === userId || primaryFacUserId === userDbId)) ||
+        (primaryFacDbId && (primaryFacDbId === userId || primaryFacDbId === userDbId)) ||
         (primaryEmail && primaryEmail === userEmail) ||
+        (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
+        assignedIds.includes(userId) ||
+        assignedIds.includes(userDbId) ||
+        assignedUserIds.includes(userId) ||
+        assignedUserIds.includes(userDbId) ||
+        assignedDbIds.includes(userId) ||
+        assignedDbIds.includes(userDbId) ||
         assignedEmails.includes(userEmail) ||
-        (primaryName && primaryName.includes(userName)) ||
-        assignedNames.some(n => n.includes(userName) || userName.includes(n));
+        assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
+
+      console.log('GET /requests/:id isAssignedFaculty result:', isAssignedFaculty);
 
       if (!isAssignedFaculty) {
+        console.warn(`Access Denied (403) for faculty "${userId}" requesting request "${idParam}"`);
         res.status(403).json({ error: 'This request is not assigned to you' });
         return;
       }
@@ -447,11 +741,10 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     // HOD can view any request across the system without restriction to perform executive reviews
 
-
     res.json({ request: toApi(doc) });
   } catch (err) {
     console.error('GET /requests/:id error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -582,7 +875,7 @@ router.post('/hod-direct-grant', async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('POST /requests/hod-direct-grant error:', err);
-    res.status(500).json({ error: 'Failed to grant HOD direct exemption' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -767,7 +1060,154 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({ request: toApi(newDoc!) });
   } catch (err) {
     console.error('POST /requests error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error creating request' });
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
+ * POST /api/requests/bulk-review
+ * Body: { requestIds: string[], action: 'approve' | 'reject', rejectionReason?: string, remarks?: string }
+ * Allows Faculty / HOD to accept or reject multiple requests simultaneously.
+ */
+router.post('/bulk-review', async (req: Request, res: Response) => {
+  let user = req.user!;
+
+  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
+  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod' || (user.role as string) === 'viewer';
+
+  if (isHodOrAdmin) {
+    user = { ...user, role: 'hod' };
+  }
+
+  if (user.role === 'student') {
+    res.status(403).json({ error: 'Students cannot review requests' });
+    return;
+  }
+
+  const { requestIds, action, rejectionReason, remarks } = req.body as {
+    requestIds:        string[];
+    action:           'approve' | 'reject';
+    rejectionReason?: string;
+    remarks?:         string;
+  };
+
+  if (!Array.isArray(requestIds) || requestIds.length === 0) {
+    res.status(400).json({ error: 'requestIds array is required and must not be empty' });
+    return;
+  }
+
+  if (!action || !['approve', 'reject'].includes(action)) {
+    res.status(400).json({ error: 'action must be "approve" or "reject"' });
+    return;
+  }
+
+  try {
+    const existingRequests = await prisma.request.findMany({
+      where: {
+        OR: [
+          { id:        { in: requestIds } },
+          { requestId: { in: requestIds } },
+        ],
+      },
+      include: REQUEST_INCLUDE,
+    });
+
+    if (existingRequests.length === 0) {
+      res.status(404).json({ error: 'No matching requests found' });
+      return;
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const decisionRole = user.role === 'hod' ? 'HOD' : 'Faculty';
+    const performingUserId = (user as any).userId || user.id;
+    const now = new Date().toISOString();
+
+    const updatedRequests: any[] = [];
+    const skippedIds: string[] = [];
+
+    // Filter eligible requests first (outside transaction to avoid holding locks)
+    const eligibleRequests: typeof existingRequests = [];
+    for (const existing of existingRequests) {
+      if (user.role === 'faculty') {
+        const assignedFacultyIds = existing.faculties.map(rf => rf.facultyId);
+        const assignedEmails     = existing.faculties.map(rf => rf.faculty.email);
+
+        const isAssignedFaculty =
+          existing.primaryFacultyId === user.id ||
+          assignedFacultyIds.includes(user.id) ||
+          existing.primaryFaculty?.email === user.email ||
+          assignedEmails.includes(user.email);
+
+        if (!isAssignedFaculty || existing.finalDecisionBy === 'HOD') {
+          skippedIds.push(existing.id);
+          continue;
+        }
+      }
+      eligibleRequests.push(existing);
+    }
+
+    const actionName = user.role === 'faculty'
+      ? (action === 'approve' ? 'Approved by Faculty (Bulk)' : 'Rejected by Faculty (Bulk)')
+      : (action === 'approve' ? 'Approved by HOD (Bulk)' : 'Rejected by HOD (Bulk)');
+
+    const effectiveRemarks = remarks?.trim() || rejectionReason?.trim() ||
+      (action === 'approve' ? `Bulk approved by ${user.role.toUpperCase()}` : `Bulk rejected by ${user.role.toUpperCase()}`);
+
+    const eligibleIds = eligibleRequests.map(r => r.id);
+
+    await prisma.$transaction(async tx => {
+      // Bulk update all eligible requests in one query
+      await tx.request.updateMany({
+        where: { id: { in: eligibleIds } },
+        data: {
+          status:              newStatus,
+          rejectionReason:     action === 'reject' ? (rejectionReason ?? null) : null,
+          reviewedAt:          now,
+          finalDecisionBy:     decisionRole,
+          finalDecisionUserId: performingUserId,
+        },
+      });
+
+      // Bulk insert audit actions
+      await tx.requestAction.createMany({
+        data: eligibleIds.map(id => ({
+          requestId:     id,
+          performedById: performingUserId,
+          action:        actionName,
+          remarks:       effectiveRemarks,
+        })),
+        skipDuplicates: true,
+      });
+
+      // Bulk insert student notifications
+      await tx.notification.createMany({
+        data: eligibleRequests.map(existing => ({
+          userId:    existing.studentId,
+          requestId: existing.id,
+          type:      action === 'approve' ? 'approved' : 'rejected',
+          title:     `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
+          message:   `Your permission request for ${existing.reasonLabel} has been ${action === 'approve' ? 'approved' : 'rejected'} by ${user.name}.`,
+        })),
+        skipDuplicates: true,
+      });
+    }, { timeout: 30000 });
+
+    // Fetch updated requests after transaction commits
+    const updatedDocs = await prisma.request.findMany({
+      where:   { id: { in: eligibleIds } },
+      include: REQUEST_INCLUDE,
+    });
+    updatedRequests.push(...updatedDocs);
+
+    res.json({
+      success: true,
+      count: updatedRequests.length,
+      requests: updatedRequests.map(toApi),
+      skippedCount: skippedIds.length,
+    });
+  } catch (err: any) {
+    console.error('POST /requests/bulk-review error:', err);
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -913,7 +1353,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     res.json({ request: toApi(updated) });
   } catch (err: any) {
     console.error('PUT /requests/:id error:', err);
-    res.status(500).json({ error: err.message || 'Failed to update request' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -959,6 +1399,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
         OR: [
           { id:        { equals: idParam, mode: 'insensitive' } },
           { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
         ],
       },
       include: REQUEST_INCLUDE,
@@ -970,14 +1411,53 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     // ── Faculty authorization & guard ─────────────────────────────────────────
-    const assignedFacultyIds = existing.faculties.map(rf => rf.facultyId);
-    const assignedEmails     = existing.faculties.map(rf => rf.faculty.email);
+    const tokenUser = req.user!;
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { userId: { equals: tokenUser.id, mode: 'insensitive' } },
+          { id:     { equals: tokenUser.id, mode: 'insensitive' } },
+          { email:  { equals: tokenUser.email, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!dbUser) {
+      res.status(401).json({ error: 'User account not found' });
+      return;
+    }
+
+    const userEmail = dbUser.email.toLowerCase().trim();
+    const userId = dbUser.userId.toLowerCase().trim();
+    const userDbId = dbUser.id.toLowerCase().trim();
+    const userName = dbUser.name.toLowerCase().trim();
+
+    const primaryFacId = (existing.primaryFacultyId || '').toLowerCase().trim();
+    const primaryFacUserId = (existing.primaryFaculty?.userId || '').toLowerCase().trim();
+    const primaryFacDbId = (existing.primaryFaculty?.id || '').toLowerCase().trim();
+    const primaryEmail = (existing.primaryFaculty?.email || '').toLowerCase().trim();
+    const primaryName = (existing.primaryFaculty?.name || '').toLowerCase().trim();
+
+    const assignedIds = existing.faculties.map(rf => (rf.facultyId || '').toLowerCase().trim());
+    const assignedUserIds = existing.faculties.map(rf => (rf.faculty?.userId || '').toLowerCase().trim());
+    const assignedDbIds = existing.faculties.map(rf => (rf.faculty?.id || '').toLowerCase().trim());
+    const assignedEmails = existing.faculties.map(rf => (rf.faculty?.email || '').toLowerCase().trim());
+    const assignedNames = existing.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
 
     const isAssignedFaculty =
-      existing.primaryFacultyId === user.id ||
-      assignedFacultyIds.includes(user.id) ||
-      existing.primaryFaculty?.email === user.email ||
-      assignedEmails.includes(user.email);
+      (primaryFacId && (primaryFacId === userId || primaryFacId === userDbId)) ||
+      (primaryFacUserId && (primaryFacUserId === userId || primaryFacUserId === userDbId)) ||
+      (primaryFacDbId && (primaryFacDbId === userId || primaryFacDbId === userDbId)) ||
+      (primaryEmail && primaryEmail === userEmail) ||
+      (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
+      assignedIds.includes(userId) ||
+      assignedIds.includes(userDbId) ||
+      assignedUserIds.includes(userId) ||
+      assignedUserIds.includes(userDbId) ||
+      assignedDbIds.includes(userId) ||
+      assignedDbIds.includes(userDbId) ||
+      assignedEmails.includes(userEmail) ||
+      assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
 
     if (user.role === 'faculty') {
       if (!isAssignedFaculty) {
@@ -1066,10 +1546,10 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
 
       // Safely generate notification for assigned faculty if HOD override
-      if (user.role === 'hod' && assignedFacultyIds.length > 0) {
+      if (user.role === 'hod' && assignedIds.length > 0) {
         try {
           await tx.notification.createMany({
-            data: assignedFacultyIds.map(facId => ({
+            data: assignedIds.map((facId: string) => ({
               userId:    facId,
               requestId: existing.id,
               type:      'override',
@@ -1089,7 +1569,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     res.json({ request: toApi(updated) });
   } catch (err) {
     console.error('PATCH /requests/:id error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1165,7 +1645,7 @@ router.post('/:id/cancel', async (req: Request, res: Response) => {
     res.json({ request: toApi(updated) });
   } catch (err) {
     console.error('POST /requests/:id/cancel error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1205,7 +1685,7 @@ router.get('/:id/actions', async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('GET /requests/:id/actions error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1254,7 +1734,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     res.json({ message: 'Request deleted successfully' });
   } catch (err) {
     console.error('DELETE /requests/:id error:', err);
-    res.status(500).json({ error: 'Failed to delete request' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

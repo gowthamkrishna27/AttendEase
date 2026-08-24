@@ -1,151 +1,82 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import * as api from '../lib/api';
-import { ShieldAlert, FileQuestion, ArrowLeft, RefreshCw } from 'lucide-react';
 
+/**
+ * ShareRedirectPage — Smart gateway for shared request passes.
+ *
+ * Routing Rules:
+ *  1. Not Logged In     -> /login?redirect=/share/:publicId
+ *  2. Faculty Member    -> /faculty/review/:publicId
+ *  3. HOD / Admin       -> /hod/review/:publicId
+ *  4. Student           -> /student/request/:publicId
+ *
+ * Mobile fix: A 5-second timeout ensures we don't spin forever if the
+ * background token-revalidation call hangs on a slow mobile connection.
+ */
 export default function ShareRedirectPage() {
   const { publicId } = useParams<{ publicId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, isLoading: authLoading } = useAuth();
 
-  const [statusState, setStatusState] = useState<'loading' | 'forbidden' | 'notfound' | 'error'>('loading');
-  const [errorMessage, setErrorMessage] = useState('');
+  // Safety valve: if auth check takes >5s on a slow mobile network, redirect to login
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
-    // Wait for auth initialization
-    if (authLoading) return;
+    // Wait until auth state is definitively loaded (or timed out on mobile)
+    if ((authLoading && !timedOut) || !publicId) return;
 
-    // If guest / unauthenticated, preserve current location in state and redirect to login
+    const encodedId = encodeURIComponent(publicId);
+
+    // 1. If not authenticated, prompt login with post-login return redirect
     if (!user) {
-      navigate('/login', { state: { from: location }, replace: true });
+      navigate(`/login?redirect=/share/${encodedId}`, { replace: true });
       return;
     }
 
-    if (!publicId) {
-      setStatusState('notfound');
+    // 2. Direct authenticated role routing
+    if (user.role === 'faculty') {
+      navigate(`/faculty/review/${encodedId}`, { replace: true });
       return;
     }
 
-    let isMounted = true;
-
-    async function checkShareAccess() {
-      try {
-        const res = await api.getShareRedirect(publicId!);
-        if (!isMounted) return;
-
-        if (res.success && res.redirectTo) {
-          navigate(res.redirectTo, { replace: true });
-        } else if (res.status === 404) {
-          setStatusState('notfound');
-        } else if (res.status === 403) {
-          setStatusState('forbidden');
-        } else {
-          setStatusState('error');
-          setErrorMessage(res.error || 'Unable to process share link.');
-        }
-      } catch (err: any) {
-        if (!isMounted) return;
-        const statusCode = err?.status || err?.response?.status;
-        if (statusCode === 403) {
-          setStatusState('forbidden');
-        } else if (statusCode === 404) {
-          setStatusState('notfound');
-        } else {
-          setStatusState('error');
-          setErrorMessage(err?.message || 'Server error while resolving share link.');
-        }
-      }
+    if (user.role === 'hod' || user.role === 'admin') {
+      navigate(`/hod/review/${encodedId}`, { replace: true });
+      return;
     }
 
-    checkShareAccess();
+    if (user.role === 'student') {
+      navigate(`/student/request/${encodedId}`, { replace: true });
+      return;
+    }
 
-    return () => {
-      isMounted = false;
-    };
-  }, [user, authLoading, publicId, navigate, location]);
+    // Default fallback
+    navigate('/', { replace: true });
+  }, [authLoading, timedOut, user, publicId, navigate]);
 
-  if (authLoading || statusState === 'loading') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 font-sans text-slate-800">
-        <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mb-4 shadow-sm animate-pulse">
-          <RefreshCw size={24} className="animate-spin" />
-        </div>
-        <h2 className="text-lg font-bold text-slate-900">Validating Permission Request</h2>
-        <p className="text-sm text-slate-500 mt-1">Verifying your security credentials...</p>
-      </div>
-    );
-  }
-
-  if (statusState === 'forbidden') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 font-sans text-slate-800">
-        <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center">
-          <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-5 shadow-inner">
-            <ShieldAlert size={32} />
-          </div>
-          <span className="text-xs font-bold text-rose-600 uppercase tracking-widest bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
-            403 Forbidden
-          </span>
-          <h1 className="text-2xl font-extrabold text-slate-900 mt-4 mb-2">Access Denied</h1>
-          <p className="text-sm text-slate-500 leading-relaxed mb-6">
-            You do not have authorization to view this attendance request. Shared request links are strictly restricted to the assigned student, designated faculty reviewers, and HOD.
-          </p>
-          <Link
-            to={user?.role ? `/${user.role}` : '/login'}
-            className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl transition-all shadow-md"
-          >
-            <ArrowLeft size={16} />
-            <span>Return to Dashboard</span>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  if (statusState === 'notfound') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 font-sans text-slate-800">
-        <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center">
-          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-5 shadow-inner">
-            <FileQuestion size={32} />
-          </div>
-          <span className="text-xs font-bold text-amber-600 uppercase tracking-widest bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
-            404 Not Found
-          </span>
-          <h1 className="text-2xl font-extrabold text-slate-900 mt-4 mb-2">Request Not Found</h1>
-          <p className="text-sm text-slate-500 leading-relaxed mb-6">
-            The shared request link is invalid, expired, or may have been removed.
-          </p>
-          <Link
-            to={user?.role ? `/${user.role}` : '/login'}
-            className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl transition-all shadow-md"
-          >
-            <ArrowLeft size={16} />
-            <span>Return to Dashboard</span>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
+  // Clean loading screen while resolving authentication
+  // min-h-[100dvh] accounts for mobile browser chrome (address bar shrink/expand)
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 font-sans text-slate-800">
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center">
-        <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-5">
-          <ShieldAlert size={32} />
+    <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center gap-3 font-sans">
+      <div className="relative">
+        <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200/80 shadow-xl flex items-center justify-center text-orange-500">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+            className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full"
+          />
         </div>
-        <h1 className="text-xl font-bold text-slate-900 mb-2">Unable to Open Link</h1>
-        <p className="text-sm text-slate-500 mb-6">{errorMessage || 'An error occurred while validating the request link.'}</p>
-        <Link
-          to={user?.role ? `/${user.role}` : '/login'}
-          className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 bg-slate-900 text-white font-bold text-sm rounded-xl"
-        >
-          <ArrowLeft size={16} />
-          <span>Return Home</span>
-        </Link>
+      </div>
+      <div className="text-center space-y-0.5">
+        <p className="text-sm font-extrabold text-slate-900">Opening Request...</p>
+        <p className="text-[11px] font-medium text-slate-400">Verifying session and redirecting</p>
       </div>
     </div>
   );
 }
+

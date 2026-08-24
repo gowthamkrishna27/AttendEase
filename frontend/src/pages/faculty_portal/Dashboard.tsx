@@ -1,10 +1,11 @@
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckSquare, ArrowRight } from 'lucide-react';
+import { CheckSquare, ArrowRight, Camera, Loader2, Check } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { FaceAlignedImage } from '../../components/shared/FaceAlignedImage';
 import { useAuth } from '../../context/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
 
@@ -15,12 +16,40 @@ const cardVariants = {
 
 export default function FacultyDashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoSuccess, setPhotoSuccess] = useState(false);
 
   const { data: requestsList = [] } = useQuery({
     queryKey: ['requests'],
     queryFn: () => api.getRequests(),
   });
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+
+    setIsUploadingPhoto(true);
+    setPhotoSuccess(false);
+    try {
+      const { url } = await api.uploadProofDocument(file);
+      if (url) {
+        await updateProfile({ avatarUrl: url });
+        void queryClient.invalidateQueries({ queryKey: ['faculty'] });
+        void queryClient.invalidateQueries({ queryKey: ['requests'] });
+        setPhotoSuccess(true);
+        setTimeout(() => setPhotoSuccess(false), 3500);
+      }
+    } catch (err) {
+      console.error('Faculty dashboard photo upload failed:', err);
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const total = requestsList.length;
   const pending = requestsList.filter((r: AttendanceRequest) => r.status === 'pending').length;
@@ -39,22 +68,62 @@ export default function FacultyDashboard() {
           className="card overflow-hidden mb-6 sm:mb-8"
         >
           <div className="flex flex-col sm:flex-row items-stretch">
-            {/* Photo – face-detected & auto-aligned */}
-            <FaceAlignedImage
-              src={user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Faculty')}&background=F97316&color=fff&size=240`}
-              alt={user?.name || 'Faculty Profile'}
-              containerClassName="sm:w-48 w-full flex-shrink-0"
-              containerStyle={{ height: '256px' }}
-              className="w-full h-full sm:absolute sm:inset-0"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Faculty')}&background=F97316&color=fff&size=240`;
-              }}
-            />
+            {/* Photo – face-detected & auto-aligned with Cloudinary change button */}
+            <div className="sm:w-48 w-full flex-shrink-0 relative group" style={{ minHeight: '220px' }}>
+              <FaceAlignedImage
+                src={user?.avatarUrl}
+                fallbackName={user?.name || 'Faculty'}
+                alt={user?.name || 'Faculty Profile'}
+                containerClassName="w-full h-full"
+                containerStyle={{ minHeight: '220px', height: '100%' }}
+                className="w-full h-full sm:absolute sm:inset-0"
+              />
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoSelect}
+              />
+
+              <button
+                type="button"
+                disabled={isUploadingPhoto}
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-3 left-3 right-3 sm:right-auto sm:left-3 px-3 py-1.5 bg-black/65 hover:bg-black/85 text-white text-[11px] font-bold rounded-xl backdrop-blur-md flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer border border-white/20 opacity-90 hover:opacity-100"
+              >
+                {isUploadingPhoto ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin text-orange-400" />
+                    <span>Uploading...</span>
+                  </>
+                ) : photoSuccess ? (
+                  <>
+                    <Check size={12} className="text-emerald-400" />
+                    <span>Updated!</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera size={12} />
+                    <span>Update Photo</span>
+                  </>
+                )}
+              </button>
+            </div>
+
             {/* Info */}
             <div className="flex-1 p-5 sm:px-6 sm:py-5 flex flex-col justify-center">
-              <p className="text-[11px] font-bold text-orange-500 uppercase tracking-widest mb-1.5">
-                FACULTY OVERVIEW
-              </p>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <p className="text-[11px] font-bold text-orange-500 uppercase tracking-widest">
+                  FACULTY OVERVIEW
+                </p>
+                {photoSuccess && (
+                  <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                    <Check size={11} /> Photo updated across portal
+                  </span>
+                )}
+              </div>
               <p className="text-[20px] sm:text-[22px] font-heading font-bold text-slate-900 mb-0.5">{user?.name}</p>
               <p className="text-[13px] sm:text-[14px] text-slate-500 mb-3">Professor</p>
               <div className="flex flex-wrap gap-2">

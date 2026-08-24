@@ -15,6 +15,8 @@ export interface CreateUserBody {
   department:  string;
   password:    string;
   rollNumber?: string;   // required when role === 'student'
+  year?:       string;
+  section?:    string;
   semester?:   number;   // required when role === 'student'
   avatarUrl?:  string;
 }
@@ -25,8 +27,11 @@ export interface UpdateUserBody {
   role?:       UserRole;
   department?: string;
   rollNumber?: string;
+  year?:       string;
+  section?:    string;
   semester?:   number;
   avatarUrl?:  string;
+  password?:   string;
 }
 
 export interface SelfPasswordChangeBody {
@@ -48,10 +53,13 @@ export interface UserResponse {
   role:        UserRole;
   department:  string;
   rollNumber?: string;
+  year?:       string;
+  section?:    string;
   semester?:   number;
   avatarUrl?:  string;
   isActive:    boolean;
 }
+
 
 export interface UserListResponse {
   users: UserResponse[];

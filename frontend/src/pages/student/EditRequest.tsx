@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
-  ArrowLeft, Calendar, Clock, FileText, CheckCircle2,
-  ChevronDown, PenLine, UserCheck, ShieldAlert, Sparkles,
-  Upload, Save, CalendarDays, Check
+  ArrowLeft, Clock, PenLine, ShieldAlert, Check
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
@@ -20,15 +17,6 @@ const card = (extra?: React.CSSProperties): React.CSSProperties => ({
   marginBottom: 20,
   ...extra,
 });
-
-const inputStyle: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box' as const,
-  height: 46, padding: '0 14px 0 40px',
-  fontSize: 14, color: '#1E293B',
-  background: '#F8FAFC', border: '1.5px solid #E8EDF2',
-  borderRadius: 12, outline: 'none',
-  transition: 'border-color 0.15s, box-shadow 0.15s',
-};
 
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 13, fontWeight: 600,
@@ -66,7 +54,6 @@ export default function EditRequest() {
   const [description, setDescription] = useState('');
   const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
   const [file, setFile] = useState<File | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showAllFaculty, setShowAllFaculty] = useState(false);
 
   // Pre-populate state when request loads

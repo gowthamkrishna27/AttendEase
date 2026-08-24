@@ -4,31 +4,36 @@
  * Attaches JWT from localStorage to every authenticated request
  */
 
-const getApiBase = (): string => {
-  // If running in browser on localhost / 127.0.0.1, always target local backend
+export const getApiBase = (): string => {
+  // VITE_API_URL always takes priority (covers localhost dev with custom port)
+  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
+  if (envUrl) return envUrl.replace(/\/+$/, '');
+
+  // If running in browser on localhost / 127.0.0.1 with no env override, target local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:3000';
   }
 
-  // Otherwise (on Vercel production deployment), use VITE_API_URL or fallback to Render
-  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
-  if (envUrl) return envUrl.replace(/\/+$/, '');
-
+  // Production fallback (Render)
   return 'https://attendease-apuw.onrender.com';
 };
 
-const BASE = getApiBase();
+// NOTE: Always call getApiBase() dynamically in fetch calls rather than using this constant
+// so that the URL is resolved at request time, not frozen at module-load time.
+export const BASE = getApiBase();
 
 const TOKEN_KEY = 'attendease_token';
 
 export function getStoredToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setStoredToken(token: string, remember: boolean = true): void {
-  sessionStorage.setItem(TOKEN_KEY, token);
+  // Always persist to localStorage so session survives tab/browser close.
+  // The `remember` flag is kept for API compatibility but no longer changes behaviour
+  // because the only way to end a session is an explicit logout.
+  localStorage.setItem(TOKEN_KEY, token);
   if (remember) {
-    localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem('attendease_remember_me', 'true');
   }
 }
@@ -37,7 +42,25 @@ export function clearStoredToken(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem('attendease_remember_me');
   localStorage.removeItem('attendease_saved_user');
-  sessionStorage.removeItem(TOKEN_KEY);
+}
+
+export function getSavedUser<T = any>(): T | null {
+  try {
+    const raw = localStorage.getItem('attendease_saved_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setSavedUser(user: any): void {
+  if (user) {
+    try {
+      localStorage.setItem('attendease_saved_user', JSON.stringify(user));
+    } catch {}
+  } else {
+    localStorage.removeItem('attendease_saved_user');
+  }
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -53,6 +76,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   department: string;
+  designation?: string;
   rollNumber?: string;
   semester?: number;
   year?: string;
@@ -76,6 +100,7 @@ export interface Student {
 
 export interface Faculty {
   id: string;
+  userId?: string;
   name: string;
   department: string;
   email: string;
@@ -108,9 +133,15 @@ export interface NotificationItem {
 
 export interface AttendanceRequest {
   id: string;
+  requestId?: string;
   publicId?: string;
   studentId: string;
   student?: Student;
+  studentName?: string;
+  rollNumber?: string;
+  department?: string;
+  semester?: number | string;
+  facultyName?: string;
   reason: RequestReason;
   reasonLabel: string;
   date: string;
@@ -128,6 +159,7 @@ export interface AttendanceRequest {
   faculty?: Faculty;
   primaryFacultyId?: string;
   primaryFaculty?: Faculty;
+  facultyIds?: string[];
   faculties?: Faculty[];
   reviewedAt?: string;
   finalDecisionBy?: 'Faculty' | 'HOD' | string;
@@ -154,12 +186,17 @@ async function apiFetch<T>(
   }
 
   const reqInit = { ...options, headers };
+  // Always call getApiBase() dynamically — never use the frozen BASE constant
+  // This ensures mobile devices and different environments always get the correct URL
+  const currentBase = getApiBase();
   let res: Response | null = null;
   try {
-    res = await fetch(`${BASE}${path}`, reqInit);
+    res = await fetch(`${currentBase}${path}`, reqInit);
   } catch {
-    // If primary port fetch fails, iterate through local backend fallback ports (3000, 3001, 3002)
-    const fallbackBases = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== BASE);
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const fallbackBases = isLocal
+      ? ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== currentBase)
+      : ['https://attendease-apuw.onrender.com'].filter(b => b !== currentBase);
     for (const fb of fallbackBases) {
       try {
         const fbRes = await fetch(`${fb}${path}`, reqInit);
@@ -281,7 +318,7 @@ export async function logout(): Promise<void> {
 
 // NOTE: ?department= param intentionally removed — scope is always derived from the
 // JWT on the backend. Param kept in signature to avoid call-site breakage.
-export async function getRequests(_params?: { department?: string }): Promise<AttendanceRequest[]> {
+export async function getRequests(_params?: { department?: string } | any): Promise<AttendanceRequest[]> {
   const res = await apiFetch<{ requests: AttendanceRequest[] }>('/api/requests');
   return res.requests;
 }
@@ -401,16 +438,37 @@ export async function reviewRequest(
   id: string,
   action: 'approve' | 'reject',
   rejectionReason?: string,
+  asHod?: boolean,
 ): Promise<AttendanceRequest> {
   const res = await apiFetch<{ request: AttendanceRequest }>(
     `/api/requests/${id}`,
     {
       method: 'PATCH',
-      headers: { 'x-role-override': 'hod' },
-      body: JSON.stringify({ action, rejectionReason, roleOverride: 'hod' }),
+      // Only send HOD role-override when explicitly acting as HOD.
+      // Faculty must review as 'faculty' so assignment checks apply correctly.
+      ...(asHod ? { headers: { 'x-role-override': 'hod' } } : {}),
+      body: JSON.stringify({
+        action,
+        rejectionReason,
+        ...(asHod ? { roleOverride: 'hod' } : {}),
+      }),
     },
   );
   return res.request;
+}
+
+export async function bulkReviewRequests(
+  requestIds: string[],
+  action: 'approve' | 'reject',
+  rejectionReason?: string,
+): Promise<{ success: boolean; count: number; requests: AttendanceRequest[]; skippedCount?: number }> {
+  return apiFetch<{ success: boolean; count: number; requests: AttendanceRequest[]; skippedCount?: number }>(
+    '/api/requests/bulk-review',
+    {
+      method: 'POST',
+      body: JSON.stringify({ requestIds, action, rejectionReason }),
+    },
+  );
 }
 
 export async function cancelRequest(id: string): Promise<AttendanceRequest> {
@@ -458,6 +516,7 @@ export interface UpdateProfilePayload {
   email?: string;
   avatarUrl?: string;
   phone?: string;
+  designation?: string;
   semester?: number;
   currentPassword?: string;
   password?: string;
@@ -514,11 +573,123 @@ export async function deleteUser(id: string): Promise<void> {
   await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
 }
 
+export async function deleteMultipleUsers(ids: string[]): Promise<{ success: boolean; deletedCount: number }> {
+  return apiFetch<{ success: boolean; deletedCount: number }>('/api/admin/users/batch-delete', {
+    method: 'POST',
+    body: JSON.stringify({ userIds: ids }),
+  });
+}
+
+
 export async function resetUserPassword(id: string, newPassword: string): Promise<void> {
   await apiFetch(`/api/admin/users/${id}/password`, {
     method: 'PATCH',
     body: JSON.stringify({ password: newPassword }),
   });
+}
+
+// ─── Database Explorer API ──────────────────────────────────────────────────
+
+export interface DBTableOverview {
+  name: string;
+  label: string;
+  description: string;
+  count: number;
+  columns: string[];
+}
+
+export interface DBOverviewResponse {
+  success: boolean;
+  database: string;
+  totalTables: number;
+  tables: DBTableOverview[];
+}
+
+export interface DBTableDataResponse {
+  success: boolean;
+  tableName: string;
+  label: string;
+  description: string;
+  page: number;
+  limit: number;
+  totalRows: number;
+  totalPages: number;
+  columns: string[];
+  rows: Record<string, any>[];
+}
+
+export async function getDatabaseOverview(): Promise<DBOverviewResponse> {
+  return apiFetch<DBOverviewResponse>('/api/admin/database/overview');
+}
+
+export async function getDatabaseTableData(
+  tableName: string,
+  params?: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }
+): Promise<DBTableDataResponse> {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.search) query.set('search', params.search);
+  if (params?.sortBy) query.set('sortBy', params.sortBy);
+  if (params?.sortOrder) query.set('sortOrder', params.sortOrder);
+  const qStr = query.toString() ? `?${query.toString()}` : '';
+  return apiFetch<DBTableDataResponse>(`/api/admin/database/tables/${tableName}${qStr}`);
+}
+
+export async function exportDatabaseTable(tableName: string): Promise<any> {
+  return apiFetch<any>(`/api/admin/database/export/${tableName}`);
+}
+
+export interface ImportReport {
+  inserted: number;
+  skipped: number;
+  upserted: number;
+  failed: Array<{ row?: number; rollNumber?: string; reason: string }>;
+}
+
+export async function importStudentsFile(file: File): Promise<ImportReport> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = getStoredToken();
+  const headers: Record<string, string> = {
+    'x-role-override': 'admin',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const bases = isLocal
+    ? [BASE, '', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter((v, i, a) => a.indexOf(v) === i)
+    : [BASE, 'https://attendease-apuw.onrender.com'].filter((v, i, a) => a.indexOf(v) === i);
+  let lastError: any = null;
+  let response: Response | null = null;
+
+  for (const b of bases) {
+    try {
+      const res = await fetch(`${b}/api/admin/students/import`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      if (res.status === 404) continue;
+      response = res;
+      break;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  if (!response) {
+    throw lastError || new Error('Failed to connect to backend server');
+  }
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to import students file');
+  }
+  return data.import;
 }
 
 // ─── Attendance API ──────────────────────────────────────────────────────────
@@ -556,6 +727,26 @@ export interface SubmitAttendancePayload {
   periods: string;
   periodLabel?: string;
   records: { rollNumber: string; status: 'present' | 'absent' }[];
+}
+
+export interface PublicSectionItem {
+  key: string;
+  department: string;
+  section: string;
+  year: string;
+  label: string;
+  value: string;
+  rollNumbers: string[];
+  studentCount: number;
+}
+
+export async function getPublicSections(year?: string): Promise<PublicSectionItem[]> {
+  const params = new URLSearchParams();
+  if (year) params.append('year', year);
+  const queryString = params.toString();
+  const url = `/api/requests/public-sections${queryString ? `?${queryString}` : ''}`;
+  const res = await apiFetch<{ sections: PublicSectionItem[] }>(url, {}, false);
+  return res.sections ?? [];
 }
 
 export async function getAttendanceSubmissions(date?: string, section?: string, year?: string): Promise<AttendanceSubmissionItem[]> {
@@ -620,11 +811,41 @@ export async function unassignCounselingStudent(studentId: string): Promise<{ su
   });
 }
 
+export interface SharePassResponse {
+  success: boolean;
+  request?: AttendanceRequest;
+  authInfo?: {
+    isGuest?: boolean;
+    canReview?: boolean;
+    isStudentOwner?: boolean;
+    isAssignedFaculty?: boolean;
+    isHOD?: boolean;
+    role?: string;
+    user?: { id: string; name: string; email: string; role: string };
+    recommendedRedirect?: string;
+  };
+  error?: string;
+  status?: number;
+}
+
+export async function getSharePassView(publicId: string): Promise<SharePassResponse> {
+  return apiFetch<SharePassResponse>(`/api/share/view/${encodeURIComponent(publicId)}`);
+}
+
+export async function quickReviewSharePass(
+  publicId: string,
+  action: 'approve' | 'reject',
+  payload?: { rejectionReason?: string; remarks?: string; facultyPin?: string; facultyEmail?: string }
+): Promise<{ success: boolean; message: string; request: AttendanceRequest }> {
+  return apiFetch<{ success: boolean; message: string; request: AttendanceRequest }>(`/api/share/quick-review/${encodeURIComponent(publicId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...payload }),
+  });
+}
+
 export async function getShareRedirect(publicId: string): Promise<{ success: boolean; redirectTo?: string; status?: number; error?: string }> {
   return apiFetch<{ success: boolean; redirectTo?: string; status?: number; error?: string }>(`/api/share/${encodeURIComponent(publicId)}`);
 }
-
-// ─── HOD Direct Exemption ─────────────────────────────────────────────────────
 
 export interface HODDirectExemptionPayload {
   studentIds: string[];
@@ -656,5 +877,17 @@ export async function changePin(currentPin: string, newPin: string): Promise<{ s
   });
 }
 
+export async function sendChatMessage(messages: { role: string; content: string }[]): Promise<{ reply?: string; error?: string }> {
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+  });
 
+  if (!res.ok) {
+    throw new Error(`Chat server returned status ${res.status}`);
+  }
 
+  return res.json();
+}

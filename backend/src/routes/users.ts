@@ -116,7 +116,7 @@ router.get('/counselees', verifyToken, async (req: Request, res: Response) => {
     res.json({ counselees: counseleesWithStats });
   } catch (err) {
     console.error('GET /users/counselees error:', err);
-    res.status(500).json({ error: 'Failed to fetch counseling students' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -130,7 +130,7 @@ router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
     res.json({ faculty: docs.map(formatUserResponse) });
   } catch (err) {
     console.error('GET /users/faculty error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -168,7 +168,7 @@ router.get('/students', verifyToken, async (_req: Request, res: Response) => {
     res.json({ students: formatted });
   } catch (err) {
     console.error('GET /users/students error:', err);
-    res.status(500).json({ error: 'Failed to fetch students list' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -241,7 +241,7 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
     });
   } catch (err) {
     console.error('GET /users/counseling/all error:', err);
-    res.status(500).json({ error: 'Failed to fetch counseling data' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -287,7 +287,7 @@ router.post('/counseling/assign', verifyToken, async (req: Request, res: Respons
     });
   } catch (err) {
     console.error('POST /users/counseling/assign error:', err);
-    res.status(500).json({ error: 'Failed to assign counseling students' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -318,7 +318,7 @@ router.post('/counseling/unassign', verifyToken, async (req: Request, res: Respo
     res.json({ success: true, message: 'Student unassigned successfully' });
   } catch (err) {
     console.error('POST /users/counseling/unassign error:', err);
-    res.status(500).json({ error: 'Failed to unassign student' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -328,11 +328,13 @@ router.post('/counseling/unassign', verifyToken, async (req: Request, res: Respo
  */
 router.get('/me', verifyToken, async (req: Request, res: Response) => {
   try {
+    const tokenUser = req.user!;
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { userId: req.user!.id },
-          { email:  req.user!.email },
+          { id:     tokenUser.id },
+          { userId: tokenUser.id },
+          { email:  { equals: tokenUser.email, mode: 'insensitive' } },
         ],
       },
     });
@@ -343,7 +345,7 @@ router.get('/me', verifyToken, async (req: Request, res: Response) => {
     res.json({ user: formatUserResponse(user) });
   } catch (err) {
     console.error('GET /users/me error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -366,7 +368,7 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, email, phone, avatarUrl, semester, password, currentPassword } = req.body;
+    const { name, email, phone, avatarUrl, semester, designation, password, currentPassword } = req.body;
 
     // Handle password change
     if (password && String(password).trim().length > 0) {
@@ -383,19 +385,52 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
     const updated = await prisma.user.update({
       where: { id: existing.id },
       data: {
-        ...(name      !== undefined && { name      }),
-        ...(email     !== undefined && { email     }),
-        ...(phone     !== undefined && { phone     }),
-        ...(avatarUrl !== undefined && { avatarUrl }),
-        ...(semester  !== undefined && { semester: Number(semester) }),
-        ...(password  !== undefined && { password  }),
+        ...(name        !== undefined && { name        }),
+        ...(email       !== undefined && { email       }),
+        ...(phone       !== undefined && { phone       }),
+        ...(avatarUrl   !== undefined && { avatarUrl   }),
+        ...(semester    !== undefined && { semester: Number(semester) }),
+        ...(designation !== undefined && { designation }),
+        ...(password    !== undefined && { password    }),
       },
     });
 
     res.json({ user: formatUserResponse(updated) });
   } catch (err) {
     console.error('PUT /users/me error:', err);
-    res.status(500).json({ error: 'Failed to update personal information' });
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
+ * GET /api/users/proxy-image
+ * Proxies remote images (e.g. SRKR exam portal, Cloudinary) to avoid CORS in Excel export
+ */
+router.get('/proxy-image', async (req: Request, res: Response) => {
+  try {
+    const imageUrl = req.query.url as string;
+    if (!imageUrl) {
+      res.status(400).send('Image URL required');
+      return;
+    }
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      },
+    });
+    if (!response.ok) {
+      res.status(response.status).send('Failed to fetch remote image');
+      return;
+    }
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(buffer);
+  } catch (err: any) {
+    console.error('Proxy image error:', err);
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

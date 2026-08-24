@@ -1,0 +1,24 @@
+{
+  "name": "AttendEase - Smart Attendance & Permission Management",
+  "short_name": "AttendEase",
+  "description": "Minimal, elegant digital attendance permission and tracking app for students, faculty and HOD.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
