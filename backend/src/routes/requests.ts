@@ -644,20 +644,37 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    const user = req.user!;
-    const userEmail = (user.email || '').toLowerCase().trim();
-    const userId = (user.id || '').toLowerCase().trim();
-    const userName = (user.name || '').toLowerCase().trim();
+    const tokenUser = req.user!;
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { userId: { equals: tokenUser.id, mode: 'insensitive' } },
+          { id:     { equals: tokenUser.id, mode: 'insensitive' } },
+          { email:  { equals: tokenUser.email, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!dbUser) {
+      res.status(401).json({ error: 'User account not found' });
+      return;
+    }
+
+    const userEmail = dbUser.email.toLowerCase().trim();
+    const userId = dbUser.userId.toLowerCase().trim();
+    const userDbId = dbUser.id.toLowerCase().trim();
+    const userName = dbUser.name.toLowerCase().trim();
 
     // Students can only view their own requests
-    if (user.role === 'student') {
+    if (dbUser.role === 'student') {
       const stuUserId = (doc.studentId || doc.student?.userId || '').toLowerCase().trim();
       const stuRoll = (doc.student?.rollNumber || '').toLowerCase().trim();
       const stuEmail = (doc.student?.email || '').toLowerCase().trim();
-      const userRoll = (user.rollNumber || '').toLowerCase().trim();
+      const userRoll = (dbUser.rollNumber || '').toLowerCase().trim();
 
       const isStudentMatch =
         stuUserId === userId ||
+        stuUserId === userDbId ||
         (userRoll && stuRoll === userRoll) ||
         (userEmail && stuEmail === userEmail);
 
@@ -668,7 +685,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     // Faculty can view requests assigned to them
-    if (user.role === 'faculty') {
+    if (dbUser.role === 'faculty') {
       const primaryFacId = (doc.primaryFacultyId || '').toLowerCase().trim();
       const primaryFacUserId = (doc.primaryFaculty?.userId || '').toLowerCase().trim();
       const primaryFacDbId = (doc.primaryFaculty?.id || '').toLowerCase().trim();
@@ -681,26 +698,48 @@ router.get('/:id', async (req: Request, res: Response) => {
       const assignedEmails = doc.faculties.map(rf => (rf.faculty?.email || '').toLowerCase().trim());
       const assignedNames = doc.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
 
+      console.log('GET /requests/:id faculty check:', {
+        userId,
+        userDbId,
+        userEmail,
+        userName,
+        primaryFacId,
+        primaryFacUserId,
+        primaryFacDbId,
+        primaryEmail,
+        primaryName,
+        assignedIds,
+        assignedUserIds,
+        assignedDbIds,
+        assignedEmails,
+        assignedNames
+      });
+
       const isAssignedFaculty =
-        (primaryFacId && primaryFacId === userId) ||
-        (primaryFacUserId && primaryFacUserId === userId) ||
-        (primaryFacDbId && primaryFacDbId === userId) ||
+        (primaryFacId && (primaryFacId === userId || primaryFacId === userDbId)) ||
+        (primaryFacUserId && (primaryFacUserId === userId || primaryFacUserId === userDbId)) ||
+        (primaryFacDbId && (primaryFacDbId === userId || primaryFacDbId === userDbId)) ||
         (primaryEmail && primaryEmail === userEmail) ||
         (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
         assignedIds.includes(userId) ||
+        assignedIds.includes(userDbId) ||
         assignedUserIds.includes(userId) ||
+        assignedUserIds.includes(userDbId) ||
         assignedDbIds.includes(userId) ||
+        assignedDbIds.includes(userDbId) ||
         assignedEmails.includes(userEmail) ||
         assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
 
+      console.log('GET /requests/:id isAssignedFaculty result:', isAssignedFaculty);
+
       if (!isAssignedFaculty) {
+        console.warn(`Access Denied (403) for faculty "${userId}" requesting request "${idParam}"`);
         res.status(403).json({ error: 'This request is not assigned to you' });
         return;
       }
     }
 
     // HOD can view any request across the system without restriction to perform executive reviews
-
 
     res.json({ request: toApi(doc) });
   } catch (err) {
@@ -1372,9 +1411,26 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     // ── Faculty authorization & guard ─────────────────────────────────────────
-    const userId = (user.id || '').toLowerCase().trim();
-    const userEmail = (user.email || '').toLowerCase().trim();
-    const userName = (user.name || '').toLowerCase().trim();
+    const tokenUser = req.user!;
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { userId: { equals: tokenUser.id, mode: 'insensitive' } },
+          { id:     { equals: tokenUser.id, mode: 'insensitive' } },
+          { email:  { equals: tokenUser.email, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!dbUser) {
+      res.status(401).json({ error: 'User account not found' });
+      return;
+    }
+
+    const userEmail = dbUser.email.toLowerCase().trim();
+    const userId = dbUser.userId.toLowerCase().trim();
+    const userDbId = dbUser.id.toLowerCase().trim();
+    const userName = dbUser.name.toLowerCase().trim();
 
     const primaryFacId = (existing.primaryFacultyId || '').toLowerCase().trim();
     const primaryFacUserId = (existing.primaryFaculty?.userId || '').toLowerCase().trim();
@@ -1389,14 +1445,17 @@ router.patch('/:id', async (req: Request, res: Response) => {
     const assignedNames = existing.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
 
     const isAssignedFaculty =
-      (primaryFacId && primaryFacId === userId) ||
-      (primaryFacUserId && primaryFacUserId === userId) ||
-      (primaryFacDbId && primaryFacDbId === userId) ||
+      (primaryFacId && (primaryFacId === userId || primaryFacId === userDbId)) ||
+      (primaryFacUserId && (primaryFacUserId === userId || primaryFacUserId === userDbId)) ||
+      (primaryFacDbId && (primaryFacDbId === userId || primaryFacDbId === userDbId)) ||
       (primaryEmail && primaryEmail === userEmail) ||
       (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
       assignedIds.includes(userId) ||
+      assignedIds.includes(userDbId) ||
       assignedUserIds.includes(userId) ||
+      assignedUserIds.includes(userDbId) ||
       assignedDbIds.includes(userId) ||
+      assignedDbIds.includes(userDbId) ||
       assignedEmails.includes(userEmail) ||
       assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
 
