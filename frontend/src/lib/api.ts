@@ -22,13 +22,15 @@ export const BASE = getApiBase();
 const TOKEN_KEY = 'attendease_token';
 
 export function getStoredToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setStoredToken(token: string, remember: boolean = true): void {
-  sessionStorage.setItem(TOKEN_KEY, token);
+  // Always persist to localStorage so session survives tab/browser close.
+  // The `remember` flag is kept for API compatibility but no longer changes behaviour
+  // because the only way to end a session is an explicit logout.
+  localStorage.setItem(TOKEN_KEY, token);
   if (remember) {
-    localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem('attendease_remember_me', 'true');
   }
 }
@@ -37,7 +39,6 @@ export function clearStoredToken(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem('attendease_remember_me');
   localStorage.removeItem('attendease_saved_user');
-  sessionStorage.removeItem(TOKEN_KEY);
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────

@@ -1078,69 +1078,79 @@ router.post('/bulk-review', async (req: Request, res: Response) => {
     const updatedRequests: any[] = [];
     const skippedIds: string[] = [];
 
-    await prisma.$transaction(async tx => {
-      for (const existing of existingRequests) {
-        // Faculty check: must be assigned faculty and cannot override HOD
-        if (user.role === 'faculty') {
-          const assignedFacultyIds = existing.faculties.map(rf => rf.facultyId);
-          const assignedEmails     = existing.faculties.map(rf => rf.faculty.email);
+    // Filter eligible requests first (outside transaction to avoid holding locks)
+    const eligibleRequests: typeof existingRequests = [];
+    for (const existing of existingRequests) {
+      if (user.role === 'faculty') {
+        const assignedFacultyIds = existing.faculties.map(rf => rf.facultyId);
+        const assignedEmails     = existing.faculties.map(rf => rf.faculty.email);
 
-          const isAssignedFaculty =
-            existing.primaryFacultyId === user.id ||
-            assignedFacultyIds.includes(user.id) ||
-            existing.primaryFaculty?.email === user.email ||
-            assignedEmails.includes(user.email);
+        const isAssignedFaculty =
+          existing.primaryFacultyId === user.id ||
+          assignedFacultyIds.includes(user.id) ||
+          existing.primaryFaculty?.email === user.email ||
+          assignedEmails.includes(user.email);
 
-          if (!isAssignedFaculty || existing.finalDecisionBy === 'HOD') {
-            skippedIds.push(existing.id);
-            continue;
-          }
+        if (!isAssignedFaculty || existing.finalDecisionBy === 'HOD') {
+          skippedIds.push(existing.id);
+          continue;
         }
-
-        let actionName: string;
-        if (user.role === 'faculty') {
-          actionName = action === 'approve' ? 'Approved by Faculty (Bulk)' : 'Rejected by Faculty (Bulk)';
-        } else {
-          actionName = action === 'approve' ? 'Approved by HOD (Bulk)' : 'Rejected by HOD (Bulk)';
-        }
-
-        const effectiveRemarks = remarks?.trim() || rejectionReason?.trim() || (action === 'approve' ? `Bulk approved by ${user.role.toUpperCase()}` : `Bulk rejected by ${user.role.toUpperCase()}`);
-
-        const updated = await tx.request.update({
-          where: { id: existing.id },
-          data: {
-            status:              newStatus,
-            rejectionReason:     action === 'reject' ? (rejectionReason ?? null) : null,
-            reviewedAt:          now,
-            finalDecisionBy:     decisionRole,
-            finalDecisionUserId: performingUserId,
-          },
-          include: REQUEST_INCLUDE,
-        });
-
-        await tx.requestAction.create({
-          data: {
-            requestId:     existing.id,
-            performedById: performingUserId,
-            action:        actionName,
-            remarks:       effectiveRemarks,
-          },
-        });
-
-        // Create student notification
-        await tx.notification.create({
-          data: {
-            userId:    existing.studentId,
-            requestId: existing.id,
-            type:      action === 'approve' ? 'approved' : 'rejected',
-            title:     `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-            message:   `Your permission request for ${existing.reasonLabel} has been ${action === 'approve' ? 'approved' : 'rejected'} by ${user.name}.`,
-          },
-        });
-
-        updatedRequests.push(updated);
       }
+      eligibleRequests.push(existing);
+    }
+
+    const actionName = user.role === 'faculty'
+      ? (action === 'approve' ? 'Approved by Faculty (Bulk)' : 'Rejected by Faculty (Bulk)')
+      : (action === 'approve' ? 'Approved by HOD (Bulk)' : 'Rejected by HOD (Bulk)');
+
+    const effectiveRemarks = remarks?.trim() || rejectionReason?.trim() ||
+      (action === 'approve' ? `Bulk approved by ${user.role.toUpperCase()}` : `Bulk rejected by ${user.role.toUpperCase()}`);
+
+    const eligibleIds = eligibleRequests.map(r => r.id);
+
+    await prisma.$transaction(async tx => {
+      // Bulk update all eligible requests in one query
+      await tx.request.updateMany({
+        where: { id: { in: eligibleIds } },
+        data: {
+          status:              newStatus,
+          rejectionReason:     action === 'reject' ? (rejectionReason ?? null) : null,
+          reviewedAt:          now,
+          finalDecisionBy:     decisionRole,
+          finalDecisionUserId: performingUserId,
+        },
+      });
+
+      // Bulk insert audit actions
+      await tx.requestAction.createMany({
+        data: eligibleIds.map(id => ({
+          requestId:     id,
+          performedById: performingUserId,
+          action:        actionName,
+          remarks:       effectiveRemarks,
+        })),
+        skipDuplicates: true,
+      });
+
+      // Bulk insert student notifications
+      await tx.notification.createMany({
+        data: eligibleRequests.map(existing => ({
+          userId:    existing.studentId,
+          requestId: existing.id,
+          type:      action === 'approve' ? 'approved' : 'rejected',
+          title:     `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
+          message:   `Your permission request for ${existing.reasonLabel} has been ${action === 'approve' ? 'approved' : 'rejected'} by ${user.name}.`,
+        })),
+        skipDuplicates: true,
+      });
+    }, { timeout: 30000 });
+
+    // Fetch updated requests after transaction commits
+    const updatedDocs = await prisma.request.findMany({
+      where:   { id: { in: eligibleIds } },
+      include: REQUEST_INCLUDE,
     });
+    updatedRequests.push(...updatedDocs);
 
     res.json({
       success: true,
