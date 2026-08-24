@@ -77,11 +77,11 @@ export default function FacultyRequestDetails() {
       <div className="max-w-xl mx-auto">
         {/* Back */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/faculty/requests')}
           className="flex items-center gap-2 text-[14px] text-[#6B7280] hover:text-[#111111] transition-colors mb-6"
         >
           <ArrowLeft size={16} />
-          Back to Dashboard
+          Back to Requests
         </button>
 
         {/* Header */}

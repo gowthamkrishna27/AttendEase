@@ -126,7 +126,7 @@ export default function HODRequestDetails() {
 
         {/* Back */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/hod')}
           className="flex items-center gap-2 text-[14px] text-[#6B7280] hover:text-[#111111] transition-colors"
         >
           <ArrowLeft size={16} />
