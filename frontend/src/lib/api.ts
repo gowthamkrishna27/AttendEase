@@ -5,18 +5,21 @@
  */
 
 export const getApiBase = (): string => {
-  // If running in browser on localhost / 127.0.0.1, always target local backend
+  // VITE_API_URL always takes priority (covers localhost dev with custom port)
+  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
+  if (envUrl) return envUrl.replace(/\/+$/, '');
+
+  // If running in browser on localhost / 127.0.0.1 with no env override, target local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:3000';
   }
 
-  // Otherwise (on Vercel production deployment), use VITE_API_URL or fallback to Render
-  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
-  if (envUrl) return envUrl.replace(/\/+$/, '');
-
+  // Production fallback (Render)
   return 'https://attendease-apuw.onrender.com';
 };
 
+// NOTE: Always call getApiBase() dynamically in fetch calls rather than using this constant
+// so that the URL is resolved at request time, not frozen at module-load time.
 export const BASE = getApiBase();
 
 const TOKEN_KEY = 'attendease_token';

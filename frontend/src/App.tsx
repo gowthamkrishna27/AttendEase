@@ -70,8 +70,14 @@ function ProtectedRoute({
 }) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
-  // Wait for token rehydration — don't redirect prematurely
-  if (isLoading) return null;
+  // Wait for token rehydration — show minimal spinner instead of blank screen (important on mobile)
+  if (isLoading) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50">
+        <div className="w-7 h-7 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -93,6 +99,7 @@ function ProtectedRoute({
 
   return <>{children}</>;
 }
+
 
 
 function AppRoutes() {
