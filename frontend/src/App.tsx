@@ -68,7 +68,10 @@ function ProtectedRoute({
   role: UserRole;
   allowPasswordChange?: boolean;
 }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  // Wait for token rehydration — don't redirect prematurely
+  if (isLoading) return null;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
