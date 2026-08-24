@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as api from '../lib/api';
 import type { AuthUser, UpdateProfilePayload } from '../lib/api';
-import { getStoredToken, setStoredToken, clearStoredToken } from '../lib/api';
+import { getStoredToken, setStoredToken, clearStoredToken, getSavedUser, setSavedUser } from '../lib/api';
 
 export type UserRole = 'student' | 'faculty' | 'hod' | 'admin';
 export type { AuthUser };
@@ -21,17 +21,44 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser]       = useState<AuthUser | null>(null);
-  const [isLoading, setLoading] = useState(true);
+  // Synchronously initialize user from stored state if present
+  const [user, setUserState] = useState<AuthUser | null>(() => {
+    const token = getStoredToken();
+    if (!token) return null;
+    return getSavedUser<AuthUser>();
+  });
+
+  const [isLoading, setLoading] = useState(() => {
+    const token = getStoredToken();
+    const saved = getSavedUser<AuthUser>();
+    return token ? !saved : false;
+  });
+
   const queryClient = useQueryClient();
 
-  // Rehydrate user from stored token on mount
+  const setUser = (u: AuthUser | null) => {
+    setUserState(u);
+    setSavedUser(u);
+  };
+
+  // Revalidate user profile in background
   useEffect(() => {
     const token = getStoredToken();
     if (token) {
       api.getMe()
-        .then(u => setUser(u))
-        .catch(() => clearStoredToken())
+        .then(u => {
+          setUserState(u);
+          setSavedUser(u);
+        })
+        .catch((err: any) => {
+          // Only clear if token is definitively rejected as invalid/expired (401)
+          const msg = String(err?.message || '').toLowerCase();
+          if (msg.includes('401') || msg.includes('invalid') || msg.includes('expired') || msg.includes('no token')) {
+            clearStoredToken();
+            setSavedUser(null);
+            setUserState(null);
+          }
+        })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
@@ -42,19 +69,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.clear();
     const { token, user: u } = await api.login(identifier, password, role);
     setStoredToken(token, rememberMe);
-    setUser(u);
+    setSavedUser(u);
+    setUserState(u);
   };
 
   const updateProfile = async (data: UpdateProfilePayload): Promise<AuthUser> => {
     const updated = await api.updateMe(data);
-    setUser(updated);
+    setUserState(updated);
+    setSavedUser(updated);
     return updated;
   };
 
   const logout = () => {
     queryClient.clear();
     clearStoredToken();
-    setUser(null);
+    setSavedUser(null);
+    setUserState(null);
     api.logout().catch(() => {});
   };
 

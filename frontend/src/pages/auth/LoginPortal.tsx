@@ -619,6 +619,16 @@ export default function LoginPortal() {
               </button>
             )}
           </div>
+
+          <div className="text-center mt-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="text-[12px] font-semibold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+            >
+              ← Back to Home
+            </button>
+          </div>
         </form>
       </motion.div>
 

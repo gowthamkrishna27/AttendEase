@@ -41,6 +41,25 @@ export function clearStoredToken(): void {
   localStorage.removeItem('attendease_saved_user');
 }
 
+export function getSavedUser<T = any>(): T | null {
+  try {
+    const raw = localStorage.getItem('attendease_saved_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setSavedUser(user: any): void {
+  if (user) {
+    try {
+      localStorage.setItem('attendease_saved_user', JSON.stringify(user));
+    } catch {}
+  } else {
+    localStorage.removeItem('attendease_saved_user');
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';

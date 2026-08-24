@@ -328,11 +328,13 @@ router.post('/counseling/unassign', verifyToken, async (req: Request, res: Respo
  */
 router.get('/me', verifyToken, async (req: Request, res: Response) => {
   try {
+    const tokenUser = req.user!;
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { userId: req.user!.id },
-          { email:  req.user!.email },
+          { id:     tokenUser.id },
+          { userId: tokenUser.id },
+          { email:  { equals: tokenUser.email, mode: 'insensitive' } },
         ],
       },
     });
