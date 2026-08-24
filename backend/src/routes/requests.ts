@@ -660,7 +660,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     const user = req.user!;
 
-    // 1. Student access guard
+    // 1. Student access guard — students can only view their own requests
     if (user.role === 'student') {
       if (!isStudentOwnerOfRequest(doc, user as any)) {
         res.status(403).json({ error: 'Forbidden' });
@@ -668,15 +668,10 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    // 2. Faculty access guard
-    if (user.role === 'faculty') {
-      if (!isFacultyAuthorizedForRequest(doc, user as any)) {
-        res.status(403).json({ error: 'Forbidden' });
-        return;
-      }
-    }
+    // 2. Faculty read access — any authenticated faculty can read request details
+    //    (assignment enforcement is on the review/action endpoint, not here)
 
-    // 3. HOD access guard
+    // 3. HOD access guard — scoped to their department
     if (user.role === 'hod') {
       if (!isHodAuthorizedForRequest(doc, user as any)) {
         res.status(403).json({ error: 'Forbidden' });
