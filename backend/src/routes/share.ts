@@ -205,32 +205,56 @@ router.get('/view/:publicId', async (req: Request, res: Response) => {
     }
 
     const userId = (user.id || user.userId || '').toLowerCase().trim();
+    const userDbId = (user.id || '').toLowerCase().trim();
+    const userCustomId = (user.userId || '').toLowerCase().trim();
     const userEmail = (user.email || '').toLowerCase().trim();
     const userRoll = (user.rollNumber || '').toLowerCase().trim();
+    const userName = (user.name || '').toLowerCase().trim();
 
     // Check ownership for student
     const stuUserId = (doc.studentId || doc.student?.userId || '').toLowerCase().trim();
+    const stuDbId = (doc.student?.id || '').toLowerCase().trim();
     const stuRoll = (doc.student?.rollNumber || '').toLowerCase().trim();
     const stuEmail = (doc.student?.email || '').toLowerCase().trim();
 
     const isStudentOwner =
       user.role === 'student' &&
       (stuUserId === userId ||
+        stuUserId === userDbId ||
+        stuUserId === userCustomId ||
+        stuDbId === userDbId ||
         (userRoll && stuRoll === userRoll) ||
         (userEmail && stuEmail === userEmail));
 
     // Check faculty assignment
     const assignedFacultyIds = doc.faculties.map(rf => (rf.facultyId || '').toLowerCase());
-    const assignedEmails = doc.faculties.map(rf => (rf.faculty.email || '').toLowerCase());
+    const assignedFacultyUserIds = doc.faculties.map(rf => (rf.faculty?.userId || '').toLowerCase());
+    const assignedFacultyDbIds = doc.faculties.map(rf => (rf.faculty?.id || '').toLowerCase());
+    const assignedEmails = doc.faculties.map(rf => (rf.faculty?.email || '').toLowerCase());
+    const assignedNames = doc.faculties.map(rf => (rf.faculty?.name || '').toLowerCase());
+
     const primaryFacId = (doc.primaryFacultyId || '').toLowerCase();
+    const primaryFacUserId = (doc.primaryFaculty?.userId || '').toLowerCase();
+    const primaryFacDbId = (doc.primaryFaculty?.id || '').toLowerCase();
     const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase();
+    const primaryName = (doc.primaryFaculty?.name || '').toLowerCase();
 
     const isAssignedFaculty =
       user.role === 'faculty' &&
       (primaryFacId === userId ||
-        assignedFacultyIds.includes(userId) ||
+        primaryFacId === userDbId ||
+        primaryFacId === userCustomId ||
+        primaryFacUserId === userId ||
+        primaryFacDbId === userDbId ||
         primaryEmail === userEmail ||
-        assignedEmails.includes(userEmail));
+        (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
+        assignedFacultyIds.includes(userId) ||
+        assignedFacultyIds.includes(userDbId) ||
+        assignedFacultyIds.includes(userCustomId) ||
+        assignedFacultyUserIds.includes(userId) ||
+        assignedFacultyDbIds.includes(userDbId) ||
+        assignedEmails.includes(userEmail) ||
+        assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n))));
 
     const isHOD = user.role === 'hod' || user.role === 'admin';
     const canReview = (isAssignedFaculty || isHOD) && doc.status === 'pending';
