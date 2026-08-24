@@ -1757,7 +1757,7 @@ export default function PermissionsPage() {
                         <img
                           src={getStudentPhoto(selectedPass)}
                           alt="Student Avatar"
-                          className="w-10 h-12 sm:w-14 sm:h-16 object-cover rounded-xl border border-orange-200/80 shrink-0 shadow-xs"
+                          className="w-10 h-12 sm:w-14 sm:h-16 object-cover shrink-0"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=EA580C&color=fff`;
                           }}
@@ -1903,7 +1903,7 @@ export default function PermissionsPage() {
                       </div>
 
                       <div className="col-span-3 flex flex-col items-end">
-                        <div className="w-[64px] h-[64px] sm:w-[88px] sm:h-[88px] border-2 border-slate-900 rounded-md bg-white overflow-hidden flex flex-col items-center justify-center relative shadow-xs">
+                        <div className="w-[64px] h-[64px] sm:w-[88px] sm:h-[88px] bg-white overflow-hidden flex flex-col items-center justify-center relative">
                           <img
                             src={getStudentPhoto(selectedPass)}
                             alt="Student Photo"
