@@ -166,19 +166,18 @@ function getOptionalUser(req: Request) {
 // ── Rate Limiter for Token Resolution (Max 60 requests per 15 minutes per IP) ──
 const shareRateLimiter = rateLimiter(15 * 60 * 1000, 60);
 
+import { authorizeRequestViewer } from '../services/requestAuth.js';
+
 /**
  * Core Share Token Resolution Handler
  * 
  * Rules:
  * 1. Validates token format.
- * 2. Looks up share link record (active, unrevoked, unexpired).
+ * 2. Looks up share link record strictly by exact token (active, unrevoked, unexpired).
  * 3. Never leaks request data if unauthenticated or unauthorized.
  * 4. Unauthenticated -> 401 with redirectUrl: /login?redirect=/r/:shareToken
- * 5. Student Owner -> Read-only view of own request.
- * 6. Other Student -> 403/404 generic "Request not found or you don't have permission to view it."
- * 7. Authorized Faculty -> Faculty review access.
- * 8. Unauthorized Faculty -> 403/404 generic "Request not found or you don't have permission to view it."
- * 9. HOD / Admin -> HOD review access.
+ * 5. Uses canonical request authorization service (isStudentOwnerOfRequest, isFacultyAuthorizedForRequest, isHodAuthorizedForRequest, isAdminAuthorizedForRequest).
+ * 6. Returns decoupled destination and authorization result.
  */
 async function handleShareTokenResolution(req: Request, res: Response) {
   const shareToken = (req.params['shareToken'] || '').trim();
@@ -193,45 +192,15 @@ async function handleShareTokenResolution(req: Request, res: Response) {
   }
 
   try {
-    // 2. Query share link record
-    let shareLink = await (prisma as any).permissionRequestShareLink.findFirst({
-      where: {
-        OR: [
-          { token: { equals: shareToken, mode: 'insensitive' } },
-          { token: shareToken },
-        ],
-      },
+    // 2. Query share link record strictly via dedicated share token table (exact case-sensitive match)
+    const shareLink = await (prisma as any).permissionRequestShareLink.findUnique({
+      where: { token: shareToken },
       include: {
         request: {
           include: REQUEST_INCLUDE,
         },
       },
     });
-
-    // Fallback: If not found in share table, check if token is publicId, requestId, or request.id
-    if (!shareLink || !shareLink.request) {
-      const fallbackRequest = await prisma.request.findFirst({
-        where: {
-          OR: [
-            { publicId:  { equals: shareToken, mode: 'insensitive' } },
-            { requestId: { equals: shareToken, mode: 'insensitive' } },
-            { id:        { equals: shareToken, mode: 'insensitive' } },
-          ],
-        },
-        include: REQUEST_INCLUDE,
-      });
-
-      if (fallbackRequest) {
-        shareLink = {
-          id: 'fallback',
-          token: shareToken,
-          isActive: true,
-          revokedAt: null,
-          expiresAt: null,
-          request: fallbackRequest,
-        };
-      }
-    }
 
     if (!shareLink || !shareLink.request) {
       res.status(404).json({
@@ -274,128 +243,28 @@ async function handleShareTokenResolution(req: Request, res: Response) {
       return;
     }
 
-    // 5. Backend Authorization check
-    const doc = shareLink.request;
-    const resolvedPublicId = doc.publicId || doc.requestId || doc.id;
+    // 5. Backend Authorization check via Canonical Authorization Service
+    const authResult = authorizeRequestViewer(shareLink.request, user as any);
 
-    const userId = (user.id || (user as any).userId || '').toLowerCase().trim();
-    const userEmail = (user.email || '').toLowerCase().trim();
-    const userRoll = (user.rollNumber || '').toLowerCase().trim();
-    const userName = (user.name || '').toLowerCase().trim();
-
-    // ── STUDENT OWNER AUTHORIZATION ──
-    if (user.role === 'student') {
-      const stuUserId = (doc.studentId || doc.student?.userId || '').toLowerCase().trim();
-      const stuRoll = (doc.student?.rollNumber || '').toLowerCase().trim();
-      const stuEmail = (doc.student?.email || '').toLowerCase().trim();
-
-      const isStudentOwner =
-        !stuUserId ||
-        stuUserId === userId ||
-        stuUserId.includes(userId) ||
-        userId.includes(stuUserId) ||
-        (userRoll && stuRoll === userRoll) ||
-        (userRoll && (stuUserId.includes(userRoll) || userRoll.includes(stuUserId))) ||
-        (userEmail && stuEmail === userEmail) ||
-        (userEmail && stuUserId && userEmail.startsWith(stuUserId)) ||
-        (userEmail && stuRoll && userEmail.startsWith(stuRoll)) ||
-        (doc.student?.name && userName && doc.student.name.toLowerCase().trim() === userName);
-
-      if (!isStudentOwner) {
-        // Other Student -> Zero information disclosure
-        res.status(403).json({
-          success: false,
-          authorized: false,
-          error: "Request not found or you don't have permission to view it.",
-        });
-        return;
-      }
-
-      // Student Owner -> Read-Only destination
-      if (shareLink.id !== 'fallback') {
-        (prisma as any).permissionRequestShareLink.update({
-          where: { id: shareLink.id },
-          data: { lastAccessedAt: new Date() },
-        }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
-      }
-
-      res.json({
-        success: true,
-        authorized: true,
-        viewerType: 'STUDENT_OWNER',
-        destination: 'STUDENT_VIEW',
-        requestId: resolvedPublicId,
-        redirectPath: `/student/request/${resolvedPublicId}`,
-        viewMode: 'read-only',
+    if (!authResult.authorized) {
+      // Unauthorized -> Generic 403 (Zero information disclosure)
+      res.status(403).json({
+        success: false,
+        authorized: false,
+        error: "Request not found or you don't have permission to view it.",
       });
       return;
     }
 
-    // ── FACULTY AUTHORIZATION ──
-    if (user.role === 'faculty') {
-      if (shareLink.id !== 'fallback') {
-        (prisma as any).permissionRequestShareLink.update({
-          where: { id: shareLink.id },
-          data: { lastAccessedAt: new Date() },
-        }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
-      }
+    // Update last accessed timestamp asynchronously
+    (prisma as any).permissionRequestShareLink.update({
+      where: { id: shareLink.id },
+      data: { lastAccessedAt: new Date() },
+    }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
 
-      res.json({
-        success: true,
-        authorized: true,
-        viewerType: 'FACULTY',
-        destination: 'FACULTY_REVIEW',
-        requestId: resolvedPublicId,
-        redirectPath: `/faculty/review/${resolvedPublicId}`,
-      });
-      return;
-    }
-
-    // ── HOD AUTHORIZATION ──
-    if (user.role === 'hod') {
-      if (shareLink.id !== 'fallback') {
-        (prisma as any).permissionRequestShareLink.update({
-          where: { id: shareLink.id },
-          data: { lastAccessedAt: new Date() },
-        }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
-      }
-
-      res.json({
-        success: true,
-        authorized: true,
-        viewerType: 'HOD',
-        destination: 'HOD_REVIEW',
-        requestId: resolvedPublicId,
-        redirectPath: `/hod/review/${resolvedPublicId}`,
-      });
-      return;
-    }
-
-    // ── ADMIN AUTHORIZATION ──
-    if (user.role === 'admin') {
-      if (shareLink.id !== 'fallback') {
-        (prisma as any).permissionRequestShareLink.update({
-          where: { id: shareLink.id },
-          data: { lastAccessedAt: new Date() },
-        }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
-      }
-
-      res.json({
-        success: true,
-        authorized: true,
-        viewerType: 'ADMIN',
-        destination: 'ADMIN_REVIEW',
-        requestId: resolvedPublicId,
-        redirectPath: `/hod/review/${resolvedPublicId}`,
-      });
-      return;
-    }
-
-    // Default unauthorized fallback
-    res.status(403).json({
-      success: false,
-      authorized: false,
-      error: "Request not found or you don't have permission to view it.",
+    res.json({
+      success: true,
+      ...authResult,
     });
   } catch (err: any) {
     console.error('handleShareTokenResolution error:', err);

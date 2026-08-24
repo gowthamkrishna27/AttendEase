@@ -6,6 +6,12 @@ import { prisma } from '../db/prisma.js';
 import { generateShareToken } from '../utils/shareToken.js';
 import type { RequestReason } from '../types.js';
 import type { Prisma, RequestStatus } from '@prisma/client';
+import {
+  isStudentOwnerOfRequest,
+  isFacultyAuthorizedForRequest,
+  isHodAuthorizedForRequest,
+  isAdminAuthorizedForRequest,
+} from '../services/requestAuth.js';
 
 const router = Router();
 
@@ -653,35 +659,38 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     const user = req.user!;
-    const userEmail = (user.email || '').toLowerCase().trim();
-    const userId = (user.id || '').toLowerCase().trim();
-    const userName = (user.name || '').toLowerCase().trim();
 
-    // Students can only view their own requests
+    // 1. Student access guard
     if (user.role === 'student') {
-      const stuUserId = (doc.studentId || doc.student?.userId || '').toLowerCase().trim();
-      const stuRoll = (doc.student?.rollNumber || '').toLowerCase().trim();
-      const stuEmail = (doc.student?.email || '').toLowerCase().trim();
-      const userRoll = (user.rollNumber || '').toLowerCase().trim();
-
-      const isStudentMatch =
-        stuUserId === userId ||
-        (userRoll && stuRoll === userRoll) ||
-        (userEmail && stuEmail === userEmail);
-
-      if (!isStudentMatch) {
+      if (!isStudentOwnerOfRequest(doc, user as any)) {
         res.status(403).json({ error: 'Forbidden' });
         return;
       }
     }
 
-    // Faculty can view requests
+    // 2. Faculty access guard
     if (user.role === 'faculty') {
-      // Authenticated faculty are allowed to view request details
+      if (!isFacultyAuthorizedForRequest(doc, user as any)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
     }
 
-    // HOD can view any request across the system without restriction to perform executive reviews
+    // 3. HOD access guard
+    if (user.role === 'hod') {
+      if (!isHodAuthorizedForRequest(doc, user as any)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+    }
 
+    // 4. Admin access guard
+    if (user.role === 'admin') {
+      if (!isAdminAuthorizedForRequest(doc, user as any)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+    }
 
     res.json({ request: toApi(doc) });
   } catch (err) {
@@ -1067,12 +1076,7 @@ router.all('/:id/share-link', async (req: Request, res: Response) => {
 
     // Check ownership for students
     if (user.role === 'student') {
-      const stuUserId = (docAny.studentId || docAny.student?.userId || '').toLowerCase().trim();
-      const userId = (user.id || '').toLowerCase().trim();
-      const userRoll = (user.rollNumber || '').toLowerCase().trim();
-      const stuRoll = (docAny.student?.rollNumber || '').toLowerCase().trim();
-
-      if (stuUserId !== userId && (!userRoll || stuRoll !== userRoll)) {
+      if (!isStudentOwnerOfRequest(doc, user as any)) {
         res.status(403).json({ error: 'You are not authorized to access share links for this request' });
         return;
       }
@@ -1289,23 +1293,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     // Ownership check for student
     if (user.role === 'student') {
-      const stuUserId = (existing.studentId || existing.student?.userId || '').toLowerCase().trim();
-      const stuRoll = (existing.student?.rollNumber || '').toLowerCase().trim();
-      const stuEmail = (existing.student?.email || '').toLowerCase().trim();
-
-      const userId = (user.id || '').toLowerCase().trim();
-      const userRoll = (user.rollNumber || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-
-      const isOwner =
-        !stuUserId ||
-        stuUserId === userId ||
-        stuUserId.includes(userId) ||
-        userId.includes(stuUserId) ||
-        (userRoll && stuRoll === userRoll) ||
-        (userEmail && stuEmail === userEmail);
-
-      if (!isOwner) {
+      if (!isStudentOwnerOfRequest(existing, user as any)) {
         res.status(403).json({ error: 'You are not authorized to edit this request' });
         return;
       }
@@ -1457,36 +1445,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     // ── Faculty authorization & guard ─────────────────────────────────────────
-    const userId = (user.id || '').toLowerCase().trim();
-    const userEmail = (user.email || '').toLowerCase().trim();
-    const userName = (user.name || '').toLowerCase().trim();
-
-    const primaryFacId = (existing.primaryFacultyId || '').toLowerCase().trim();
-    const primaryFacUserId = (existing.primaryFaculty?.userId || '').toLowerCase().trim();
-    const primaryFacDbId = (existing.primaryFaculty?.id || '').toLowerCase().trim();
-    const primaryEmail = (existing.primaryFaculty?.email || '').toLowerCase().trim();
-    const primaryName = (existing.primaryFaculty?.name || '').toLowerCase().trim();
-
-    const assignedIds = existing.faculties.map(rf => (rf.facultyId || '').toLowerCase().trim());
-    const assignedUserIds = existing.faculties.map(rf => (rf.faculty?.userId || '').toLowerCase().trim());
-    const assignedDbIds = existing.faculties.map(rf => (rf.faculty?.id || '').toLowerCase().trim());
-    const assignedEmails = existing.faculties.map(rf => (rf.faculty?.email || '').toLowerCase().trim());
-    const assignedNames = existing.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
-
-    const isAssignedFaculty =
-      (primaryFacId && primaryFacId === userId) ||
-      (primaryFacUserId && primaryFacUserId === userId) ||
-      (primaryFacDbId && primaryFacDbId === userId) ||
-      (primaryEmail && primaryEmail === userEmail) ||
-      (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
-      assignedIds.includes(userId) ||
-      assignedUserIds.includes(userId) ||
-      assignedDbIds.includes(userId) ||
-      assignedEmails.includes(userEmail) ||
-      assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
-
     if (user.role === 'faculty') {
-      if (!isAssignedFaculty) {
+      if (!isFacultyAuthorizedForRequest(existing, user as any)) {
         res.status(403).json({ error: 'This request is not assigned to you' });
         return;
       }
@@ -1498,7 +1458,14 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    // HOD & Admin have full executive override authority over any request status
+    if (user.role === 'hod') {
+      if (!isHodAuthorizedForRequest(existing, user as any)) {
+        res.status(403).json({ error: 'You are not authorized to review requests for this department' });
+        return;
+      }
+    }
+
+    // Admin has full executive authority
 
 
     // ── Determine Action Name & Status ────────────────────────────────────────
@@ -1572,10 +1539,11 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
 
       // Safely generate notification for assigned faculty if HOD override
-      if (user.role === 'hod' && assignedIds.length > 0) {
+      const assignedFacIds = existing.faculties ? existing.faculties.map((rf: any) => rf.facultyId || rf.faculty?.userId).filter(Boolean) : [];
+      if (user.role === 'hod' && assignedFacIds.length > 0) {
         try {
           await tx.notification.createMany({
-            data: assignedIds.map((facId: string) => ({
+            data: assignedFacIds.map((facId: string) => ({
               userId:    facId,
               requestId: existing.id,
               type:      'override',
