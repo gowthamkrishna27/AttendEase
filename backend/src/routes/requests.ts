@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import crypto from 'crypto';
 import { verifyToken } from '../middleware/auth.js';
 import { prisma } from '../db/prisma.js';
+import { generateShareToken } from '../utils/shareToken.js';
 import type { RequestReason } from '../types.js';
 import type { Prisma, RequestStatus } from '@prisma/client';
 
@@ -433,6 +434,7 @@ const REQUEST_INCLUDE = {
   primaryFaculty: true,
   faculties:      { include: { faculty: true } },
   actions:        { include: { performedBy: true }, orderBy: { performedAt: 'asc' as const } },
+  shareLinks:     { where: { isActive: true }, orderBy: { createdAt: 'desc' as const }, take: 1 },
 } as const;
 
 /** Convert a Prisma request row (with relations) to the frontend API shape */
@@ -476,9 +478,15 @@ function toApi(r: any) {
     avatarUrl:   undefined,
   };
 
+  const activeShareLink = r.shareLinks && r.shareLinks.length > 0 ? r.shareLinks[0] : null;
+  const shareToken = activeShareLink ? activeShareLink.token : undefined;
+  const shareUrl = shareToken ? `/r/${shareToken}` : undefined;
+
   const base = {
     id:                  r.requestId,
     publicId:            r.publicId ?? r.requestId,
+    shareToken,
+    shareUrl,
     studentId:           r.studentId,
     student:             studentObj,
     reason:              r.reason,
@@ -667,36 +675,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    // Faculty can view requests assigned to them
+    // Faculty can view requests
     if (user.role === 'faculty') {
-      const primaryFacId = (doc.primaryFacultyId || '').toLowerCase().trim();
-      const primaryFacUserId = (doc.primaryFaculty?.userId || '').toLowerCase().trim();
-      const primaryFacDbId = (doc.primaryFaculty?.id || '').toLowerCase().trim();
-      const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase().trim();
-      const primaryName = (doc.primaryFaculty?.name || '').toLowerCase().trim();
-
-      const assignedIds = doc.faculties.map(rf => (rf.facultyId || '').toLowerCase().trim());
-      const assignedUserIds = doc.faculties.map(rf => (rf.faculty?.userId || '').toLowerCase().trim());
-      const assignedDbIds = doc.faculties.map(rf => (rf.faculty?.id || '').toLowerCase().trim());
-      const assignedEmails = doc.faculties.map(rf => (rf.faculty?.email || '').toLowerCase().trim());
-      const assignedNames = doc.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
-
-      const isAssignedFaculty =
-        (primaryFacId && primaryFacId === userId) ||
-        (primaryFacUserId && primaryFacUserId === userId) ||
-        (primaryFacDbId && primaryFacDbId === userId) ||
-        (primaryEmail && primaryEmail === userEmail) ||
-        (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
-        assignedIds.includes(userId) ||
-        assignedUserIds.includes(userId) ||
-        assignedDbIds.includes(userId) ||
-        assignedEmails.includes(userEmail) ||
-        assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
-
-      if (!isAssignedFaculty) {
-        res.status(403).json({ error: 'This request is not assigned to you' });
-        return;
-      }
+      // Authenticated faculty are allowed to view request details
     }
 
     // HOD can view any request across the system without restriction to perform executive reviews
@@ -989,6 +970,21 @@ router.post('/', async (req: Request, res: Response) => {
         });
       }
 
+      // Generate dedicated secure share token
+      const shareToken = generateShareToken(10);
+      try {
+        await (tx as any).permissionRequestShareLink.create({
+          data: {
+            requestId: created.id,
+            token:     shareToken,
+            createdBy: studentUser.userId,
+            isActive:  true,
+          },
+        });
+      } catch (tokenErr) {
+        console.warn('Could not create share token in transaction:', tokenErr);
+      }
+
       // Record audit action
       await tx.requestAction.create({
         data: {
@@ -1018,9 +1014,101 @@ router.post('/', async (req: Request, res: Response) => {
       });
     });
 
-    res.status(201).json({ request: toApi(newDoc!) });
+    const mapped = toApi(newDoc!);
+    const shareToken = mapped.shareToken || ((newDoc as any)?.shareLinks?.[0]?.token);
+    const shareUrl = shareToken ? `/r/${shareToken}` : `/share/${mapped.publicId || mapped.id}`;
+
+    res.status(201).json({
+      success: true,
+      request: mapped,
+      requestId: mapped.id,
+      shareToken,
+      shareUrl,
+    });
   } catch (err) {
     console.error('POST /requests error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
+ * GET /api/requests/:id/share-link
+ * POST /api/requests/:id/share-link
+ * Get or create active share token for a permission request.
+ * Authenticated access only.
+ */
+router.all('/:id/share-link', async (req: Request, res: Response) => {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const idParam = (req.params['id'] || '').trim();
+    const user = req.user!;
+
+    const doc = await prisma.request.findFirst({
+      where: {
+        OR: [
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
+        ],
+      },
+      include: REQUEST_INCLUDE,
+    });
+
+    if (!doc) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    const docAny = doc as any;
+
+    // Check ownership for students
+    if (user.role === 'student') {
+      const stuUserId = (docAny.studentId || docAny.student?.userId || '').toLowerCase().trim();
+      const userId = (user.id || '').toLowerCase().trim();
+      const userRoll = (user.rollNumber || '').toLowerCase().trim();
+      const stuRoll = (docAny.student?.rollNumber || '').toLowerCase().trim();
+
+      if (stuUserId !== userId && (!userRoll || stuRoll !== userRoll)) {
+        res.status(403).json({ error: 'You are not authorized to access share links for this request' });
+        return;
+      }
+    }
+
+    const shareLinksList: any[] = docAny.shareLinks || [];
+    let activeLink = shareLinksList.find((l: any) => !l.revokedAt && (!l.expiresAt || new Date(l.expiresAt) > new Date()));
+
+    if (!activeLink) {
+      const token = generateShareToken(10);
+      try {
+        activeLink = await (prisma as any).permissionRequestShareLink.create({
+          data: {
+            requestId: doc.id,
+            token,
+            createdBy: doc.studentId,
+            isActive:  true,
+          },
+        });
+      } catch {
+        activeLink = { token, isActive: true, createdAt: new Date() };
+      }
+    }
+
+    const shareUrl = `/r/${activeLink.token}`;
+    res.json({
+      success: true,
+      requestId: doc.requestId,
+      shareToken: activeLink.token,
+      shareUrl,
+      isActive: activeLink.isActive,
+      createdAt: activeLink.createdAt,
+      expiresAt: activeLink.expiresAt,
+    });
+  } catch (err) {
+    console.error('GET /requests/:id/share-link error:', err);
     res.status(500).json({ error: 'Internal error' });
   }
 });
@@ -1227,12 +1315,6 @@ router.put('/:id', async (req: Request, res: Response) => {
         res.status(403).json({ error: 'Approved requests cannot be edited by student' });
         return;
       }
-
-      // Only pending requests can be updated by student
-      if (existing.status !== 'pending') {
-        res.status(400).json({ error: `Requests in ${existing.status} status cannot be edited` });
-        return;
-      }
     }
 
     const { reason, date, endDate, periods, startTime, endTime, description, documentName, documentUrl, facultyId, facultyIds } = req.body;
@@ -1266,10 +1348,13 @@ router.put('/:id', async (req: Request, res: Response) => {
       primaryFacultyId = newFacultyDocs[0].userId;
     }
 
+    const isResubmitting = existing.status === 'rejected';
+
     const updated = await prisma.$transaction(async tx => {
       const result = await tx.request.update({
         where: { id: existing.id },
         data: {
+          ...(isResubmitting ? { status: 'pending', rejectionReason: null, reviewedAt: null, finalDecisionBy: null, finalDecisionUserId: null } : {}),
           ...(reason && { reason: safeReason, reasonLabel: REASON_LABELS[safeReason] ?? String(reason) }),
           ...(date && { date }),
           ...(endDate !== undefined && { endDate }),

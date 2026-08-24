@@ -155,8 +155,8 @@ export interface AttendanceRequest {
   facultyId?: string;
   faculty?: Faculty;
   primaryFacultyId?: string;
-  primaryFaculty?: Faculty;
-  facultyIds?: string[];
+  shareToken?: string;
+  shareUrl?: string;
   faculties?: Faculty[];
   reviewedAt?: string;
   finalDecisionBy?: 'Faculty' | 'HOD' | string;
@@ -878,3 +878,74 @@ export async function sendChatMessage(messages: { role: string; content: string 
 
   return res.json();
 }
+
+export type ShareViewerType = 'STUDENT_OWNER' | 'FACULTY' | 'HOD' | 'ADMIN';
+export type ShareDestination = 'STUDENT_VIEW' | 'FACULTY_REVIEW' | 'HOD_REVIEW' | 'ADMIN_REVIEW';
+
+export interface ShareTokenResolutionResult {
+  success: boolean;
+  authorized?: boolean;
+  authenticated?: boolean;
+  viewerType?: ShareViewerType;
+  destination?: ShareDestination;
+  requestId?: string;
+  role?: UserRole;
+  isOwner?: boolean;
+  viewMode?: 'read-only';
+  redirectPath?: string;
+  redirectUrl?: string;
+  error?: string;
+  isRevoked?: boolean;
+  isExpired?: boolean;
+}
+
+export async function resolveShareToken(shareToken: string): Promise<ShareTokenResolutionResult> {
+  const base = getApiBase();
+  const token = getStoredToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const res = await fetch(`${base}/api/share/token/${encodeURIComponent(shareToken.trim())}`, {
+      method: 'GET',
+      headers,
+    });
+
+    const data = await res.json().catch(() => ({ error: 'Invalid server response' }));
+    if (!res.ok) {
+      if (res.status === 401) {
+        return {
+          success: false,
+          authenticated: false,
+          redirectUrl: data.redirectUrl || `/login?redirect=/r/${encodeURIComponent(shareToken.trim())}`,
+          error: data.message || 'Please log in to view this request.',
+        };
+      }
+      return {
+        success: false,
+        authorized: false,
+        error: data.error || "Request not found or you don't have permission to view it.",
+        isRevoked: Boolean(data.isRevoked),
+        isExpired: Boolean(data.isExpired),
+      };
+    }
+    return data;
+  } catch (err: any) {
+    return {
+      success: false,
+      authorized: false,
+      error: err.message || 'Network error resolving share link.',
+    };
+  }
+}
+
+export async function getRequestShareLink(requestId: string): Promise<{ success: boolean; shareToken: string; shareUrl: string }> {
+  return apiFetch<{ success: boolean; shareToken: string; shareUrl: string }>(`/api/requests/${encodeURIComponent(requestId)}/share-link`);
+}
+
+export async function revokeShareToken(shareToken: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`/api/share/revoke/${encodeURIComponent(shareToken)}`, {
+    method: 'POST',
+  });
+}
+

@@ -257,7 +257,7 @@ export default function RequestDetails() {
               className="w-13 h-13 shadow-md shadow-[#25D366]/30"
             />
 
-            {request.status === 'pending' && (
+            {request.status !== 'approved' && (
               <>
                 <button
                   type="button"

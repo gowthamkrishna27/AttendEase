@@ -168,6 +168,36 @@ async function syncDatabaseEnums() {
   }
 }
 
+// ── Auto-sync Postgres Tables ─────────────────────────────────────────────────
+async function syncDatabaseTables() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "permission_request_share_links" (
+        "id" TEXT NOT NULL,
+        "requestId" TEXT NOT NULL,
+        "token" TEXT NOT NULL,
+        "createdBy" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "expiresAt" TIMESTAMP(3),
+        "revokedAt" TIMESTAMP(3),
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "lastAccessedAt" TIMESTAMP(3),
+        CONSTRAINT "permission_request_share_links_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "permission_request_share_links_token_key" UNIQUE ("token"),
+        CONSTRAINT "permission_request_share_links_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "Request"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "permission_request_share_links_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User"("userId") ON DELETE CASCADE ON UPDATE CASCADE
+      );
+    `);
+
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "permission_request_share_links_requestId_idx" ON "permission_request_share_links"("requestId");`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "permission_request_share_links_token_idx" ON "permission_request_share_links"("token");`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "permission_request_share_links_createdBy_idx" ON "permission_request_share_links"("createdBy");`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "permission_request_share_links_isActive_idx" ON "permission_request_share_links"("isActive");`);
+  } catch (err) {
+    console.warn('⚠️ syncDatabaseTables notice:', err);
+  }
+}
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 async function bootstrap() {
   try {
@@ -177,6 +207,7 @@ async function bootstrap() {
 
     // Ensure database enums match Prisma schema
     await syncDatabaseEnums();
+    await syncDatabaseTables();
 
     let currentPort = Number(PORT);
 
