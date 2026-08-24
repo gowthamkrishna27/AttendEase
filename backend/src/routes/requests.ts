@@ -669,21 +669,29 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     // Faculty can view requests assigned to them
     if (user.role === 'faculty') {
-      const assignedFacultyIds = doc.faculties.map(rf => (rf.facultyId || '').toLowerCase());
-      const assignedEmails     = doc.faculties.map(rf => (rf.faculty.email || '').toLowerCase());
-      const assignedNames      = doc.faculties.map(rf => (rf.faculty.name || '').toLowerCase());
+      const primaryFacId = (doc.primaryFacultyId || '').toLowerCase().trim();
+      const primaryFacUserId = (doc.primaryFaculty?.userId || '').toLowerCase().trim();
+      const primaryFacDbId = (doc.primaryFaculty?.id || '').toLowerCase().trim();
+      const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase().trim();
+      const primaryName = (doc.primaryFaculty?.name || '').toLowerCase().trim();
 
-      const primaryFacId = (doc.primaryFacultyId || '').toLowerCase();
-      const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase();
-      const primaryName  = (doc.primaryFaculty?.name || '').toLowerCase();
+      const assignedIds = doc.faculties.map(rf => (rf.facultyId || '').toLowerCase().trim());
+      const assignedUserIds = doc.faculties.map(rf => (rf.faculty?.userId || '').toLowerCase().trim());
+      const assignedDbIds = doc.faculties.map(rf => (rf.faculty?.id || '').toLowerCase().trim());
+      const assignedEmails = doc.faculties.map(rf => (rf.faculty?.email || '').toLowerCase().trim());
+      const assignedNames = doc.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
 
       const isAssignedFaculty =
         (primaryFacId && primaryFacId === userId) ||
-        assignedFacultyIds.includes(userId) ||
+        (primaryFacUserId && primaryFacUserId === userId) ||
+        (primaryFacDbId && primaryFacDbId === userId) ||
         (primaryEmail && primaryEmail === userEmail) ||
+        (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
+        assignedIds.includes(userId) ||
+        assignedUserIds.includes(userId) ||
+        assignedDbIds.includes(userId) ||
         assignedEmails.includes(userEmail) ||
-        (primaryName && primaryName.includes(userName)) ||
-        assignedNames.some(n => n.includes(userName) || userName.includes(n));
+        assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
 
       if (!isAssignedFaculty) {
         res.status(403).json({ error: 'This request is not assigned to you' });
@@ -1364,14 +1372,33 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     // ── Faculty authorization & guard ─────────────────────────────────────────
-    const assignedFacultyIds = existing.faculties.map(rf => rf.facultyId);
-    const assignedEmails     = existing.faculties.map(rf => rf.faculty.email);
+    const userId = (user.id || '').toLowerCase().trim();
+    const userEmail = (user.email || '').toLowerCase().trim();
+    const userName = (user.name || '').toLowerCase().trim();
+
+    const primaryFacId = (existing.primaryFacultyId || '').toLowerCase().trim();
+    const primaryFacUserId = (existing.primaryFaculty?.userId || '').toLowerCase().trim();
+    const primaryFacDbId = (existing.primaryFaculty?.id || '').toLowerCase().trim();
+    const primaryEmail = (existing.primaryFaculty?.email || '').toLowerCase().trim();
+    const primaryName = (existing.primaryFaculty?.name || '').toLowerCase().trim();
+
+    const assignedIds = existing.faculties.map(rf => (rf.facultyId || '').toLowerCase().trim());
+    const assignedUserIds = existing.faculties.map(rf => (rf.faculty?.userId || '').toLowerCase().trim());
+    const assignedDbIds = existing.faculties.map(rf => (rf.faculty?.id || '').toLowerCase().trim());
+    const assignedEmails = existing.faculties.map(rf => (rf.faculty?.email || '').toLowerCase().trim());
+    const assignedNames = existing.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
 
     const isAssignedFaculty =
-      existing.primaryFacultyId === user.id ||
-      assignedFacultyIds.includes(user.id) ||
-      existing.primaryFaculty?.email === user.email ||
-      assignedEmails.includes(user.email);
+      (primaryFacId && primaryFacId === userId) ||
+      (primaryFacUserId && primaryFacUserId === userId) ||
+      (primaryFacDbId && primaryFacDbId === userId) ||
+      (primaryEmail && primaryEmail === userEmail) ||
+      (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
+      assignedIds.includes(userId) ||
+      assignedUserIds.includes(userId) ||
+      assignedDbIds.includes(userId) ||
+      assignedEmails.includes(userEmail) ||
+      assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
 
     if (user.role === 'faculty') {
       if (!isAssignedFaculty) {
@@ -1460,10 +1487,10 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
 
       // Safely generate notification for assigned faculty if HOD override
-      if (user.role === 'hod' && assignedFacultyIds.length > 0) {
+      if (user.role === 'hod' && assignedIds.length > 0) {
         try {
           await tx.notification.createMany({
-            data: assignedFacultyIds.map(facId => ({
+            data: assignedIds.map((facId: string) => ({
               userId:    facId,
               requestId: existing.id,
               type:      'override',
