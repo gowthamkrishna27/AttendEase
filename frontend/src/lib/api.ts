@@ -186,14 +186,17 @@ async function apiFetch<T>(
   }
 
   const reqInit = { ...options, headers };
+  // Always call getApiBase() dynamically — never use the frozen BASE constant
+  // This ensures mobile devices and different environments always get the correct URL
+  const currentBase = getApiBase();
   let res: Response | null = null;
   try {
-    res = await fetch(`${BASE}${path}`, reqInit);
+    res = await fetch(`${currentBase}${path}`, reqInit);
   } catch {
     const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const fallbackBases = isLocal
-      ? ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== BASE)
-      : ['https://attendease-apuw.onrender.com'].filter(b => b !== BASE);
+      ? ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== currentBase)
+      : ['https://attendease-apuw.onrender.com'].filter(b => b !== currentBase);
     for (const fb of fallbackBases) {
       try {
         const fbRes = await fetch(`${fb}${path}`, reqInit);
@@ -435,13 +438,20 @@ export async function reviewRequest(
   id: string,
   action: 'approve' | 'reject',
   rejectionReason?: string,
+  asHod?: boolean,
 ): Promise<AttendanceRequest> {
   const res = await apiFetch<{ request: AttendanceRequest }>(
     `/api/requests/${id}`,
     {
       method: 'PATCH',
-      headers: { 'x-role-override': 'hod' },
-      body: JSON.stringify({ action, rejectionReason, roleOverride: 'hod' }),
+      // Only send HOD role-override when explicitly acting as HOD.
+      // Faculty must review as 'faculty' so assignment checks apply correctly.
+      ...(asHod ? { headers: { 'x-role-override': 'hod' } } : {}),
+      body: JSON.stringify({
+        action,
+        rejectionReason,
+        ...(asHod ? { roleOverride: 'hod' } : {}),
+      }),
     },
   );
   return res.request;

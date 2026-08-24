@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, FileText, UserCheck, Eye, Download } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FileText, UserCheck, Eye, Download, ShieldOff } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Button } from '../../components/ui/Button';
@@ -20,21 +20,20 @@ export default function FacultyRequestDetails() {
   const [confirmModal, setConfirmModal] = useState<'approve' | 'reject' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const { data: request, isLoading, isError } = useQuery({
+  const { data: request, isLoading, isError, error } = useQuery({
     queryKey: ['request', id],
     queryFn: async () => {
-      try {
-        return await api.getRequest(id!);
-      } catch {
-        return null;
-      }
+      // Re-throw errors so isError=true fires — especially important for 403
+      return await api.getRequest(id!);
     },
     enabled: !!id,
+    retry: false, // Don't retry 403/404 — they are definitive
   });
 
   const reviewMutation = useMutation({
+    // Faculty reviews as faculty (asHod=false) so backend applies assignment checks
     mutationFn: (payload: { action: 'approve' | 'reject'; reason?: string }) =>
-      api.reviewRequest(id!, payload.action, payload.reason),
+      api.reviewRequest(id!, payload.action, payload.reason, false),
     onSuccess: (updatedReq) => {
       queryClient.setQueryData(['request', id], updatedReq);
       queryClient.invalidateQueries({ queryKey: ['requests'] });
@@ -44,11 +43,53 @@ export default function FacultyRequestDetails() {
     },
   });
 
+
   if (isLoading) {
     return (
       <PageWrapper role="faculty" showGreeting={false}>
         <div className="max-w-xl mx-auto text-center py-20">
           <p className="text-[14px] text-[#6B7280]">Loading request details...</p>
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  // 403 Forbidden — faculty is not assigned to this request
+  const errorMsg = (error as Error)?.message || '';
+  const isForbidden = isError && (
+    errorMsg.toLowerCase().includes('not assigned') ||
+    errorMsg.toLowerCase().includes('forbidden') ||
+    errorMsg.toLowerCase().includes('403')
+  );
+
+  if (isForbidden) {
+    return (
+      <PageWrapper role="faculty" showGreeting={false}>
+        <div className="max-w-md mx-auto pt-16 pb-8 flex flex-col items-center text-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center">
+            <ShieldOff size={28} className="text-rose-500" />
+          </div>
+          <div>
+            <h1 className="text-[22px] font-bold text-slate-900 mb-1">Access Denied</h1>
+            <p className="text-[14px] text-slate-500 leading-relaxed">
+              This request has not been assigned to you. Only the faculty member
+              selected by the student can review this request.
+            </p>
+          </div>
+          <div className="w-full bg-rose-50 border border-rose-200 rounded-xl px-5 py-4">
+            <p className="text-[13px] font-semibold text-rose-700">
+              403 &mdash; You are not assigned to review this request.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => navigate('/faculty/requests')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft size={15} />
+            Back to My Requests
+          </Button>
         </div>
       </PageWrapper>
     );
