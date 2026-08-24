@@ -1754,14 +1754,16 @@ export default function PermissionsPage() {
                         }}
                         className="flex items-center gap-3 p-3.5 rounded-2xl"
                       >
-                        <img
-                          src={getStudentPhoto(selectedPass)}
-                          alt="Student Avatar"
-                          className="w-10 h-12 sm:w-14 sm:h-16 object-cover shrink-0"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=EA580C&color=fff`;
-                          }}
-                        />
+                        <div className="shrink-0 rounded-xl overflow-hidden -m-0.5">
+                          <img
+                            src={getStudentPhoto(selectedPass)}
+                            alt="Student Avatar"
+                            className="w-10 h-14 sm:w-14 sm:h-[4.5rem] object-cover block"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPass.student?.name || 'Student')}&background=EA580C&color=fff`;
+                            }}
+                          />
+                        </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-[10px] text-orange-600 font-bold uppercase tracking-wider">Student Name &amp; Roll</p>
                           <p className="font-extrabold text-slate-900 text-[14px] truncate leading-snug">{selectedPass.student?.name ?? selectedPass.studentId}</p>
