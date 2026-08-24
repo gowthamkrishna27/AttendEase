@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FileText, ShieldAlert } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Button } from '../../components/ui/Button';
@@ -19,7 +19,7 @@ export default function FacultyRequestDetails() {
   const [confirmModal, setConfirmModal] = useState<'approve' | 'reject' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const { data: request, isLoading, isError } = useQuery({
+  const { data: request, isLoading, isError, error } = useQuery({
     queryKey: ['request', id],
     queryFn: async () => {
       try {
@@ -68,13 +68,39 @@ export default function FacultyRequestDetails() {
   }
 
   if (isError || !request) {
+    const isForbidden = error instanceof Error && 
+      (error.message.includes('not assigned') || error.message.includes('Forbidden') || error.message.includes('Forbidden'));
+
     return (
       <PageWrapper role="faculty" showGreeting={false}>
-        <div className="max-w-xl mx-auto text-center py-20">
-          <p className="text-[16px] text-[#6B7280]">Request not found.</p>
-          <Button className="mt-4" onClick={() => navigate('/faculty')}>
-            Back to Dashboard
-          </Button>
+        <div className="max-w-md mx-auto py-12 px-4">
+          {isForbidden ? (
+            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center">
+              <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-5 shadow-inner">
+                <ShieldAlert size={32} />
+              </div>
+              <span className="text-xs font-bold text-rose-600 uppercase tracking-widest bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
+                403 Forbidden
+              </span>
+              <h1 className="text-xl font-extrabold text-slate-900 mt-4 mb-2">Access Denied</h1>
+              <p className="text-sm text-slate-500 leading-relaxed mb-6">
+                You do not have authorization to view this attendance request. Shared request links are strictly restricted to the assigned student, designated faculty reviewers, and HOD.
+              </p>
+              <Button className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold" onClick={() => navigate('/faculty')}>
+                Back to Dashboard
+              </Button>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center">
+              <h1 className="text-xl font-extrabold text-slate-900 mb-2">Request Not Found</h1>
+              <p className="text-[14px] text-[#6B7280] mb-6">
+                {error instanceof Error ? error.message : 'The requested attendance permission request could not be found.'}
+              </p>
+              <Button className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold" onClick={() => navigate('/faculty')}>
+                Back to Dashboard
+              </Button>
+            </div>
+          )}
         </div>
       </PageWrapper>
     );

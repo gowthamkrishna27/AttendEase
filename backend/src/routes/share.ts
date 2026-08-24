@@ -47,6 +47,7 @@ router.get('/:publicId', verifyToken, async (req: Request, res: Response) => {
     const publicId = doc.publicId || doc.requestId;
     const userEmail = (user.email || '').toLowerCase().trim();
     const userId = (user.id || '').toLowerCase().trim();
+    const userName = (user.name || '').toLowerCase().trim();
 
     // 1. Student validation
     if (user.role === 'student') {
@@ -75,15 +76,19 @@ router.get('/:publicId', verifyToken, async (req: Request, res: Response) => {
     if (user.role === 'faculty') {
       const assignedFacultyIds = doc.faculties.map(rf => (rf.facultyId || '').toLowerCase());
       const assignedEmails     = doc.faculties.map(rf => (rf.faculty.email || '').toLowerCase());
+      const assignedNames      = doc.faculties.map(rf => (rf.faculty.name || '').toLowerCase());
 
       const primaryFacId = (doc.primaryFacultyId || '').toLowerCase();
       const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase();
+      const primaryName  = (doc.primaryFaculty?.name || '').toLowerCase();
 
       const isAssignedFaculty =
         (primaryFacId && primaryFacId === userId) ||
         assignedFacultyIds.includes(userId) ||
         (primaryEmail && primaryEmail === userEmail) ||
-        assignedEmails.includes(userEmail);
+        assignedEmails.includes(userEmail) ||
+        (primaryName && primaryName.includes(userName)) ||
+        assignedNames.some(n => n.includes(userName) || userName.includes(n));
 
       if (isAssignedFaculty) {
         console.log(`[SHARE LOG] ${timestamp} | PublicID: ${publicId} | UserID: ${user.id} | Role: faculty | Result: AUTHORIZED -> /faculty/review/${publicId}`);
