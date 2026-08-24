@@ -1352,6 +1352,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
         OR: [
           { id:        { equals: idParam, mode: 'insensitive' } },
           { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
         ],
       },
       include: REQUEST_INCLUDE,
