@@ -54,8 +54,11 @@ export default function LoginPortal() {
   const { setUser } = useAuth();
 
   const fromPath = location.state?.from?.pathname || (typeof location.state?.from === 'string' ? location.state.from : null);
+  // Also support ?redirect= query param (used by share links)
+  const redirectParam = new URLSearchParams(location.search).get('redirect');
 
   const getPostLoginTarget = (role: UserRole) => {
+    if (redirectParam) return redirectParam;
     if (fromPath) return fromPath;
     return role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod';
   };
