@@ -1086,18 +1086,33 @@ router.all('/:id/share-link', async (req: Request, res: Response) => {
     let activeLink = shareLinksList.find((l: any) => !l.revokedAt && (!l.expiresAt || new Date(l.expiresAt) > new Date()));
 
     if (!activeLink) {
-      const token = generateShareToken(10);
-      try {
-        activeLink = await (prisma as any).permissionRequestShareLink.create({
-          data: {
-            requestId: doc.id,
-            token,
-            createdBy: doc.studentId,
-            isActive:  true,
-          },
-        });
-      } catch {
-        activeLink = { token, isActive: true, createdAt: new Date() };
+      // Attempt creation with up to 3 retries to handle rare token collisions
+      let createError: any = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const token = generateShareToken(16); // Use full 16-char entropy
+        try {
+          activeLink = await (prisma as any).permissionRequestShareLink.create({
+            data: {
+              requestId: doc.id,
+              token,
+              createdBy: doc.studentId,
+              isActive:  true,
+            },
+          });
+          createError = null;
+          break; // Success
+        } catch (createErr: any) {
+          createError = createErr;
+          console.error(`Share link create attempt ${attempt} failed for requestId=${doc.id}:`, createErr?.message || createErr);
+          // Only retry on unique constraint violation
+          if (!createErr?.message?.includes('unique') && !createErr?.message?.includes('Unique')) break;
+        }
+      }
+
+      if (!activeLink) {
+        console.error('Failed to create share link after retries:', createError);
+        res.status(500).json({ error: 'Could not create share link. Please try again.' });
+        return;
       }
     }
 

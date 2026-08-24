@@ -23,32 +23,32 @@ interface WhatsAppShareButtonProps {
 }
 
 /** Helper to get or build the dedicated share link URL */
-async function resolveShareUrl(request?: AttendanceRequest | null): Promise<string> {
+async function resolveShareUrl(request?: AttendanceRequest | null): Promise<string | null> {
   const origin = window.location.origin;
 
-  if (request?.shareUrl) {
-    return request.shareUrl.startsWith('http') ? request.shareUrl : `${origin}${request.shareUrl}`;
+  if (request?.shareUrl && request.shareUrl.startsWith('/r/')) {
+    return `${origin}${request.shareUrl}`;
   }
 
   if (request?.shareToken) {
     return `${origin}/r/${request.shareToken}`;
   }
 
-  const reqId = request?.id || request?.requestId;
+  // Fetch/create share token from backend (uses the canonical share-link endpoint)
+  const reqId = request?.publicId || request?.id || request?.requestId;
   if (reqId) {
     try {
       const linkRes = await api.getRequestShareLink(reqId);
       if (linkRes?.shareToken) {
         return `${origin}/r/${linkRes.shareToken}`;
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.warn('Could not fetch share link:', err);
     }
   }
 
-  // Safe fallback to publicId or id
-  const publicId = request?.publicId || request?.id || 'latest';
-  return `${origin}/r/${publicId}`;
+  // No valid share URL available — return null so caller can handle gracefully
+  return null;
 }
 
 export const WhatsAppShareButton: React.FC<WhatsAppShareButtonProps> = ({
@@ -66,6 +66,11 @@ export const WhatsAppShareButton: React.FC<WhatsAppShareButtonProps> = ({
     try {
       const shareUrl = await resolveShareUrl(request);
 
+      if (!shareUrl) {
+        alert('Could not generate share link. Please try again.');
+        return;
+      }
+
       // Strict Section 5 Safe Message Format: NO sensitive personal or request details exposed
       const message = `Attendance Permission Request\n\nPlease review my attendance permission request:\n${shareUrl}`;
 
@@ -80,6 +85,7 @@ export const WhatsAppShareButton: React.FC<WhatsAppShareButtonProps> = ({
     e.stopPropagation();
     try {
       const shareUrl = await resolveShareUrl(request);
+      if (!shareUrl) return;
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
@@ -188,6 +194,7 @@ export const CopyShareLinkButton: React.FC<{ request?: AttendanceRequest | null;
     e.stopPropagation();
     try {
       const shareUrl = await resolveShareUrl(request);
+      if (!shareUrl) return;
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
