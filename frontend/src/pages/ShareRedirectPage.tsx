@@ -51,22 +51,19 @@ export default function ShareRedirectPage() {
   const request = shareData?.request;
   const authInfo = shareData?.authInfo;
 
-  // ── Smart Routing — fires once both auth + share data are ready ──────────────
+  // ── Access Control — fires once both auth + share data are ready ──────────────
   useEffect(() => {
     // Wait for auth rehydration and share data to load
     if (authLoading || !shareData) return;
 
-    const { isStudentOwner, isAssignedFaculty, isHOD, recommendedRedirect } = authInfo ?? {};
+    const { isStudentOwner, isAssignedFaculty, isHOD } = authInfo ?? {};
 
     if (user) {
-      // ① Student who owns the request → stay (show their request)
+      // ① Student who owns the request → stay on share page
       if (isStudentOwner) return;
 
-      // ② Assigned faculty or HOD (logged in) → redirect to portal review card
-      if ((isAssignedFaculty || isHOD) && recommendedRedirect) {
-        navigate(recommendedRedirect, { replace: true });
-        return;
-      }
+      // ② Assigned faculty or HOD (logged in) → stay on share page
+      if (isAssignedFaculty || isHOD) return;
 
       // ③ Any other logged-in user (wrong student, unassigned faculty) → 404
       navigate('/404', { replace: true });
