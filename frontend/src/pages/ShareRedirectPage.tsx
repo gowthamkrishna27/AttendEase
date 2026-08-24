@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,7 +17,7 @@ import NotFound from './NotFound';
 export default function ShareRedirectPage() {
   const { publicId } = useParams<{ publicId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -50,6 +50,31 @@ export default function ShareRedirectPage() {
 
   const request = shareData?.request;
   const authInfo = shareData?.authInfo;
+
+  // ── Smart Routing — fires once both auth + share data are ready ──────────────
+  useEffect(() => {
+    // Wait for auth rehydration and share data to load
+    if (authLoading || !shareData) return;
+
+    const { isStudentOwner, isAssignedFaculty, isHOD, recommendedRedirect } = authInfo ?? {};
+
+    if (user) {
+      // ① Student who owns the request → stay (show their request)
+      if (isStudentOwner) return;
+
+      // ② Assigned faculty or HOD (logged in) → redirect to portal review card
+      if ((isAssignedFaculty || isHOD) && recommendedRedirect) {
+        navigate(recommendedRedirect, { replace: true });
+        return;
+      }
+
+      // ③ Any other logged-in user (wrong student, unassigned faculty) → 404
+      navigate('/404', { replace: true });
+    } else {
+      // ④ Guest / not logged in → 404 (share link is private)
+      navigate('/404', { replace: true });
+    }
+  }, [authLoading, shareData, user, authInfo, navigate]);
 
   // Check if current viewer is authorized faculty or HOD
   const isFacultyOrHOD = user?.role === 'faculty' || user?.role === 'hod' || user?.role === 'admin';
