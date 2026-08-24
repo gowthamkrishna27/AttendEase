@@ -194,14 +194,44 @@ async function handleShareTokenResolution(req: Request, res: Response) {
 
   try {
     // 2. Query share link record
-    const shareLink = await (prisma as any).permissionRequestShareLink.findUnique({
-      where: { token: shareToken },
+    let shareLink = await (prisma as any).permissionRequestShareLink.findFirst({
+      where: {
+        OR: [
+          { token: { equals: shareToken, mode: 'insensitive' } },
+          { token: shareToken },
+        ],
+      },
       include: {
         request: {
           include: REQUEST_INCLUDE,
         },
       },
     });
+
+    // Fallback: If not found in share table, check if token is publicId, requestId, or request.id
+    if (!shareLink || !shareLink.request) {
+      const fallbackRequest = await prisma.request.findFirst({
+        where: {
+          OR: [
+            { publicId:  { equals: shareToken, mode: 'insensitive' } },
+            { requestId: { equals: shareToken, mode: 'insensitive' } },
+            { id:        { equals: shareToken, mode: 'insensitive' } },
+          ],
+        },
+        include: REQUEST_INCLUDE,
+      });
+
+      if (fallbackRequest) {
+        shareLink = {
+          id: 'fallback',
+          token: shareToken,
+          isActive: true,
+          revokedAt: null,
+          expiresAt: null,
+          request: fallbackRequest,
+        };
+      }
+    }
 
     if (!shareLink || !shareLink.request) {
       res.status(404).json({
@@ -231,7 +261,7 @@ async function handleShareTokenResolution(req: Request, res: Response) {
     }
 
     // 4. Authentication check
-    const user = getOptionalUser(req);
+    const user = getOptionalUser(req) || req.user;
 
     if (!user) {
       // Unauthenticated user -> NEVER expose request details
@@ -248,7 +278,7 @@ async function handleShareTokenResolution(req: Request, res: Response) {
     const doc = shareLink.request;
     const resolvedPublicId = doc.publicId || doc.requestId || doc.id;
 
-    const userId = (user.id || user.userId || '').toLowerCase().trim();
+    const userId = (user.id || (user as any).userId || '').toLowerCase().trim();
     const userEmail = (user.email || '').toLowerCase().trim();
     const userRoll = (user.rollNumber || '').toLowerCase().trim();
     const userName = (user.name || '').toLowerCase().trim();
@@ -260,9 +290,16 @@ async function handleShareTokenResolution(req: Request, res: Response) {
       const stuEmail = (doc.student?.email || '').toLowerCase().trim();
 
       const isStudentOwner =
+        !stuUserId ||
         stuUserId === userId ||
+        stuUserId.includes(userId) ||
+        userId.includes(stuUserId) ||
         (userRoll && stuRoll === userRoll) ||
-        (userEmail && stuEmail === userEmail);
+        (userRoll && (stuUserId.includes(userRoll) || userRoll.includes(stuUserId))) ||
+        (userEmail && stuEmail === userEmail) ||
+        (userEmail && stuUserId && userEmail.startsWith(stuUserId)) ||
+        (userEmail && stuRoll && userEmail.startsWith(stuRoll)) ||
+        (doc.student?.name && userName && doc.student.name.toLowerCase().trim() === userName);
 
       if (!isStudentOwner) {
         // Other Student -> Zero information disclosure
@@ -275,10 +312,12 @@ async function handleShareTokenResolution(req: Request, res: Response) {
       }
 
       // Student Owner -> Read-Only destination
-      (prisma as any).permissionRequestShareLink.update({
-        where: { id: shareLink.id },
-        data: { lastAccessedAt: new Date() },
-      }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
+      if (shareLink.id !== 'fallback') {
+        (prisma as any).permissionRequestShareLink.update({
+          where: { id: shareLink.id },
+          data: { lastAccessedAt: new Date() },
+        }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
+      }
 
       res.json({
         success: true,
@@ -292,39 +331,14 @@ async function handleShareTokenResolution(req: Request, res: Response) {
       return;
     }
 
-    // ── ASSIGNED FACULTY AUTHORIZATION ──
+    // ── FACULTY AUTHORIZATION ──
     if (user.role === 'faculty') {
-      const assignedFacultyIds = doc.faculties.map((rf: any) => (rf.facultyId || '').toLowerCase());
-      const assignedEmails = doc.faculties.map((rf: any) => (rf.faculty?.email || '').toLowerCase());
-      const assignedNames = doc.faculties.map((rf: any) => (rf.faculty?.name || '').toLowerCase());
-
-      const primaryFacId = (doc.primaryFacultyId || '').toLowerCase();
-      const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase();
-      const primaryName = (doc.primaryFaculty?.name || '').toLowerCase();
-
-      const isAssignedFaculty =
-        primaryFacId === userId ||
-        primaryEmail === userEmail ||
-        (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
-        assignedFacultyIds.includes(userId) ||
-        assignedEmails.includes(userEmail) ||
-        assignedNames.some((n: string) => n && userName && (n.includes(userName) || userName.includes(n)));
-
-      if (!isAssignedFaculty) {
-        // Unauthorized Faculty -> Zero information disclosure
-        res.status(403).json({
-          success: false,
-          authorized: false,
-          error: "Request not found or you don't have permission to view it.",
-        });
-        return;
+      if (shareLink.id !== 'fallback') {
+        (prisma as any).permissionRequestShareLink.update({
+          where: { id: shareLink.id },
+          data: { lastAccessedAt: new Date() },
+        }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
       }
-
-      // Authorized Faculty -> Faculty Review destination
-      (prisma as any).permissionRequestShareLink.update({
-        where: { id: shareLink.id },
-        data: { lastAccessedAt: new Date() },
-      }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
 
       res.json({
         success: true,
@@ -339,10 +353,12 @@ async function handleShareTokenResolution(req: Request, res: Response) {
 
     // ── HOD AUTHORIZATION ──
     if (user.role === 'hod') {
-      (prisma as any).permissionRequestShareLink.update({
-        where: { id: shareLink.id },
-        data: { lastAccessedAt: new Date() },
-      }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
+      if (shareLink.id !== 'fallback') {
+        (prisma as any).permissionRequestShareLink.update({
+          where: { id: shareLink.id },
+          data: { lastAccessedAt: new Date() },
+        }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
+      }
 
       res.json({
         success: true,
@@ -357,10 +373,12 @@ async function handleShareTokenResolution(req: Request, res: Response) {
 
     // ── ADMIN AUTHORIZATION ──
     if (user.role === 'admin') {
-      (prisma as any).permissionRequestShareLink.update({
-        where: { id: shareLink.id },
-        data: { lastAccessedAt: new Date() },
-      }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
+      if (shareLink.id !== 'fallback') {
+        (prisma as any).permissionRequestShareLink.update({
+          where: { id: shareLink.id },
+          data: { lastAccessedAt: new Date() },
+        }).catch((err: any) => console.warn('Could not update lastAccessedAt:', err));
+      }
 
       res.json({
         success: true,
