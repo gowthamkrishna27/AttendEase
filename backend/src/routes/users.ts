@@ -116,7 +116,7 @@ router.get('/counselees', verifyToken, async (req: Request, res: Response) => {
     res.json({ counselees: counseleesWithStats });
   } catch (err) {
     console.error('GET /users/counselees error:', err);
-    res.status(500).json({ error: 'Failed to fetch counseling students' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -130,7 +130,7 @@ router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
     res.json({ faculty: docs.map(formatUserResponse) });
   } catch (err) {
     console.error('GET /users/faculty error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -168,7 +168,7 @@ router.get('/students', verifyToken, async (_req: Request, res: Response) => {
     res.json({ students: formatted });
   } catch (err) {
     console.error('GET /users/students error:', err);
-    res.status(500).json({ error: 'Failed to fetch students list' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -241,7 +241,7 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
     });
   } catch (err) {
     console.error('GET /users/counseling/all error:', err);
-    res.status(500).json({ error: 'Failed to fetch counseling data' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -287,7 +287,7 @@ router.post('/counseling/assign', verifyToken, async (req: Request, res: Respons
     });
   } catch (err) {
     console.error('POST /users/counseling/assign error:', err);
-    res.status(500).json({ error: 'Failed to assign counseling students' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -318,7 +318,7 @@ router.post('/counseling/unassign', verifyToken, async (req: Request, res: Respo
     res.json({ success: true, message: 'Student unassigned successfully' });
   } catch (err) {
     console.error('POST /users/counseling/unassign error:', err);
-    res.status(500).json({ error: 'Failed to unassign student' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -343,7 +343,7 @@ router.get('/me', verifyToken, async (req: Request, res: Response) => {
     res.json({ user: formatUserResponse(user) });
   } catch (err) {
     console.error('GET /users/me error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -396,7 +396,7 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
     res.json({ user: formatUserResponse(updated) });
   } catch (err) {
     console.error('PUT /users/me error:', err);
-    res.status(500).json({ error: 'Failed to update personal information' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -428,7 +428,7 @@ router.get('/proxy-image', async (req: Request, res: Response) => {
     res.send(buffer);
   } catch (err: any) {
     console.error('Proxy image error:', err);
-    res.status(500).send(err.message || 'Error proxying image');
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

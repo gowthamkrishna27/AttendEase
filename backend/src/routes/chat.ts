@@ -118,7 +118,7 @@ Instructions:
     res.json({ reply: fallbackReply, success: true, fallback: true });
   } catch (err: any) {
     console.error('Error in /api/chat route:', err);
-    res.status(500).json({ error: 'Failed to process chat message' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

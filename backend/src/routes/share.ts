@@ -264,7 +264,7 @@ router.get('/view/:publicId', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('GET /api/share/view/:publicId error:', err);
-    res.status(500).json({ success: false, status: 500, error: 'Server error retrieving request' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -418,7 +418,7 @@ router.post('/quick-review/:publicId', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('POST /api/share/quick-review error:', err);
-    res.status(500).json({ error: err.message || 'Failed to review request' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -489,7 +489,7 @@ router.get('/:publicId', async (req: Request, res: Response) => {
     res.json({ success: true, redirectTo: `/share/${publicId}` });
   } catch (err) {
     console.error('GET /api/share/:publicId error:', err);
-    res.status(500).json({ success: false, status: 500, error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

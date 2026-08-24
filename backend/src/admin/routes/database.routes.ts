@@ -137,7 +137,7 @@ router.get('/overview', async (_req: Request, res: Response): Promise<void> => {
     });
   } catch (err: any) {
     console.error('GET /database/overview error:', err);
-    res.status(500).json({ error: 'Failed to fetch database overview', details: err?.message });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -214,7 +214,7 @@ router.get('/tables/:tableName', async (req: Request, res: Response): Promise<vo
     });
   } catch (err: any) {
     console.error('GET /database/tables/:tableName error:', err);
-    res.status(500).json({ error: 'Failed to query table', details: err?.message });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -246,7 +246,7 @@ router.get('/export/:tableName', async (req: Request, res: Response): Promise<vo
     });
   } catch (err: any) {
     console.error('GET /database/export/:tableName error:', err);
-    res.status(500).json({ error: 'Failed to export table', details: err?.message });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

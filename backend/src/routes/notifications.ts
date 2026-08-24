@@ -37,7 +37,7 @@ router.get('/', async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('GET /notifications error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -62,7 +62,7 @@ router.patch('/read-all', async (req: Request, res: Response) => {
     res.json({ message: 'All notifications marked as read' });
   } catch (err) {
     console.error('PATCH /notifications/read-all error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -87,7 +87,7 @@ router.patch('/:id/read', async (req: Request, res: Response) => {
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
     console.error('PATCH /notifications/:id/read error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

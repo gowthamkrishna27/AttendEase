@@ -42,6 +42,6 @@ export async function importStudents(
     res.json({ import: report });
   } catch (err: any) {
     console.error('Error in importStudents controller:', err);
-    res.status(500).json({ error: err.message || 'Failed to process student import' });
+    res.status(500).json({ error: 'Internal error' });
   }
 }

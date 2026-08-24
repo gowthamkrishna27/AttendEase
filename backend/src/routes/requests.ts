@@ -261,7 +261,7 @@ router.get('/public-sections', async (req: Request, res: Response) => {
     res.json({ sections: result });
   } catch (error) {
     console.error('Error fetching public sections:', error);
-    res.status(500).json({ error: 'Failed to fetch public sections' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -297,7 +297,7 @@ router.get('/public-approved', async (req: Request, res: Response) => {
     res.json({ requests: mapped });
   } catch (error) {
     console.error('Error fetching public approved requests:', error);
-    res.status(500).json({ error: 'Failed to fetch public approved requests' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -409,7 +409,7 @@ router.post('/upload-proof', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('Upload proof error:', err);
-    res.status(500).json({ error: err.message || 'Failed to upload proof document' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -618,7 +618,7 @@ router.get('/', async (req: Request, res: Response) => {
     res.json({ requests: docs.map(toApi) });
   } catch (err) {
     console.error('GET /requests error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -697,7 +697,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     res.json({ request: toApi(doc) });
   } catch (err) {
     console.error('GET /requests/:id error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -828,7 +828,7 @@ router.post('/hod-direct-grant', async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('POST /requests/hod-direct-grant error:', err);
-    res.status(500).json({ error: 'Failed to grant HOD direct exemption' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1013,7 +1013,7 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({ request: toApi(newDoc!) });
   } catch (err) {
     console.error('POST /requests error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error creating request' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1160,7 +1160,7 @@ router.post('/bulk-review', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('POST /requests/bulk-review error:', err);
-    res.status(500).json({ error: err.message || 'Failed to bulk review requests' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1306,7 +1306,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     res.json({ request: toApi(updated) });
   } catch (err: any) {
     console.error('PUT /requests/:id error:', err);
-    res.status(500).json({ error: err.message || 'Failed to update request' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1482,7 +1482,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
     res.json({ request: toApi(updated) });
   } catch (err) {
     console.error('PATCH /requests/:id error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1558,7 +1558,7 @@ router.post('/:id/cancel', async (req: Request, res: Response) => {
     res.json({ request: toApi(updated) });
   } catch (err) {
     console.error('POST /requests/:id/cancel error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1598,7 +1598,7 @@ router.get('/:id/actions', async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('GET /requests/:id/actions error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -1647,7 +1647,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     res.json({ message: 'Request deleted successfully' });
   } catch (err) {
     console.error('DELETE /requests/:id error:', err);
-    res.status(500).json({ error: 'Failed to delete request' });
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 

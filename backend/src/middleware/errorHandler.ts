@@ -80,7 +80,7 @@ export function globalErrorHandler(
     return;
   }
 
-  // Unexpected server errors — log the full error, return a detailed message
+  // Unexpected server errors — log full error server-side, never leak details to client
   console.error('[UnhandledError]', err);
-  res.status(500).json({ error: err.message || 'An unexpected server error occurred.' });
+  res.status(500).json({ error: 'Internal error' });
 }
