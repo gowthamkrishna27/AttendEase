@@ -538,11 +538,13 @@ router.get('/me', verifyToken, async (req: Request, res: Response) => {
  */
 router.put('/me', verifyToken, async (req: Request, res: Response) => {
   try {
+    const tokenUser = req.user!;
     const existing = await prisma.user.findFirst({
       where: {
         OR: [
-          { userId: req.user!.id },
-          { email:  req.user!.email },
+          { id: tokenUser.id },
+          { userId: tokenUser.id },
+          { email: { equals: tokenUser.email, mode: 'insensitive' } },
         ],
       },
     });
@@ -553,7 +555,7 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
 
     const { name, email, phone, avatarUrl, semester, designation, password, currentPassword } = req.body;
 
-    // Handle password change
+    // Handle password change validation
     if (password && String(password).trim().length > 0) {
       if (currentPassword) {
         const cur = String(currentPassword).trim();
@@ -565,16 +567,34 @@ router.put('/me', verifyToken, async (req: Request, res: Response) => {
       }
     }
 
+    // Validate email uniqueness if changing email
+    let cleanEmail: string | undefined = undefined;
+    if (email !== undefined && String(email).trim().length > 0) {
+      cleanEmail = String(email).trim().toLowerCase();
+      if (cleanEmail !== existing.email.toLowerCase()) {
+        const emailTaken = await prisma.user.findFirst({
+          where: {
+            email: { equals: cleanEmail, mode: 'insensitive' },
+            id: { not: existing.id },
+          },
+        });
+        if (emailTaken) {
+          res.status(400).json({ error: 'Email is already in use by another account' });
+          return;
+        }
+      }
+    }
+
     const updated = await prisma.user.update({
       where: { id: existing.id },
       data: {
-        ...(name        !== undefined && { name        }),
-        ...(email       !== undefined && { email       }),
-        ...(phone       !== undefined && { phone       }),
-        ...(avatarUrl   !== undefined && { avatarUrl   }),
-        ...(semester    !== undefined && { semester: Number(semester) }),
-        ...(designation !== undefined && { designation }),
-        ...(password    !== undefined && { password    }),
+        ...(name !== undefined && { name: String(name).trim() }),
+        ...(cleanEmail !== undefined && { email: cleanEmail }),
+        ...(phone !== undefined && { phone: phone ? String(phone).trim() : null }),
+        ...(avatarUrl !== undefined && { avatarUrl: avatarUrl ? String(avatarUrl).trim() : null }),
+        ...(semester !== undefined && !isNaN(Number(semester)) && { semester: Number(semester) }),
+        ...(designation !== undefined && { designation: designation ? String(designation).trim() : null }),
+        ...(password !== undefined && String(password).trim().length > 0 && { password: String(password).trim() }),
       },
     });
 
