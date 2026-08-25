@@ -1,21 +1,29 @@
+import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
-// SMTP Configuration from environment variables
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASS = process.env.SMTP_PASS || '';
-const SMTP_FROM = process.env.SMTP_FROM || 'AttendEase SRKR <noreply@srkrec.ac.in>';
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
-
-let transporter: Transporter | null = null;
+let resendClient: Resend | null = null;
+let smtpTransporter: Transporter | null = null;
 
 /**
- * Initializes and returns the Nodemailer transporter.
- * Dynamically reads environment variables and strips spaces from Google App Passwords.
+ * Initializes and returns Resend client if RESEND_API_KEY is present.
  */
-export function getTransporter(): Transporter | null {
+function getResendClient(): Resend | null {
+  const apiKey = (process.env.RESEND_API_KEY || '').trim();
+  if (apiKey) {
+    if (!resendClient) {
+      resendClient = new Resend(apiKey);
+      console.log('[EmailService] Resend HTTPS Client initialized (Render Free Tier compatible via Port 443).');
+    }
+    return resendClient;
+  }
+  return null;
+}
+
+/**
+ * Initializes and returns Nodemailer transporter if SMTP credentials are provided.
+ */
+function getSmtpTransporter(): Transporter | null {
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const user = (process.env.SMTP_USER || '').trim();
@@ -23,38 +31,33 @@ export function getTransporter(): Transporter | null {
 
   if (user && pass) {
     try {
-      if (!transporter) {
-        transporter = nodemailer.createTransport({
+      if (!smtpTransporter) {
+        smtpTransporter = nodemailer.createTransport({
           host,
           port,
           secure: port === 465,
-          auth: {
-            user,
-            pass,
-          },
+          auth: { user, pass },
           pool: true,
           maxConnections: 5,
           maxMessages: 100,
         });
         console.log(`[EmailService] SMTP Transporter initialized for ${user} via ${host}:${port}`);
       }
-      return transporter;
+      return smtpTransporter;
     } catch (err) {
       console.error('[EmailService] Failed to initialize SMTP transporter:', err);
-      transporter = null;
+      smtpTransporter = null;
     }
-  } else {
-    console.log('[EmailService] No active SMTP credentials in environment. Operating in simulated preview mode.');
   }
 
-  return transporter;
+  return smtpTransporter;
 }
 
 export interface DecisionEmailData {
   recipientEmail: string;
   studentName: string;
   studentRoll: string;
-  department: string;
+  department?: string;
   reasonLabel: string;
   date: string;
   periods?: string;
@@ -67,7 +70,7 @@ export interface DecisionEmailData {
 }
 
 /**
- * Generates responsive, beautifully styled HTML email for request approval or rejection.
+ * Generates responsive, clean HTML email for request approval or rejection.
  */
 function buildDecisionEmailHtml(data: DecisionEmailData): string {
   const isApproved = data.status === 'approved';
@@ -198,7 +201,9 @@ function buildDecisionEmailHtml(data: DecisionEmailData): string {
 
 /**
  * Sends request decision email (Approved / Rejected) to the student.
- * Non-blocking: logs any errors without throwing to preserve API responsiveness.
+ * Primary: Resend HTTPS API (Port 443 - 100% works on Render Free Tier).
+ * Secondary: Nodemailer SMTP.
+ * Fallback: Simulated Console Logger.
  */
 export async function sendRequestDecisionEmail(data: DecisionEmailData): Promise<boolean> {
   const isApproved = data.status === 'approved';
@@ -207,28 +212,56 @@ export async function sendRequestDecisionEmail(data: DecisionEmailData): Promise
     : `[Decision] Permission Request Update for ${data.date} - ${data.studentRoll}`;
 
   const htmlContent = buildDecisionEmailHtml(data);
-  const client = getTransporter();
 
-  if (!client) {
-    console.log(`[EmailService (Simulated)] Email to ${data.recipientEmail}:`);
-    console.log(`  Subject: ${subject}`);
-    console.log(`  Student: ${data.studentName} (${data.studentRoll})`);
-    console.log(`  Status: ${data.status} by ${data.reviewerName} (${data.decisionByRole})`);
-    console.log(`  Periods: ${data.periods || 'All'}`);
-    return true;
+  // 1. Try Resend HTTPS API (Ideal for Render Free Tier)
+  const resend = getResendClient();
+  if (resend) {
+    try {
+      const fromAddress = process.env.RESEND_FROM || 'AttendEase SRKR <onboarding@resend.dev>';
+      const res = await resend.emails.send({
+        from: fromAddress,
+        to: data.recipientEmail,
+        subject,
+        html: htmlContent,
+      });
+
+      if (res.error) {
+        console.error(`[EmailService] Resend API Error for ${data.recipientEmail}:`, res.error.message || res.error);
+        return false;
+      }
+
+      console.log(`[EmailService] Resend email dispatched to ${data.recipientEmail} (Id: ${res.data?.id})`);
+      return true;
+    } catch (err: any) {
+      console.error(`[EmailService] Failed to send via Resend to ${data.recipientEmail}:`, err?.message || err);
+      return false;
+    }
   }
 
-  try {
-    const info = await client.sendMail({
-      from: SMTP_FROM,
-      to: data.recipientEmail,
-      subject,
-      html: htmlContent,
-    });
-    console.log(`[EmailService] Email sent successfully to ${data.recipientEmail} (MessageId: ${info.messageId})`);
-    return true;
-  } catch (err: any) {
-    console.error(`[EmailService] Failed to send email to ${data.recipientEmail}:`, err?.message || err);
-    return false;
+  // 2. Try Nodemailer SMTP
+  const smtp = getSmtpTransporter();
+  if (smtp) {
+    try {
+      const smtpFrom = process.env.SMTP_FROM || 'AttendEase SRKR <noreply@srkrec.ac.in>';
+      const info = await smtp.sendMail({
+        from: smtpFrom,
+        to: data.recipientEmail,
+        subject,
+        html: htmlContent,
+      });
+      console.log(`[EmailService] SMTP email dispatched to ${data.recipientEmail} (MessageId: ${info.messageId})`);
+      return true;
+    } catch (err: any) {
+      console.error(`[EmailService] Failed to send via SMTP to ${data.recipientEmail}:`, err?.message || err);
+      return false;
+    }
   }
+
+  // 3. Fallback to Simulated Dev Mode
+  console.log(`[EmailService (Simulated)] Email to ${data.recipientEmail}:`);
+  console.log(`  Subject: ${subject}`);
+  console.log(`  Student: ${data.studentName} (${data.studentRoll})`);
+  console.log(`  Status: ${data.status} by ${data.reviewerName} (${data.decisionByRole})`);
+  console.log(`  Periods: ${data.periods || 'All Periods'}`);
+  return true;
 }
