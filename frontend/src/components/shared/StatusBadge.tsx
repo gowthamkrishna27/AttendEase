@@ -16,8 +16,8 @@ const statusConfig: Record<string, { label: string; dot: string; className: stri
   },
   approved: {
     label: 'Approved',
-    dot: 'bg-emerald-500',
-    className: 'bg-emerald-50 text-emerald-700 border border-emerald-200/60',
+    dot: 'bg-slate-900',
+    className: 'bg-slate-100 text-slate-900 border border-slate-200/80 font-bold',
   },
   rejected: {
     label: 'Rejected',
@@ -31,52 +31,19 @@ const statusConfig: Record<string, { label: string; dot: string; className: stri
   },
 };
 
-export function StatusBadge({ status, finalDecisionBy, finalDecisionName, className }: StatusBadgeProps) {
+export function StatusBadge({ status, className }: StatusBadgeProps) {
   const config = statusConfig[status] || statusConfig['pending'];
-  const isHOD = finalDecisionBy === 'HOD';
-  const approverLabel = finalDecisionName || (isHOD ? 'HOD' : 'Faculty');
-
-  if (status === 'approved') {
-    return (
-      <span
-        className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-bold tracking-wide whitespace-nowrap shrink-0',
-          isHOD
-            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs'
-            : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 shadow-2xs',
-          className
-        )}
-      >
-        <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', isHOD ? 'bg-emerald-600 animate-pulse' : 'bg-emerald-600')} />
-        <span className="truncate max-w-[130px] sm:max-w-[220px]">Approved ({approverLabel})</span>
-      </span>
-    );
-  }
-
-  if (status === 'rejected') {
-    return (
-      <span
-        className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-bold tracking-wide whitespace-nowrap shrink-0 bg-rose-50 text-rose-800 border border-rose-200/80',
-          className
-        )}
-      >
-        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-rose-600" />
-        <span className="truncate max-w-[130px] sm:max-w-[220px]">Rejected ({approverLabel})</span>
-      </span>
-    );
-  }
 
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold tracking-wide whitespace-nowrap shrink-0',
+        'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold tracking-wide whitespace-nowrap shrink-0',
         config.className,
         className
       )}
     >
       <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', config.dot)} />
-      {config.label}
+      <span>{config.label}</span>
     </span>
   );
 }

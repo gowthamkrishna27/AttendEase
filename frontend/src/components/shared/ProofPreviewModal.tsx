@@ -1,6 +1,5 @@
 import React from 'react';
 import { X, Download, FileText } from 'lucide-react';
-import { Button } from '../ui/Button';
 
 interface ProofPreviewModalProps {
   isOpen: boolean;
@@ -17,8 +16,7 @@ export const ProofPreviewModal: React.FC<ProofPreviewModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const fileName = documentName || 'Uploaded_Proof_Document';
-  // Standard fallback preview if url is missing
+  const fileName = documentName || 'Attached_Proof_Document';
   const rawUrl = documentUrl || (documentName?.startsWith('http') || documentName?.startsWith('data:') ? documentName : null);
   
   // Safe display URL fallback
@@ -43,50 +41,61 @@ export const ProofPreviewModal: React.FC<ProofPreviewModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-4xl max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200"
+        className="relative w-full max-w-3xl max-h-[88vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-              <FileText size={18} />
+        {/* Clean Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center shrink-0">
+              <FileText size={14} />
             </div>
             <div className="min-w-0">
-              <h3 className="text-base font-bold text-slate-900 truncate">{fileName}</h3>
-              <p className="text-xs font-semibold text-orange-600">Attached Student Proof Document</p>
+              <h3 className="text-[13.5px] font-bold text-slate-900 truncate">{fileName}</h3>
+              <p className="text-[11px] text-slate-400">Attached Student Proof</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
+              type="button"
+              onClick={handleDownload}
+              className="h-7 px-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[11.5px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              title="Download file"
+            >
+              <Download size={12} />
+              <span>Download</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+              className="w-7 h-7 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg flex items-center justify-center transition-colors cursor-pointer"
               title="Close preview"
             >
-              <X size={20} />
+              <X size={15} />
             </button>
           </div>
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-auto p-6 bg-slate-950/5 flex items-center justify-center min-h-[350px]">
+        <div className="flex-1 overflow-auto p-4 sm:p-6 bg-slate-100/50 flex items-center justify-center min-h-[300px]">
           {isPdf ? (
             <iframe
               src={displayUrl}
               title={fileName}
-              className="w-full h-[65vh] rounded-xl border border-slate-200 shadow-inner bg-white"
+              className="w-full h-[62vh] rounded-xl border border-slate-200 shadow-xs bg-white"
             />
           ) : (
-            <div className="relative flex flex-col items-center justify-center max-h-[65vh] w-full">
+            <div className="relative flex flex-col items-center justify-center max-h-[62vh] w-full">
               <img
                 src={displayUrl}
                 alt={fileName}
-                className="max-h-[60vh] max-w-full object-contain rounded-xl shadow-lg border border-slate-200/80 bg-white"
+                className="max-h-[58vh] max-w-full object-contain rounded-xl shadow-xs border border-slate-200/90 bg-white"
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = 'none';
@@ -94,34 +103,33 @@ export const ProofPreviewModal: React.FC<ProofPreviewModalProps> = ({
                   if (fallbackDiv) fallbackDiv.style.display = 'flex';
                 }}
               />
-              <div className="img-fallback hidden flex-col items-center justify-center p-8 text-center bg-white rounded-2xl shadow-sm border border-slate-200 max-w-md">
-                <FileText size={48} className="text-orange-500 mb-3" />
-                <p className="text-sm font-bold text-slate-800">{fileName}</p>
-                <p className="text-xs text-slate-500 mt-1 mb-4">Click below to download the attached proof file directly.</p>
-                <Button onClick={handleDownload} size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
-                  Download Proof File
-                </Button>
+              <div className="img-fallback hidden flex-col items-center justify-center p-8 text-center bg-white rounded-xl shadow-2xs border border-slate-200 max-w-sm">
+                <FileText size={36} className="text-slate-400 mb-2" />
+                <p className="text-[13px] font-bold text-slate-800">{fileName}</p>
+                <p className="text-[11.5px] text-slate-500 mt-1 mb-3">Download to view full attachment.</p>
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download size={13} />
+                  <span>Download Document</span>
+                </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-white">
-          <p className="text-xs text-slate-400 truncate max-w-md">
-            Proof Document: <span className="font-semibold text-slate-700">{fileName}</span>
-          </p>
-
-          <div className="flex items-center gap-3">
-            <Button
-              size="sm"
-              onClick={handleDownload}
-              className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-1.5"
-            >
-              <Download size={14} />
-              Download Proof
-            </Button>
-          </div>
+        {/* Clean Footer */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-white text-[11.5px] text-slate-500">
+          <span className="truncate max-w-md">File: <strong className="text-slate-800 font-mono">{fileName}</strong></span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-all cursor-pointer"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

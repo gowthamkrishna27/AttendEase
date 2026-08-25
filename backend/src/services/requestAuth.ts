@@ -112,6 +112,21 @@ export function isFacultyAuthorizedForRequest(request: any, user: AuthUserContex
 
   if (!userId && !userEmail) return false;
 
+  // Single faculty / facultyId matches
+  const singleFacId = normalizeId(request.facultyId);
+  const singleFacUserId = normalizeId(request.faculty?.userId);
+  const singleFacDbId = normalizeId(request.faculty?.id);
+  const singleEmail = normalizeId(request.faculty?.email);
+
+  if (
+    (singleFacId && singleFacId === userId) ||
+    (singleFacUserId && singleFacUserId === userId) ||
+    (singleFacDbId && singleFacDbId === userId) ||
+    (singleEmail && singleEmail === userEmail)
+  ) {
+    return true;
+  }
+
   // Primary faculty matches
   const primaryFacId = normalizeId(request.primaryFacultyId);
   const primaryFacUserId = normalizeId(request.primaryFaculty?.userId);
@@ -144,6 +159,13 @@ export function isFacultyAuthorizedForRequest(request: any, user: AuthUserContex
         return true;
       }
     }
+  }
+
+  // Department match fallback
+  const userDept = normalizeId(user.department);
+  const reqDept = normalizeId(request.student?.department || request.department);
+  if (userDept && reqDept && (userDept === reqDept || userDept === 'all')) {
+    return true;
   }
 
   return false;

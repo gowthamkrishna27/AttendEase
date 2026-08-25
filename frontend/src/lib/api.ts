@@ -155,6 +155,7 @@ export interface AttendanceRequest {
   facultyId?: string;
   faculty?: Faculty;
   primaryFacultyId?: string;
+  primaryFaculty?: Faculty;
   shareToken?: string;
   shareUrl?: string;
   faculties?: Faculty[];
@@ -432,13 +433,13 @@ export async function reviewRequest(
   id: string,
   action: 'approve' | 'reject',
   rejectionReason?: string,
+  periods?: string,
 ): Promise<AttendanceRequest> {
   const res = await apiFetch<{ request: AttendanceRequest }>(
     `/api/requests/${id}`,
     {
       method: 'PATCH',
-      headers: { 'x-role-override': 'hod' },
-      body: JSON.stringify({ action, rejectionReason, roleOverride: 'hod' }),
+      body: JSON.stringify({ action, rejectionReason, periods }),
     },
   );
   return res.request;
@@ -771,6 +772,18 @@ export async function getCounselees(): Promise<CounseleeStudent[]> {
   return res.counselees ?? [];
 }
 
+export async function updateCounseleeAttendance(payload: {
+  studentId: string;
+  conductedCount?: number;
+  presentCount?: number;
+  percentage?: number;
+}): Promise<{ success: boolean; message: string; stats?: any }> {
+  return apiFetch('/api/users/counselee-attendance', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export interface FacultyCounselorOverview extends AuthUser {
   counselees: AuthUser[];
 }
@@ -795,6 +808,20 @@ export async function unassignCounselingStudent(studentId: string): Promise<{ su
   return apiFetch('/api/users/counseling/unassign', {
     method: 'POST',
     body: JSON.stringify({ studentId }),
+  });
+}
+
+export async function unassignMultipleCounselingStudents(studentIds: string[]): Promise<{ success: boolean; message: string; count?: number }> {
+  return apiFetch('/api/users/counseling/unassign', {
+    method: 'POST',
+    body: JSON.stringify({ studentIds }),
+  });
+}
+
+export async function unassignAllFacultyCounselees(facultyId: string): Promise<{ success: boolean; message: string; count?: number }> {
+  return apiFetch('/api/users/counseling/unassign', {
+    method: 'POST',
+    body: JSON.stringify({ facultyId, unassignAll: true }),
   });
 }
 
@@ -948,4 +975,5 @@ export async function revokeShareToken(shareToken: string): Promise<{ success: b
     method: 'POST',
   });
 }
+
 

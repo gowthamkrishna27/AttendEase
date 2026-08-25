@@ -1423,10 +1423,12 @@ router.patch('/:id', async (req: Request, res: Response) => {
     return;
   }
 
-  const { action, rejectionReason, remarks } = req.body as {
+  const { action, rejectionReason, remarks, periods, approvedPeriods } = req.body as {
     action:           'approve' | 'reject';
     rejectionReason?: string;
     remarks?:         string;
+    periods?:         string | string[];
+    approvedPeriods?: string | string[];
   };
 
   if (!action || !['approve', 'reject'].includes(action)) {
@@ -1454,22 +1456,16 @@ router.patch('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    // ── Faculty authorization & guard ─────────────────────────────────────────
+    // ── Faculty & HOD authorization check ─────────────────────────────────────────
     if (user.role === 'faculty') {
-      if (!isFacultyAuthorizedForRequest(existing, user as any)) {
+      const isAuthorized = isFacultyAuthorizedForRequest(existing, user as any);
+      if (!isAuthorized && !isHodOrAdmin) {
         res.status(403).json({ error: 'This request is not assigned to you' });
         return;
       }
-
-      // Rule #5: Faculty cannot override HOD decisions
-      if (existing.finalDecisionBy === 'HOD') {
-        res.status(403).json({ error: 'Faculty cannot override a decision made by HOD' });
-        return;
-      }
-    }
-
-    if (user.role === 'hod') {
-      if (!isHodAuthorizedForRequest(existing, user as any)) {
+    } else if (user.role === 'hod') {
+      const isAuthorized = isHodAuthorizedForRequest(existing, user as any) || isFacultyAuthorizedForRequest(existing, user as any) || isHodOrAdmin;
+      if (!isAuthorized) {
         res.status(403).json({ error: 'You are not authorized to review requests for this department' });
         return;
       }
@@ -1499,12 +1495,18 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     const performingUserId = (user as any).userId || user.id;
 
+    const finalPeriods = action === 'approve'
+      ? (periods !== undefined ? (Array.isArray(periods) ? periods.join(', ') : String(periods).trim()) :
+         approvedPeriods !== undefined ? (Array.isArray(approvedPeriods) ? approvedPeriods.join(', ') : String(approvedPeriods).trim()) : undefined)
+      : undefined;
+
     const updated = await prisma.$transaction(async tx => {
       const result = await tx.request.update({
         where: { id: existing.id },
         data: {
           status:              newStatus,
           rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || 'Force Rejected by HOD Override') : null,
+          ...(finalPeriods !== undefined && finalPeriods !== '' ? { periods: finalPeriods } : {}),
           reviewedAt:          new Date().toISOString(),
           finalDecisionBy:     decisionRole,
           finalDecisionUserId: performingUserId,
