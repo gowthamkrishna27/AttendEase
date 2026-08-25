@@ -10,6 +10,7 @@ import type { UserRole } from './context/AuthContext';
 import LoginPortal from './pages/auth/LoginPortal';
 import AdminLogin from './pages/admin/Login';
 import ShareRedirectPage from './pages/ShareRedirectPage';
+import ShareResolvePage from './pages/ShareResolvePage';
 
 // Pages — student
 import StudentHome from './pages/student/Home';
@@ -120,6 +121,7 @@ function AppRoutes() {
         <Route path="/pavan" element={<Navigate to="/developers" replace />} />
         <Route path="/manasa" element={<Navigate to="/developers" replace />} />
         <Route path="/login" element={<LoginPortal />} />
+        <Route path="/r/:shareToken" element={<ShareResolvePage />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 
         {/* Approved Permissions page (all roles & URL aliases) */}

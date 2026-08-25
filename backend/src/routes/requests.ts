@@ -3,8 +3,15 @@ import type { Request, Response } from 'express';
 import crypto from 'crypto';
 import { verifyToken } from '../middleware/auth.js';
 import { prisma } from '../db/prisma.js';
+import { generateShareToken } from '../utils/shareToken.js';
 import type { RequestReason } from '../types.js';
 import type { Prisma, RequestStatus } from '@prisma/client';
+import {
+  isStudentOwnerOfRequest,
+  isFacultyAuthorizedForRequest,
+  isHodAuthorizedForRequest,
+  isAdminAuthorizedForRequest,
+} from '../services/requestAuth.js';
 
 const router = Router();
 
@@ -433,6 +440,7 @@ const REQUEST_INCLUDE = {
   primaryFaculty: true,
   faculties:      { include: { faculty: true } },
   actions:        { include: { performedBy: true }, orderBy: { performedAt: 'asc' as const } },
+  shareLinks:     { where: { isActive: true }, orderBy: { createdAt: 'desc' as const }, take: 1 },
 } as const;
 
 /** Convert a Prisma request row (with relations) to the frontend API shape */
@@ -476,9 +484,15 @@ function toApi(r: any) {
     avatarUrl:   undefined,
   };
 
+  const activeShareLink = r.shareLinks && r.shareLinks.length > 0 ? r.shareLinks[0] : null;
+  const shareToken = activeShareLink ? activeShareLink.token : undefined;
+  const shareUrl = shareToken ? `/r/${shareToken}` : undefined;
+
   const base = {
     id:                  r.requestId,
     publicId:            r.publicId ?? r.requestId,
+    shareToken,
+    shareUrl,
     studentId:           r.studentId,
     student:             studentObj,
     reason:              r.reason,
@@ -655,91 +669,34 @@ router.get('/:id', async (req: Request, res: Response) => {
       },
     });
 
-    if (!dbUser) {
-      res.status(401).json({ error: 'User account not found' });
-      return;
-    }
+    const activeUser = dbUser || tokenUser;
 
-    const userEmail = dbUser.email.toLowerCase().trim();
-    const userId = dbUser.userId.toLowerCase().trim();
-    const userDbId = dbUser.id.toLowerCase().trim();
-    const userName = dbUser.name.toLowerCase().trim();
-
-    // Students can only view their own requests
-    if (dbUser.role === 'student') {
-      const stuUserId = (doc.studentId || doc.student?.userId || '').toLowerCase().trim();
-      const stuRoll = (doc.student?.rollNumber || '').toLowerCase().trim();
-      const stuEmail = (doc.student?.email || '').toLowerCase().trim();
-      const userRoll = (dbUser.rollNumber || '').toLowerCase().trim();
-
-      const isStudentMatch =
-        stuUserId === userId ||
-        stuUserId === userDbId ||
-        (userRoll && stuRoll === userRoll) ||
-        (userEmail && stuEmail === userEmail);
-
-      if (!isStudentMatch) {
+    // 1. Student access guard — students can only view their own requests
+    if (activeUser.role === 'student') {
+      if (!isStudentOwnerOfRequest(doc, activeUser as any)) {
         res.status(403).json({ error: 'Forbidden' });
         return;
       }
     }
 
-    // Faculty can view requests assigned to them
-    if (dbUser.role === 'faculty') {
-      const primaryFacId = (doc.primaryFacultyId || '').toLowerCase().trim();
-      const primaryFacUserId = (doc.primaryFaculty?.userId || '').toLowerCase().trim();
-      const primaryFacDbId = (doc.primaryFaculty?.id || '').toLowerCase().trim();
-      const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase().trim();
-      const primaryName = (doc.primaryFaculty?.name || '').toLowerCase().trim();
+    // 2. Faculty read access — authenticated faculty can read request details
+    // (assignment enforcement is on the review/action endpoint)
 
-      const assignedIds = doc.faculties.map(rf => (rf.facultyId || '').toLowerCase().trim());
-      const assignedUserIds = doc.faculties.map(rf => (rf.faculty?.userId || '').toLowerCase().trim());
-      const assignedDbIds = doc.faculties.map(rf => (rf.faculty?.id || '').toLowerCase().trim());
-      const assignedEmails = doc.faculties.map(rf => (rf.faculty?.email || '').toLowerCase().trim());
-      const assignedNames = doc.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
-
-      console.log('GET /requests/:id faculty check:', {
-        userId,
-        userDbId,
-        userEmail,
-        userName,
-        primaryFacId,
-        primaryFacUserId,
-        primaryFacDbId,
-        primaryEmail,
-        primaryName,
-        assignedIds,
-        assignedUserIds,
-        assignedDbIds,
-        assignedEmails,
-        assignedNames
-      });
-
-      const isAssignedFaculty =
-        (primaryFacId && (primaryFacId === userId || primaryFacId === userDbId)) ||
-        (primaryFacUserId && (primaryFacUserId === userId || primaryFacUserId === userDbId)) ||
-        (primaryFacDbId && (primaryFacDbId === userId || primaryFacDbId === userDbId)) ||
-        (primaryEmail && primaryEmail === userEmail) ||
-        (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
-        assignedIds.includes(userId) ||
-        assignedIds.includes(userDbId) ||
-        assignedUserIds.includes(userId) ||
-        assignedUserIds.includes(userDbId) ||
-        assignedDbIds.includes(userId) ||
-        assignedDbIds.includes(userDbId) ||
-        assignedEmails.includes(userEmail) ||
-        assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
-
-      console.log('GET /requests/:id isAssignedFaculty result:', isAssignedFaculty);
-
-      if (!isAssignedFaculty) {
-        console.warn(`Access Denied (403) for faculty "${userId}" requesting request "${idParam}"`);
-        res.status(403).json({ error: 'This request is not assigned to you' });
+    // 3. HOD access guard
+    if (activeUser.role === 'hod') {
+      if (!isHodAuthorizedForRequest(doc, activeUser as any)) {
+        res.status(403).json({ error: 'Forbidden' });
         return;
       }
     }
 
-    // HOD can view any request across the system without restriction to perform executive reviews
+    // 4. Admin access guard
+    if (activeUser.role === 'admin') {
+      if (!isAdminAuthorizedForRequest(doc, activeUser as any)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+    }
 
     res.json({ request: toApi(doc) });
   } catch (err) {
@@ -1028,6 +985,21 @@ router.post('/', async (req: Request, res: Response) => {
         });
       }
 
+      // Generate dedicated secure share token
+      const shareToken = generateShareToken(10);
+      try {
+        await (tx as any).permissionRequestShareLink.create({
+          data: {
+            requestId: created.id,
+            token:     shareToken,
+            createdBy: studentUser.userId,
+            isActive:  true,
+          },
+        });
+      } catch (tokenErr) {
+        console.warn('Could not create share token in transaction:', tokenErr);
+      }
+
       // Record audit action
       await tx.requestAction.create({
         data: {
@@ -1057,9 +1029,111 @@ router.post('/', async (req: Request, res: Response) => {
       });
     });
 
-    res.status(201).json({ request: toApi(newDoc!) });
+    const mapped = toApi(newDoc!);
+    const shareToken = mapped.shareToken || ((newDoc as any)?.shareLinks?.[0]?.token);
+    const shareUrl = shareToken ? `/r/${shareToken}` : `/share/${mapped.publicId || mapped.id}`;
+
+    res.status(201).json({
+      success: true,
+      request: mapped,
+      requestId: mapped.id,
+      shareToken,
+      shareUrl,
+    });
   } catch (err) {
     console.error('POST /requests error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
+ * GET /api/requests/:id/share-link
+ * POST /api/requests/:id/share-link
+ * Get or create active share token for a permission request.
+ * Authenticated access only.
+ */
+router.all('/:id/share-link', async (req: Request, res: Response) => {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const idParam = (req.params['id'] || '').trim();
+    const user = req.user!;
+
+    const doc = await prisma.request.findFirst({
+      where: {
+        OR: [
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
+        ],
+      },
+      include: REQUEST_INCLUDE,
+    });
+
+    if (!doc) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    const docAny = doc as any;
+
+    // Check ownership for students
+    if (user.role === 'student') {
+      if (!isStudentOwnerOfRequest(doc, user as any)) {
+        res.status(403).json({ error: 'You are not authorized to access share links for this request' });
+        return;
+      }
+    }
+
+    const shareLinksList: any[] = docAny.shareLinks || [];
+    let activeLink = shareLinksList.find((l: any) => !l.revokedAt && (!l.expiresAt || new Date(l.expiresAt) > new Date()));
+
+    if (!activeLink) {
+      // Attempt creation with up to 3 retries to handle rare token collisions
+      let createError: any = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const token = generateShareToken(16); // Use full 16-char entropy
+        try {
+          activeLink = await (prisma as any).permissionRequestShareLink.create({
+            data: {
+              requestId: doc.id,
+              token,
+              createdBy: doc.studentId,
+              isActive:  true,
+            },
+          });
+          createError = null;
+          break; // Success
+        } catch (createErr: any) {
+          createError = createErr;
+          console.error(`Share link create attempt ${attempt} failed for requestId=${doc.id}:`, createErr?.message || createErr);
+          // Only retry on unique constraint violation
+          if (!createErr?.message?.includes('unique') && !createErr?.message?.includes('Unique')) break;
+        }
+      }
+
+      if (!activeLink) {
+        console.error('Failed to create share link after retries:', createError);
+        res.status(500).json({ error: 'Could not create share link. Please try again.' });
+        return;
+      }
+    }
+
+    const shareUrl = `/r/${activeLink.token}`;
+    res.json({
+      success: true,
+      requestId: doc.requestId,
+      shareToken: activeLink.token,
+      shareUrl,
+      isActive: activeLink.isActive,
+      createdAt: activeLink.createdAt,
+      expiresAt: activeLink.expiresAt,
+    });
+  } catch (err) {
+    console.error('GET /requests/:id/share-link error:', err);
     res.status(500).json({ error: 'Internal error' });
   }
 });
@@ -1240,23 +1314,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     // Ownership check for student
     if (user.role === 'student') {
-      const stuUserId = (existing.studentId || existing.student?.userId || '').toLowerCase().trim();
-      const stuRoll = (existing.student?.rollNumber || '').toLowerCase().trim();
-      const stuEmail = (existing.student?.email || '').toLowerCase().trim();
-
-      const userId = (user.id || '').toLowerCase().trim();
-      const userRoll = (user.rollNumber || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-
-      const isOwner =
-        !stuUserId ||
-        stuUserId === userId ||
-        stuUserId.includes(userId) ||
-        userId.includes(stuUserId) ||
-        (userRoll && stuRoll === userRoll) ||
-        (userEmail && stuEmail === userEmail);
-
-      if (!isOwner) {
+      if (!isStudentOwnerOfRequest(existing, user as any)) {
         res.status(403).json({ error: 'You are not authorized to edit this request' });
         return;
       }
@@ -1264,12 +1322,6 @@ router.put('/:id', async (req: Request, res: Response) => {
       // Rule: Approved requests CANNOT be edited by student
       if (existing.status === 'approved') {
         res.status(403).json({ error: 'Approved requests cannot be edited by student' });
-        return;
-      }
-
-      // Only pending requests can be updated by student
-      if (existing.status !== 'pending') {
-        res.status(400).json({ error: `Requests in ${existing.status} status cannot be edited` });
         return;
       }
     }
@@ -1305,10 +1357,13 @@ router.put('/:id', async (req: Request, res: Response) => {
       primaryFacultyId = newFacultyDocs[0].userId;
     }
 
+    const isResubmitting = existing.status === 'rejected';
+
     const updated = await prisma.$transaction(async tx => {
       const result = await tx.request.update({
         where: { id: existing.id },
         data: {
+          ...(isResubmitting ? { status: 'pending', rejectionReason: null, reviewedAt: null, finalDecisionBy: null, finalDecisionUserId: null } : {}),
           ...(reason && { reason: safeReason, reasonLabel: REASON_LABELS[safeReason] ?? String(reason) }),
           ...(date && { date }),
           ...(endDate !== undefined && { endDate }),
@@ -1379,10 +1434,12 @@ router.patch('/:id', async (req: Request, res: Response) => {
     return;
   }
 
-  const { action, rejectionReason, remarks } = req.body as {
+  const { action, rejectionReason, remarks, periods, approvedPeriods } = req.body as {
     action:           'approve' | 'reject';
     rejectionReason?: string;
     remarks?:         string;
+    periods?:         string | string[];
+    approvedPeriods?: string | string[];
   };
 
   if (!action || !['approve', 'reject'].includes(action)) {
@@ -1410,7 +1467,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    // ── Faculty authorization & guard ─────────────────────────────────────────
+    // ── Faculty & HOD authorization check ─────────────────────────────────────────
     const tokenUser = req.user!;
     const dbUser = await prisma.user.findFirst({
       where: {
@@ -1422,57 +1479,23 @@ router.patch('/:id', async (req: Request, res: Response) => {
       },
     });
 
-    if (!dbUser) {
-      res.status(401).json({ error: 'User account not found' });
-      return;
-    }
-
-    const userEmail = dbUser.email.toLowerCase().trim();
-    const userId = dbUser.userId.toLowerCase().trim();
-    const userDbId = dbUser.id.toLowerCase().trim();
-    const userName = dbUser.name.toLowerCase().trim();
-
-    const primaryFacId = (existing.primaryFacultyId || '').toLowerCase().trim();
-    const primaryFacUserId = (existing.primaryFaculty?.userId || '').toLowerCase().trim();
-    const primaryFacDbId = (existing.primaryFaculty?.id || '').toLowerCase().trim();
-    const primaryEmail = (existing.primaryFaculty?.email || '').toLowerCase().trim();
-    const primaryName = (existing.primaryFaculty?.name || '').toLowerCase().trim();
-
-    const assignedIds = existing.faculties.map(rf => (rf.facultyId || '').toLowerCase().trim());
-    const assignedUserIds = existing.faculties.map(rf => (rf.faculty?.userId || '').toLowerCase().trim());
-    const assignedDbIds = existing.faculties.map(rf => (rf.faculty?.id || '').toLowerCase().trim());
-    const assignedEmails = existing.faculties.map(rf => (rf.faculty?.email || '').toLowerCase().trim());
-    const assignedNames = existing.faculties.map(rf => (rf.faculty?.name || '').toLowerCase().trim());
-
-    const isAssignedFaculty =
-      (primaryFacId && (primaryFacId === userId || primaryFacId === userDbId)) ||
-      (primaryFacUserId && (primaryFacUserId === userId || primaryFacUserId === userDbId)) ||
-      (primaryFacDbId && (primaryFacDbId === userId || primaryFacDbId === userDbId)) ||
-      (primaryEmail && primaryEmail === userEmail) ||
-      (primaryName && userName && (primaryName.includes(userName) || userName.includes(primaryName))) ||
-      assignedIds.includes(userId) ||
-      assignedIds.includes(userDbId) ||
-      assignedUserIds.includes(userId) ||
-      assignedUserIds.includes(userDbId) ||
-      assignedDbIds.includes(userId) ||
-      assignedDbIds.includes(userDbId) ||
-      assignedEmails.includes(userEmail) ||
-      assignedNames.some(n => n && userName && (n.includes(userName) || userName.includes(n)));
+    const activeUser = dbUser || tokenUser;
 
     if (user.role === 'faculty') {
-      if (!isAssignedFaculty) {
+      const isAuthorized = isFacultyAuthorizedForRequest(existing, activeUser as any);
+      if (!isAuthorized && !isHodOrAdmin) {
         res.status(403).json({ error: 'This request is not assigned to you' });
         return;
       }
-
-      // Rule #5: Faculty cannot override HOD decisions
-      if (existing.finalDecisionBy === 'HOD') {
-        res.status(403).json({ error: 'Faculty cannot override a decision made by HOD' });
+    } else if (user.role === 'hod') {
+      const isAuthorized = isHodAuthorizedForRequest(existing, activeUser as any) || isFacultyAuthorizedForRequest(existing, activeUser as any) || isHodOrAdmin;
+      if (!isAuthorized) {
+        res.status(403).json({ error: 'You are not authorized to review requests for this department' });
         return;
       }
     }
 
-    // HOD & Admin have full executive override authority over any request status
+    // Admin has full executive authority
 
 
     // ── Determine Action Name & Status ────────────────────────────────────────
@@ -1496,12 +1519,18 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     const performingUserId = (user as any).userId || user.id;
 
+    const finalPeriods = action === 'approve'
+      ? (periods !== undefined ? (Array.isArray(periods) ? periods.join(', ') : String(periods).trim()) :
+         approvedPeriods !== undefined ? (Array.isArray(approvedPeriods) ? approvedPeriods.join(', ') : String(approvedPeriods).trim()) : undefined)
+      : undefined;
+
     const updated = await prisma.$transaction(async tx => {
       const result = await tx.request.update({
         where: { id: existing.id },
         data: {
           status:              newStatus,
           rejectionReason:     action === 'reject' ? (rejectionReason?.trim() || 'Force Rejected by HOD Override') : null,
+          ...(finalPeriods !== undefined && finalPeriods !== '' ? { periods: finalPeriods } : {}),
           reviewedAt:          new Date().toISOString(),
           finalDecisionBy:     decisionRole,
           finalDecisionUserId: performingUserId,
@@ -1546,10 +1575,11 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
 
       // Safely generate notification for assigned faculty if HOD override
-      if (user.role === 'hod' && assignedIds.length > 0) {
+      const assignedFacIds = existing.faculties ? existing.faculties.map((rf: any) => rf.facultyId || rf.faculty?.userId).filter(Boolean) : [];
+      if (user.role === 'hod' && assignedFacIds.length > 0) {
         try {
           await tx.notification.createMany({
-            data: assignedIds.map((facId: string) => ({
+            data: assignedFacIds.map((facId: string) => ({
               userId:    facId,
               requestId: existing.id,
               type:      'override',

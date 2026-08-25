@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Calendar, Clock, FileText,
-  Check, X, ShieldAlert, Eye, Download
+  ArrowLeft, Calendar, Clock, FileText, UserCheck,
+  Eye, Download,
+  CheckCircle2, XCircle,
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
-import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/shared/Modal';
 import { formatDate, formatTime } from '../../lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,6 +24,7 @@ export default function HODRequestDetails() {
 
   const [confirmModal, setConfirmModal] = useState<'approve' | 'reject' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
 
   const { data: request, isLoading } = useQuery({
     queryKey: ['request', id],
@@ -43,15 +44,16 @@ export default function HODRequestDetails() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const reviewMutation = useMutation({
-    mutationFn: async ({ action, reason }: { action: 'approve' | 'reject'; reason?: string }) => {
+    mutationFn: async ({ action, reason, periods }: { action: 'approve' | 'reject'; reason?: string; periods?: string }) => {
       try {
-        return await api.reviewRequest(id!, action, reason, true);
+        return await api.reviewRequest(id!, action, reason, true, periods);
       } catch (err) {
         console.warn('API reviewRequest error, applying local optimistic override:', err);
         const updatedReq: any = {
           ...request,
           status: action === 'approve' ? 'approved' : 'rejected',
           rejectionReason: action === 'reject' ? (reason || 'Rejected by HOD Override') : undefined,
+          ...(action === 'approve' && periods ? { periods } : {}),
           reviewedAt: new Date().toISOString(),
           finalDecisionBy: 'HOD',
         };
@@ -107,10 +109,20 @@ export default function HODRequestDetails() {
 
   const currentStatus = request.status;
 
+  const appliedPeriodsList = request.periods
+    ? request.periods.split(/[, ]+/).filter(Boolean)
+    : ['1', '2', '3', '4', '5', '6', '7', '8'];
+
+  const openApproveModal = () => {
+    setSelectedPeriods(appliedPeriodsList);
+    setConfirmModal('approve');
+  };
+
   const handleConfirm = () => {
     reviewMutation.mutate({
       action: confirmModal === 'approve' ? 'approve' : 'reject',
       reason: confirmModal === 'reject' ? rejectionReason : undefined,
+      periods: confirmModal === 'approve' && selectedPeriods.length > 0 ? selectedPeriods.join(', ') : undefined,
     });
   };
 
@@ -229,52 +241,112 @@ export default function HODRequestDetails() {
                 <Clock size={15} className="text-[#6B7280]" />
               </div>
               <div>
-                <p className="text-[13px] text-[#6B7280] mb-0.5">Time</p>
-                <p className="text-[14px] font-medium text-[#111111]">
-                  {formatTime(request.startTime)} – {formatTime(request.endTime)}
-                </p>
+                <p className="text-[13px] text-[#6B7280] mb-0.5">Time / Periods</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[14px] font-bold text-slate-900">
+                    {request.startTime && request.endTime
+                      ? `${formatTime(request.startTime)} – ${formatTime(request.endTime)}`
+                      : 'Full Day'}
+                  </span>
+                  {request.periods && (
+                    <div className="inline-flex items-center gap-1 flex-wrap">
+                      {request.periods
+                        .split(/[, ]+/)
+                        .filter(Boolean)
+                        .map((p, idx) => (
+                          <span
+                            key={idx}
+                            style={{
+                              width: '16px',
+                              height: '16px',
+                              minWidth: '16px',
+                              minHeight: '16px',
+                              maxWidth: '16px',
+                              maxHeight: '16px',
+                              borderRadius: '50%',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0,
+                              lineHeight: 1,
+                              fontSize: '8.5px',
+                            }}
+                            className={`font-bold font-mono transition-all ${
+                              currentStatus === 'approved'
+                                ? 'bg-orange-500 text-white shadow-2xs'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                            title={`Period ${p}${currentStatus === 'approved' ? ' (Approved)' : ''}`}
+                          >
+                            {p}
+                          </span>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            {/* Uploaded Student Proof Document Section (Only shown if student actually attached a file) */}
-            {Boolean(request.documentName || request.documentUrl) && (
-              <div className="flex items-start gap-3 sm:col-span-2 bg-orange-50/60 p-3.5 rounded-xl border border-orange-200/80">
-                <div className="w-9 h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <FileText size={18} />
+
+            {/* Approved By (Shown when status is approved) */}
+            {currentStatus === 'approved' && (
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 border border-emerald-100">
+                  <UserCheck size={15} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-[12px] font-bold text-orange-600 uppercase tracking-wider">Uploaded Student Proof Document</p>
-                    <span className="text-[10px] font-bold text-orange-700 bg-orange-200/70 px-2 py-0.5 rounded-full">Proof Attached</span>
+                <div>
+                  <p className="text-[13px] text-[#6B7280] mb-0.5">Approved By</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[14px] font-bold text-slate-900">
+                      {request.finalDecisionName || request.faculty?.name || (request.finalDecisionBy === 'HOD' ? 'Head of Department' : 'Faculty')}
+                    </span>
+                    {request.finalDecisionBy && (
+                      <span className="px-2 py-0.2 rounded text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {request.finalDecisionBy}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-[14px] font-semibold text-slate-900 truncate">{request.documentName || 'Uploaded_Proof_Document.pdf'}</p>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setIsPreviewOpen(true)}
-                      className="text-[12px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Eye size={13} />
-                      <span>Preview Proof</span>
-                    </button>
-                    <span className="text-slate-300">•</span>
-                    <a
-                      href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
-                      download={request.documentName || 'proof_document'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
-                        if (!targetUrl) {
-                          e.preventDefault();
-                          setIsPreviewOpen(true);
-                        }
-                      }}
-                      className="text-[12px] font-bold text-slate-600 hover:text-slate-900 underline underline-offset-2 flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Download size={13} />
-                      <span>Download File</span>
-                    </a>
+                </div>
+              </div>
+            )}
+            {/* Uploaded Student Proof Document Section */}
+            {Boolean(request.documentName || request.documentUrl) && (
+              <div className="flex items-center justify-between gap-3 sm:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center flex-shrink-0">
+                    <FileText size={15} />
                   </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-slate-900 truncate">{request.documentName || 'Proof_Document.pdf'}</p>
+                    <p className="text-[11px] text-slate-400">Attached student proof</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsPreviewOpen(true)}
+                    className="h-7 px-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[11.5px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Eye size={12} />
+                    <span>Preview</span>
+                  </button>
+                  <a
+                    href={request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : undefined)}
+                    download={request.documentName || 'proof_document'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      const targetUrl = request.documentUrl || (request.documentName?.startsWith('http') ? request.documentName : null);
+                      if (!targetUrl) {
+                        e.preventDefault();
+                        setIsPreviewOpen(true);
+                      }
+                    }}
+                    className="h-7 px-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11.5px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Download size={12} />
+                    <span>Download</span>
+                  </a>
                 </div>
               </div>
             )}
@@ -302,99 +374,242 @@ export default function HODRequestDetails() {
           </div>
         )}
 
-        {/* HOD Executive Control Panel — Force Edit / Overrides */}
-        <div className="card p-5 mb-6 border-amber-200 bg-amber-50/30">
-          <div className="flex items-center gap-2 mb-3">
-            <ShieldAlert size={18} className="text-amber-600" />
-            <h3 className="text-[15px] font-bold text-slate-900">
-              HOD Executive Override Controls
-            </h3>
-          </div>
-          <p className="text-[13px] text-slate-600 mb-4">
-            As Head of Department, you have full authority to approve, reject, or force edit the decision on this request at any time.
-          </p>
+        {/* HOD Executive Decision & Override */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 mb-4 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-[14px] font-bold text-slate-900">
+                  Executive Decision &amp; Override
+                </h3>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                  currentStatus === 'approved'
+                    ? 'bg-slate-100 text-slate-900 border border-slate-300'
+                    : currentStatus === 'rejected'
+                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
+                  {currentStatus}
+                </span>
+              </div>
+              <p className="text-[11.5px] text-slate-500 mt-0.5">
+                Authorize or override the approval status for this student request.
+              </p>
+            </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-2.5">
-            <Button
-              variant="primary"
-              size="md"
-              disabled={reviewMutation.isPending}
-              className="w-full sm:flex-1 bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm font-bold active:scale-[0.98] cursor-pointer"
-              onClick={() => {
-                reviewMutation.mutate({ action: 'approve' });
-              }}
-            >
-              <Check size={16} className="mr-1" />
-              {currentStatus === 'approved' ? '✓ Approved' : currentStatus === 'pending' ? 'Approve Request' : 'Force Approve (Override)'}
-            </Button>
+            {/* Small Action Buttons */}
+            <div className="flex items-center gap-2 shrink-0">
+              {currentStatus !== 'approved' && (
+                <button
+                  type="button"
+                  disabled={reviewMutation.isPending}
+                  onClick={openApproveModal}
+                  className="h-8 px-3 rounded-lg text-[11.5px] font-semibold flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                  title="Approve Request"
+                >
+                  <CheckCircle2 size={13} />
+                  <span>{currentStatus === 'pending' ? 'Approve' : 'Override to Approve'}</span>
+                </button>
+              )}
 
-            <Button
-              variant="secondary"
-              size="md"
-              disabled={reviewMutation.isPending}
-              className="w-full sm:flex-1 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold cursor-pointer"
-              onClick={() => setConfirmModal('reject')}
-            >
-              <X size={16} className="mr-1" />
-              {currentStatus === 'approved' ? 'Force Reject (Override)' : currentStatus === 'rejected' ? '✗ Rejected (Force Re-Reject)' : 'Reject Request'}
-            </Button>
+              <button
+                type="button"
+                disabled={reviewMutation.isPending}
+                onClick={() => setConfirmModal('reject')}
+                className="h-8 px-2.5 rounded-lg text-[11.5px] font-medium flex items-center gap-1.5 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition-all cursor-pointer disabled:opacity-50"
+                title="Reject or Override Request"
+              >
+                <XCircle size={13} />
+                <span>{currentStatus === 'approved' ? 'Override to Reject' : currentStatus === 'rejected' ? 'Edit Reason' : 'Reject'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/hod/requests')}
+                className="h-8 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[11.5px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Back to requests list"
+              >
+                <ArrowLeft size={13} />
+                <span>Back</span>
+              </button>
+            </div>
           </div>
         </div>
-
-        <Button variant="secondary" size="lg" fullWidth onClick={() => navigate('/hod')}>
-          Back to Overview
-        </Button>
       </div>
 
-      {/* Confirmation / Rejection Modal */}
+      {/* Confirmation / Rejection / Period Selection Modal */}
       <Modal
         open={Boolean(confirmModal)}
         onClose={() => { setConfirmModal(null); setRejectionReason(''); }}
         title={
           confirmModal === 'approve'
-            ? currentStatus === 'pending' ? 'Confirm Approval' : 'Force Approve Request'
+            ? currentStatus === 'pending' ? 'Approve Request' : 'Force Approve Request'
             : currentStatus === 'pending' ? 'Confirm Rejection' : 'Force Reject Request'
         }
       >
-        <p className="text-[14px] text-[#6B7280] mb-4">
+        <p className="text-[13.5px] text-slate-600 mb-3 leading-normal">
           {confirmModal === 'approve'
-            ? `Are you sure you want to ${currentStatus !== 'pending' ? 'override and ' : ''}approve this permission request for ${request.student?.name}?`
-            : `Are you sure you want to ${currentStatus !== 'pending' ? 'override and ' : ''}reject this permission request for ${request.student?.name}?`}
+            ? `Review and select which requested periods to approve for `
+            : `Are you sure you want to ${currentStatus !== 'pending' ? 'override and ' : ''}reject this permission request for `}
+          <strong className="text-slate-900">{request.student?.name}</strong>:
         </p>
 
+        {confirmModal === 'approve' && (
+          <div className="bg-slate-50/90 rounded-2xl p-3.5 border border-slate-200/80 mb-5">
+            {/* Student Applied Notice & Minimal Presets */}
+            <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-200/80">
+              <span className="text-[12px] text-slate-600">
+                Applied: <strong className="text-slate-900">{appliedPeriodsList.length === 8 ? 'All 8 Periods (Full Day)' : `Periods ${appliedPeriodsList.join(', ')}`}</strong>
+              </span>
+              <div className="flex items-center gap-1.5 text-[11.5px]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPeriods(appliedPeriodsList)}
+                  className="px-2 py-0.5 rounded-lg font-semibold bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200 transition-all cursor-pointer"
+                  title="Select all periods requested by student"
+                >
+                  Select All ({appliedPeriodsList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPeriods([])}
+                  className="px-2 py-0.5 rounded-lg font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            {/* 8 Perfectly Round Period Circles */}
+            <div className="flex items-center justify-between gap-1.5 py-1 px-0.5">
+              {['1', '2', '3', '4', '5', '6', '7', '8'].map(p => {
+                const isApplied = appliedPeriodsList.includes(p);
+                const isChecked = selectedPeriods.includes(p);
+
+                if (!isApplied) {
+                  return (
+                    <div
+                      key={p}
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        minWidth: '28px',
+                        minHeight: '28px',
+                        maxWidth: '28px',
+                        maxHeight: '28px',
+                        borderRadius: '50%',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        lineHeight: 1,
+                      }}
+                      className="font-semibold text-[11.5px] border border-dashed border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed select-none"
+                      title={`Period ${p} (Not requested by student)`}
+                    >
+                      {p}
+                    </div>
+                  );
+                }
+
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      minWidth: '28px',
+                      minHeight: '28px',
+                      maxWidth: '28px',
+                      maxHeight: '28px',
+                      borderRadius: '50%',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      lineHeight: 1,
+                    }}
+                    onClick={() => {
+                      setSelectedPeriods(prev =>
+                        prev.includes(p)
+                          ? prev.filter(x => x !== p)
+                          : [...prev, p].sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+                      );
+                    }}
+                    className={`font-bold text-[12px] transition-all cursor-pointer ${
+                      isChecked
+                        ? 'bg-orange-500 text-white shadow-xs ring-2 ring-orange-400/30'
+                        : 'bg-white text-slate-700 border border-slate-300 hover:border-slate-400 hover:bg-slate-50'
+                    }`}
+                    title={`Period ${p}`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Helper text */}
+            <p className="text-[11.5px] text-slate-500 mt-2">
+              {selectedPeriods.length === 0 ? (
+                <span className="text-rose-600 font-semibold">⚠️ Select at least 1 period to approve.</span>
+              ) : selectedPeriods.length === appliedPeriodsList.length ? (
+                appliedPeriodsList.length === 8
+                  ? '✓ Approving All 8 Periods (Full Day).'
+                  : `✓ Approving all ${appliedPeriodsList.length} requested period(s) (${appliedPeriodsList.join(', ')}).`
+              ) : (
+                <span>
+                  ✓ Partial Approval: Approving <strong>Period(s) {selectedPeriods.join(', ')}</strong> of {appliedPeriodsList.length} requested.
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+
         {confirmModal === 'reject' && (
-          <div className="mb-4">
-            <label className="block text-[13px] font-medium text-[#374151] mb-1.5">
-              Rejection Reason (Optional)
+          <div className="mb-5">
+            <label className="block text-[12.5px] font-semibold text-slate-700 mb-1.5">
+              Reason for Rejection (Optional)
             </label>
             <textarea
               rows={3}
               value={rejectionReason}
               onChange={e => setRejectionReason(e.target.value)}
-              placeholder="Enter reason for rejection..."
-              className="w-full text-[14px] p-3 border border-[#E5E7EB] rounded-xl outline-none focus:border-orange-500"
+              placeholder="e.g. Exam scheduled on the same day..."
+              className="w-full text-[13.5px] p-3 border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/20 bg-slate-50/50"
             />
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 pt-2">
-          <Button
-            variant="secondary"
+        {/* Modal Action Buttons */}
+        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+          <button
+            type="button"
             onClick={() => { setConfirmModal(null); setRejectionReason(''); }}
             disabled={reviewMutation.isPending}
+            className="h-9 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[13px] font-semibold rounded-xl transition-all cursor-pointer"
           >
             Cancel
-          </Button>
-          <Button
-            variant="primary"
-            className={confirmModal === 'reject' ? 'bg-rose-600 hover:bg-rose-700 text-white font-semibold' : 'bg-orange-500 hover:bg-orange-600 text-white shadow-sm shadow-orange-500/25 font-semibold'}
+          </button>
+          <button
+            type="button"
             onClick={handleConfirm}
-            disabled={reviewMutation.isPending}
+            disabled={reviewMutation.isPending || (confirmModal === 'approve' && selectedPeriods.length === 0)}
+            className={`h-9 px-5 text-[13px] font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+              confirmModal === 'reject'
+                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                : 'bg-orange-500 hover:bg-orange-600 text-white shadow-xs'
+            }`}
           >
             {reviewMutation.isPending
               ? 'Processing...'
-              : confirmModal === 'approve' ? 'Approve Request' : 'Reject Request'}
-          </Button>
+              : confirmModal === 'approve'
+              ? selectedPeriods.length === appliedPeriodsList.length
+                ? appliedPeriodsList.length === 8 ? 'Approve Full Day' : `Approve All (${selectedPeriods.length})`
+                : `Approve (${selectedPeriods.length})`
+              : 'Reject Request'}
+          </button>
         </div>
       </Modal>
     </PageWrapper>

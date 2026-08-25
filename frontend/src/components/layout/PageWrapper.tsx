@@ -32,7 +32,6 @@ const facultyNav = [
   { to: '/faculty/requests', label: 'Requests', icon: ClipboardList },
   { to: '/faculty/students', label: 'Students', icon: Users },
   { to: '/faculty/reports', label: 'Reports', icon: BarChart2 },
-  { to: '/faculty/settings', label: 'Settings', icon: Settings },
 ];
 
 const hodNav = [
@@ -40,7 +39,6 @@ const hodNav = [
   { to: '/hod/requests', label: 'All Requests', icon: ClipboardList },
   { to: '/hod/faculty', label: 'Faculty', icon: Users },
   { to: '/hod/reports', label: 'Reports', icon: BarChart2 },
-  { to: '/hod/settings', label: 'Settings', icon: Settings },
 ];
 
 const adminNav = [
@@ -83,7 +81,6 @@ const hodMobileBottomNav: BottomNavItem[] = [
   { id: 'faculty', to: '/hod/faculty', label: 'Faculty', icon: Users, type: 'link' },
   { id: 'requests', to: '/hod/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
   { id: 'reports', to: '/hod/reports', label: 'Reports', icon: BarChart2, type: 'link' },
-  { id: 'settings', to: '/hod/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
 const adminMobileBottomNav: BottomNavItem[] = [
@@ -112,8 +109,16 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
 
   const unreadCount = 0;
 
+  const userPortalLink = user
+    ? (user.role === 'admin' ? '/admin' : user.role === 'hod' ? '/hod' : user.role === 'faculty' ? '/faculty' : '/student')
+    : '/login';
+
+  const userSettingsLink = user
+    ? (user.role === 'admin' ? '/admin/settings' : user.role === 'hod' ? '/hod/settings' : user.role === 'faculty' ? '/faculty/settings' : '/student/profile')
+    : '/login';
+
   const navLinks = role === 'viewer' ? viewerNav : role === 'student' ? studentNav : role === 'faculty' ? facultyNav : role === 'hod' ? hodNav : adminNav;
-  const homeLink = role === 'viewer' ? '/permissions' : role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : role === 'hod' ? '/hod' : '/admin';
+  const homeLink = user ? userPortalLink : (role === 'viewer' ? '/permissions' : role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : role === 'hod' ? '/hod' : '/admin');
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -155,40 +160,49 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         </Link>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Settings or Plus button in top navbar */}
-          {user && user.role !== 'student' && (
+          {/* View Permissions Button in top navbar */}
+          {routerLocation.pathname === '/permissions' ? (
+            user && (
+              <Link
+                to={userPortalLink}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
+                  color: '#18181b', background: '#edf0f2',
+                  border: '1px solid #e2e6e9',
+                  borderRadius: 8, textDecoration: 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Home size={14} />
+                <span>Dashboard</span>
+              </Link>
+            )
+          ) : (
             <Link
-              to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
-              title={user.role === 'admin' ? 'Add User' : 'Settings'}
+              to="/permissions"
+              title="View Public Approved Permissions & Exemption Ledger"
               style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 34, height: 34, borderRadius: 8,
-                background: user.role === 'admin' ? '#edf0f2' : '#FFF7ED',
-                border: user.role === 'admin' ? '1px solid #e2e6e9' : '1px solid #FED7AA',
-                color: user.role === 'admin' ? '#18181b' : '#EA580C',
-                textDecoration: 'none',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
+                color: '#EA580C', background: '#FFF7ED',
+                border: '1px solid #FED7AA',
+                borderRadius: 8, textDecoration: 'none',
                 transition: 'all 0.15s ease',
               }}
               onMouseEnter={e => {
-                if (user.role === 'admin') {
-                  e.currentTarget.style.background = '#e2e6e9';
-                } else {
-                  e.currentTarget.style.background = '#EA580C';
-                  e.currentTarget.style.color = '#ffffff';
-                  e.currentTarget.style.borderColor = '#EA580C';
-                }
+                e.currentTarget.style.background = '#EA580C';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = '#EA580C';
               }}
               onMouseLeave={e => {
-                if (user.role === 'admin') {
-                  e.currentTarget.style.background = '#edf0f2';
-                } else {
-                  e.currentTarget.style.background = '#FFF7ED';
-                  e.currentTarget.style.color = '#EA580C';
-                  e.currentTarget.style.borderColor = '#FED7AA';
-                }
+                e.currentTarget.style.background = '#FFF7ED';
+                e.currentTarget.style.color = '#EA580C';
+                e.currentTarget.style.borderColor = '#FED7AA';
               }}
             >
-              {user.role === 'admin' ? <Plus size={16} /> : <Settings size={15} />}
+              <Shield size={14} />
+              <span>View Permissions</span>
             </Link>
           )}
 
@@ -220,91 +234,39 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             </Link>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {user.role === 'student' || user.role === 'faculty' ? (
-                location.pathname === '/permissions' ? (
-                  <Link
-                    to={`/${user.role}`}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
-                      color: '#EA580C', background: '#FFF7ED',
-                      border: '1px solid #FED7AA',
-                      borderRadius: 8, textDecoration: 'none',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background = '#EA580C';
-                      e.currentTarget.style.color = '#ffffff';
-                      e.currentTarget.style.borderColor = '#EA580C';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = '#FFF7ED';
-                      e.currentTarget.style.color = '#EA580C';
-                      e.currentTarget.style.borderColor = '#FED7AA';
-                    }}
-                  >
-                    <Home size={14} />
-                    <span>Dashboard</span>
-                  </Link>
-                ) : (
-                  <Link
-                    to="/permissions"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
-                      color: '#EA580C', background: '#FFF7ED',
-                      border: '1px solid #FED7AA',
-                      borderRadius: 8, textDecoration: 'none',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background = '#EA580C';
-                      e.currentTarget.style.color = '#ffffff';
-                      e.currentTarget.style.borderColor = '#EA580C';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = '#FFF7ED';
-                      e.currentTarget.style.color = '#EA580C';
-                      e.currentTarget.style.borderColor = '#FED7AA';
-                    }}
-                  >
-                    <Shield size={14} />
-                    <span>View Permissions</span>
-                  </Link>
-                )
-              ) : (
-                <Link
-                  to={user.role === 'hod' ? '/hod/settings' : `/${user.role}`}
-                  title={user.role === 'hod' ? 'Profile & Settings' : 'Dashboard'}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
-                    color: '#18181b', background: '#edf0f2',
-                    border: '1px solid #e2e6e9',
-                    borderRadius: 8, textDecoration: 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#e2e6e9'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; }}
-                >
-                  <User size={14} />
-                  <span style={{ textTransform: 'capitalize' }}>{user.name?.split(' ')[0] || user.role}</span>
-                </Link>
-              )}
-              <button
-                onClick={handleLogout}
-                title="Logout"
+              <Link
+                to={userPortalLink}
+                title="Dashboard"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
+                  color: '#18181b', background: '#edf0f2',
+                  border: '1px solid #e2e6e9',
+                  borderRadius: 8, textDecoration: 'none',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e6e9'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; }}
+              >
+                <User size={14} />
+                <span style={{ textTransform: 'capitalize' }}>{user.name?.split(' ')[0] || user.role}</span>
+              </Link>
+
+              {/* Settings button in top navbar */}
+              <Link
+                to={userSettingsLink}
+                title="Settings & Preferences"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: 34, height: 34, borderRadius: 8, background: '#edf0f2',
-                  border: 'none', color: '#6b7280', cursor: 'pointer',
+                  border: '1px solid #e2e6e9', color: '#64748B', textDecoration: 'none',
                   transition: 'all 0.15s ease',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#dc2626'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; e.currentTarget.style.color = '#6b7280'; }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e6e9'; e.currentTarget.style.color = '#18181b'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; e.currentTarget.style.color = '#64748B'; }}
               >
-                <LogOut size={15} />
-              </button>
+                <Settings size={15} />
+              </Link>
             </div>
           )}
         </div>
@@ -341,24 +303,37 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           </div>
         </Link>
 
-        {/* Center/Right: Settings + Login Button (mobile) */}
+        {/* Center/Right: View Permissions + Settings / Login (mobile) */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {user && user.role !== 'student' && (
+          {routerLocation.pathname !== '/permissions' ? (
             <Link
-              to={user.role === 'admin' ? '/admin/users' : `/${user.role}/settings`}
-              title={user.role === 'admin' ? 'Add User' : 'Settings & Profile'}
+              to="/permissions"
               style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: user.role === 'admin' ? '#edf0f2' : '#FFF7ED',
-                border: user.role === 'admin' ? '1px solid #e2e6e9' : '1px solid #FED7AA',
-                color: user.role === 'admin' ? '#18181b' : '#EA580C',
-                textDecoration: 'none',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
+                color: '#EA580C', background: '#FFF7ED',
+                border: '1px solid #FED7AA',
+                borderRadius: 7, textDecoration: 'none',
               }}
             >
-              {user.role === 'admin' ? <Plus size={15} /> : <Settings size={14} />}
+              <Shield size={13} />
+              <span>Permissions</span>
             </Link>
-          )}
+          ) : user ? (
+            <Link
+              to={userPortalLink}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
+                color: '#18181b', background: '#edf0f2',
+                border: '1px solid #e2e6e9',
+                borderRadius: 7, textDecoration: 'none',
+              }}
+            >
+              <Home size={13} />
+              <span>Dashboard</span>
+            </Link>
+          ) : null}
 
           {!user ? (
             <Link
@@ -375,50 +350,19 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               <LogIn size={13} />
               <span>Login</span>
             </Link>
-          ) : user.role === 'student' || user.role === 'faculty' ? (
-            location.pathname === '/permissions' ? (
-              <Link
-                to={`/${user.role}`}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                  padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
-                  color: '#EA580C', background: '#FFF7ED',
-                  border: '1px solid #FED7AA',
-                  borderRadius: 7, textDecoration: 'none',
-                }}
-              >
-                <Home size={13} />
-                <span>Dashboard</span>
-              </Link>
-            ) : (
-              <Link
-                to="/permissions"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                  padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
-                  color: '#EA580C', background: '#FFF7ED',
-                  border: '1px solid #FED7AA',
-                  borderRadius: 7, textDecoration: 'none',
-                }}
-              >
-                <Shield size={13} />
-                <span>Permissions</span>
-              </Link>
-            )
           ) : (
             <Link
-              to={user.role === 'hod' ? '/hod/settings' : `/${user.role}`}
-              title={user.role === 'hod' ? 'Profile & Settings' : 'Dashboard'}
+              to={userSettingsLink}
+              title="Settings"
               style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                padding: '5px 10px', fontSize: 11.5, fontWeight: 600,
-                color: '#18181b', background: '#edf0f2',
-                border: '1px solid #e2e6e9',
-                borderRadius: 7, textDecoration: 'none',
+                width: 32, height: 32, borderRadius: 7,
+                background: '#edf0f2', border: '1px solid #e2e6e9',
+                color: '#64748B', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                textDecoration: 'none',
               }}
             >
-              <User size={13} />
-              <span style={{ textTransform: 'capitalize' }}>{user.name?.split(' ')[0] || user.role}</span>
+              <Settings size={14} />
             </Link>
           )}
         </div>

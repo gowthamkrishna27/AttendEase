@@ -9,7 +9,7 @@ function formatUserResponse(user: {
   userId: string; email: string; role: string; name: string;
   department: string; designation?: string | null; rollNumber?: string | null;
   semester?: number | null; avatarUrl?: string | null; phone?: string | null;
-  counselorId?: string | null;
+  counselorId?: string | null; year?: string | null; section?: string | null;
 }) {
   return {
     id:          user.userId,
@@ -20,9 +20,11 @@ function formatUserResponse(user: {
     ...(user.designation && { designation: user.designation }),
     ...(user.rollNumber  && { rollNumber:  user.rollNumber  }),
     ...(user.semester    && { semester:    user.semester    }),
+    ...(user.year        && { year:        user.year        }),
+    ...(user.section     && { section:     user.section     }),
     ...(user.avatarUrl   && { avatarUrl:   user.avatarUrl   }),
     ...(user.phone       && { phone:       user.phone       }),
-    ...(user.counselorId  && { counselorId:  user.counselorId  }),
+    ...(user.counselorId && { counselorId: user.counselorId }),
   };
 }
 
@@ -58,25 +60,28 @@ router.get('/counselees', verifyToken, async (req: Request, res: Response) => {
       (prisma as any).attendanceRecord ? (prisma as any).attendanceRecord.findMany({
         where: { rollNumber: { in: allRollTargets } },
       }) : Promise.resolve([]),
-      prisma.request.findMany({
+      (prisma as any).request ? (prisma as any).request.findMany({
         where: {
           studentId: { in: studentUserIds },
           status: 'approved',
         },
         select: { studentId: true },
-      }),
+      }) : Promise.resolve([]),
     ]);
 
-    // Group records by roll number and approved requests by studentId
-    const recordsByRoll = new Map<string, typeof allRecords>();
-    (allRecords as any[]).forEach((r: any) => {
-      const existing = recordsByRoll.get(r.rollNumber) || [];
-      recordsByRoll.set(r.rollNumber, [...existing, r]);
+    // Group records by roll
+    const recordsByRoll = new Map<string, any[]>();
+    allRecords.forEach((r: any) => {
+      const key = r.rollNumber;
+      if (!recordsByRoll.has(key)) recordsByRoll.set(key, []);
+      recordsByRoll.get(key)!.push(r);
     });
 
+    // Group approved requests by studentId
     const approvedCountByStudent = new Map<string, number>();
-    (approvedRequests as any[]).forEach((reqItem: any) => {
-      approvedCountByStudent.set(reqItem.studentId, (approvedCountByStudent.get(reqItem.studentId) || 0) + 1);
+    approvedRequests.forEach((req: any) => {
+      const cur = approvedCountByStudent.get(req.studentId) || 0;
+      approvedCountByStudent.set(req.studentId, cur + 1);
     });
 
     // Compute stats for each counselee in-memory
@@ -121,12 +126,128 @@ router.get('/counselees', verifyToken, async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/users/counselee-attendance
+ * Allows a mentor/faculty to manually enter/update attendance for an assigned counselee.
+ */
+router.post('/counselee-attendance', verifyToken, async (req: Request, res: Response) => {
+  try {
+    const facultyUserId = req.user!.id;
+    const { studentId, conductedCount, presentCount, percentage } = req.body as {
+      studentId: string;
+      conductedCount?: number;
+      presentCount?: number;
+      percentage?: number;
+    };
+
+    if (!studentId) {
+      res.status(400).json({ error: 'studentId is required' });
+      return;
+    }
+
+    const student = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { userId: studentId },
+          { id: studentId },
+          { rollNumber: studentId },
+        ],
+      },
+    });
+
+    if (!student) {
+      res.status(404).json({ error: 'Student not found' });
+      return;
+    }
+
+    const roll = student.rollNumber || student.userId;
+
+    // Determine target conducted and present counts
+    let targetConducted = typeof conductedCount === 'number' ? Math.max(1, conductedCount) : 100;
+    let targetPresent = typeof presentCount === 'number' ? Math.max(0, Math.min(targetConducted, presentCount)) : 85;
+
+    if (typeof percentage === 'number' && typeof conductedCount !== 'number' && typeof presentCount !== 'number') {
+      const clampedPct = Math.max(0, Math.min(100, percentage));
+      targetConducted = 100;
+      targetPresent = Math.round((clampedPct / 100) * targetConducted);
+    }
+
+    // Upsert a counseling attendance submission for this student by this faculty
+    const submissionKey = {
+      date: '2026-01-01',
+      section: `COUNSELING-${student.userId}`,
+      periods: '1',
+    };
+
+    const submission = await (prisma as any).attendanceSubmission.upsert({
+      where: {
+        date_section_periods: submissionKey,
+      },
+      update: {
+        markedById: facultyUserId,
+        year: student.year || '3rd Year',
+      },
+      create: {
+        ...submissionKey,
+        year: student.year || '3rd Year',
+        periodLabel: 'Counseling Attendance Entry',
+        markedById: facultyUserId,
+      },
+    });
+
+    // Delete existing records for this submission
+    await (prisma as any).attendanceRecord.deleteMany({
+      where: { submissionId: submission.id },
+    });
+
+    // Create present records and absent records
+    const recordsToCreate = [];
+    for (let i = 1; i <= targetPresent; i++) {
+      recordsToCreate.push({
+        submissionId: submission.id,
+        rollNumber: roll,
+        status: 'present',
+      });
+    }
+    const targetAbsent = targetConducted - targetPresent;
+    for (let i = 1; i <= targetAbsent; i++) {
+      recordsToCreate.push({
+        submissionId: submission.id,
+        rollNumber: roll,
+        status: 'absent',
+      });
+    }
+
+    if (recordsToCreate.length > 0) {
+      await (prisma as any).attendanceRecord.createMany({
+        data: recordsToCreate,
+      });
+    }
+
+    const calcPct = targetConducted > 0 ? Math.round((targetPresent / targetConducted) * 100) : 100;
+
+    res.json({
+      success: true,
+      message: `Updated attendance for ${student.name} (${roll}) to ${calcPct}%`,
+      stats: {
+        conductedCount: targetConducted,
+        presentCount: targetPresent,
+        absentCount: targetAbsent,
+        percentage: calcPct,
+      },
+    });
+  } catch (err) {
+    console.error('POST /users/counselee-attendance error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
  * GET /api/users/faculty
  * Returns all faculty members — visible to both HODs and Admin.
  */
 router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
   try {
-    const docs = await prisma.user.findMany({ where: { role: 'faculty' } });
+    const docs = await prisma.user.findMany({ where: { role: { in: ['faculty', 'hod'] } } });
     res.json({ faculty: docs.map(formatUserResponse) });
   } catch (err) {
     console.error('GET /users/faculty error:', err);
@@ -159,7 +280,7 @@ router.get('/students', verifyToken, async (_req: Request, res: Response) => {
         rollNumber: roll,
         department: s.department || 'Computer Science',
         semester:   sem,
-        year:       derivedYear,
+        year:       s.year || derivedYear,
         section:    s.section || derivedSec,
         avatarUrl:  s.avatarUrl ?? undefined,
       };
@@ -180,7 +301,7 @@ router.get('/students', verifyToken, async (_req: Request, res: Response) => {
 router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) => {
   try {
     const facultyList = await (prisma.user as any).findMany({
-      where: { role: 'faculty' },
+      where: { role: { in: ['faculty', 'hod'] } },
       include: {
         counselees: {
           select: {
@@ -191,6 +312,8 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
             rollNumber: true,
             department: true,
             semester: true,
+            year: true,
+            section: true,
             avatarUrl: true,
           },
         },
@@ -211,6 +334,8 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
         rollNumber: true,
         department: true,
         semester: true,
+        year: true,
+        section: true,
         avatarUrl: true,
       },
       orderBy: { rollNumber: 'asc' },
@@ -226,6 +351,8 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
           rollNumber: s.rollNumber ?? s.userId,
           department: s.department,
           semester: s.semester ?? undefined,
+          year: s.year ?? undefined,
+          section: s.section ?? undefined,
           avatarUrl: s.avatarUrl ?? undefined,
         })),
       })),
@@ -236,6 +363,8 @@ router.get('/counseling/all', verifyToken, async (_req: Request, res: Response) 
         rollNumber: s.rollNumber ?? s.userId,
         department: s.department,
         semester: s.semester ?? undefined,
+        year: s.year ?? undefined,
+        section: s.section ?? undefined,
         avatarUrl: s.avatarUrl ?? undefined,
       })),
     });
@@ -268,13 +397,29 @@ router.post('/counseling/assign', verifyToken, async (req: Request, res: Respons
       return;
     }
 
+    // Expand identifiers
+    const targets = new Set<string>();
+    studentIds.forEach(id => {
+      if (!id) return;
+      const clean = String(id).trim();
+      targets.add(clean);
+      if (clean.startsWith('stu-')) {
+        targets.add(clean.replace(/^stu-/, ''));
+      } else {
+        targets.add(`stu-${clean}`);
+      }
+    });
+
+    const targetList = Array.from(targets);
+
     // Assign counselorId to students
     const updated = await (prisma.user as any).updateMany({
       where: {
+        role: 'student',
         OR: [
-          { userId: { in: studentIds } },
-          { id: { in: studentIds } },
-          { rollNumber: { in: studentIds } },
+          { userId: { in: targetList } },
+          { id: { in: targetList } },
+          { rollNumber: { in: targetList } },
         ],
       },
       data: { counselorId: faculty.userId },
@@ -293,29 +438,67 @@ router.post('/counseling/assign', verifyToken, async (req: Request, res: Respons
 
 /**
  * POST /api/users/counseling/unassign
- * Unassigns a student from their counselor.
+ * Unassigns one or multiple students from their counselor.
  */
 router.post('/counseling/unassign', verifyToken, async (req: Request, res: Response) => {
   try {
-    const { studentId } = req.body as { studentId: string };
+    const { studentId, studentIds, facultyId, unassignAll } = req.body as {
+      studentId?: string;
+      studentIds?: string[];
+      facultyId?: string;
+      unassignAll?: boolean;
+    };
 
-    if (!studentId) {
-      res.status(400).json({ error: 'studentId is required' });
+    // 1. Bulk unassign all counselees for a faculty
+    if (unassignAll && facultyId) {
+      const faculty = await prisma.user.findFirst({
+        where: { OR: [{ userId: facultyId }, { id: facultyId }] },
+      });
+      const targetCounselorId = faculty ? faculty.userId : facultyId;
+      const result = await (prisma.user as any).updateMany({
+        where: { counselorId: targetCounselorId },
+        data: { counselorId: null },
+      });
+      res.json({ success: true, message: `Unassigned all ${result.count} student(s) from counselor`, count: result.count });
       return;
     }
 
-    await (prisma.user as any).updateMany({
+    // 2. Unassign specific student(s)
+    const idsToUnassign = (studentIds && Array.isArray(studentIds) && studentIds.length > 0)
+      ? studentIds
+      : (studentId ? [studentId] : []);
+
+    if (idsToUnassign.length === 0) {
+      res.status(400).json({ error: 'studentId or studentIds array is required' });
+      return;
+    }
+
+    const targets = new Set<string>();
+    idsToUnassign.forEach(id => {
+      if (!id) return;
+      const clean = String(id).trim();
+      targets.add(clean);
+      if (clean.startsWith('stu-')) {
+        targets.add(clean.replace(/^stu-/, ''));
+      } else {
+        targets.add(`stu-${clean}`);
+      }
+    });
+
+    const targetList = Array.from(targets);
+
+    const result = await (prisma.user as any).updateMany({
       where: {
         OR: [
-          { userId: studentId },
-          { id: studentId },
-          { rollNumber: studentId },
+          { userId: { in: targetList } },
+          { id: { in: targetList } },
+          { rollNumber: { in: targetList } },
         ],
       },
       data: { counselorId: null },
     });
 
-    res.json({ success: true, message: 'Student unassigned successfully' });
+    res.json({ success: true, message: `Unassigned ${result.count} student(s) successfully`, count: result.count });
   } catch (err) {
     console.error('POST /users/counseling/unassign error:', err);
     res.status(500).json({ error: 'Internal error' });

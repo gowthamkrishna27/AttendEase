@@ -2,15 +2,16 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, SlidersHorizontal, Paperclip, CheckCheck,
-  CheckCircle2, AlertCircle, Check, Loader2, X
+  Search, SlidersHorizontal, CheckCheck,
+  CheckCircle2, AlertCircle, Paperclip,
+  Check, Loader2, X,
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Avatar } from '../../components/shared/Avatar';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Button } from '../../components/ui/Button';
-import { formatDate, formatSubmittedAt, DEPARTMENTS } from '../../lib/utils';
+import { formatDate, DEPARTMENTS } from '../../lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
@@ -157,11 +158,9 @@ export default function FacultyRequests() {
     bulkRejectMutation.mutate(Array.from(selectedIds));
   };
 
-  const getDays = (_req: AttendanceRequest) => 1;
-
   return (
     <PageWrapper role="faculty" showGreeting={false}>
-      <div className="max-w-4xl mx-auto pb-24">
+      <div className="w-full max-w-[1400px] mx-auto pb-24 px-2 sm:px-4">
 
         {/* Toast Alert */}
         <AnimatePresence>
@@ -185,12 +184,12 @@ export default function FacultyRequests() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="mb-6 flex flex-wrap items-center justify-between gap-4"
+          className="mb-5 flex flex-wrap items-center justify-between gap-4"
         >
           <div>
-            <p className="text-[12px] font-bold text-orange-500 uppercase tracking-widest mb-1">Faculty</p>
-            <h1 className="text-[26px] font-heading font-bold text-slate-900">Requests</h1>
-            <p className="text-[14px] text-slate-400 mt-1">Review and action student attendance permission requests</p>
+            <p className="text-[11.5px] font-bold text-orange-500 uppercase tracking-widest mb-0.5">Faculty Portal</p>
+            <h1 className="text-[24px] font-heading font-bold text-slate-900">Student Requests</h1>
+            <p className="text-[13px] text-slate-400">Review and action student attendance permission requests</p>
           </div>
 
           {/* Quick Select All Pending button if pending requests exist */}
@@ -198,13 +197,13 @@ export default function FacultyRequests() {
             <button
               type="button"
               onClick={toggleSelectAllPending}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
                 allPendingSelected
                   ? 'bg-orange-50 text-orange-700 border-orange-200 shadow-xs'
                   : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-subtle'
               }`}
             >
-              <CheckCheck size={15} className={allPendingSelected ? 'text-orange-600' : 'text-slate-400'} />
+              <CheckCheck size={14} className={allPendingSelected ? 'text-orange-600' : 'text-slate-400'} />
               <span>{allPendingSelected ? 'Deselect All Pending' : `Select All Pending (${pendingFiltered.length})`}</span>
             </button>
           )}
@@ -218,7 +217,7 @@ export default function FacultyRequests() {
           className="mb-4"
         >
           {/* Search + Department Filter */}
-          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 mb-3.5">
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
             <div className="relative flex-1">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
               <input
@@ -226,16 +225,16 @@ export default function FacultyRequests() {
                 placeholder="Search by student, reason, or roll no..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/12 transition-all shadow-subtle"
+                className="w-full pl-9 pr-4 py-2 text-[13.5px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/12 transition-all shadow-subtle"
               />
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <div className="relative flex-1 sm:flex-initial">
-                <SlidersHorizontal size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
+                <SlidersHorizontal size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
                 <select
                   value={department}
                   onChange={e => setDept(e.target.value)}
-                  className="w-full sm:w-auto h-[42px] pl-9 pr-4 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 appearance-none cursor-pointer text-slate-700 min-w-[140px] shadow-subtle font-medium"
+                  className="w-full sm:w-auto h-[38px] pl-8 pr-4 text-[12.5px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 appearance-none cursor-pointer text-slate-700 min-w-[130px] shadow-subtle font-medium"
                 >
                   <option value="">All Branches</option>
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -251,7 +250,7 @@ export default function FacultyRequests() {
               <select
                 value={yearFilter}
                 onChange={e => setYearFilter(e.target.value)}
-                className="w-full sm:w-auto h-[42px] px-3 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
+                className="h-[38px] px-3 text-[12.5px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
               >
                 <option value="">All Years</option>
                 <option value="1st Year">1st Year</option>
@@ -263,7 +262,7 @@ export default function FacultyRequests() {
               <select
                 value={tab}
                 onChange={e => setTab(e.target.value as TabValue)}
-                className="w-full sm:w-auto h-[42px] px-3 text-[13px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
+                className="h-[38px] px-3 text-[12.5px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 cursor-pointer text-slate-700 shadow-subtle font-medium"
               >
                 <option value="all">All Statuses ({requestsList.length})</option>
                 <option value="pending">Pending ({requestsList.filter(r => r.status === 'pending').length})</option>
@@ -291,13 +290,13 @@ export default function FacultyRequests() {
               }
             />
           ) : (
-            <div className="card overflow-hidden">
+            <div className="card overflow-hidden bg-white border border-slate-200/90 rounded-2xl shadow-2xs">
 
-              {/* Desktop Table */}
+              {/* Desktop Minimal Expanded Table */}
               <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-left">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                    <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       <th className="w-10 px-4 py-3 text-center">
                         <input
                           type="checkbox"
@@ -308,15 +307,14 @@ export default function FacultyRequests() {
                           title={allPendingSelected ? 'Deselect all pending' : 'Select all pending'}
                         />
                       </th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Student</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Roll No.</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Branch / Year</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reason</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Proof Attached</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Requested On</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Days</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                      <th className="text-right px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-3">Student</th>
+                      <th className="px-3 py-3">Roll No</th>
+                      <th className="px-3 py-3">Branch &amp; Year</th>
+                      <th className="px-4 py-3">Reason</th>
+                      <th className="px-3 py-3 text-center">Proof</th>
+                      <th className="px-4 py-3">Date &amp; Periods</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="text-right px-5 py-3">Actions</th>
                     </tr>
                   </thead>
                   <motion.tbody variants={listVariants} initial="hidden" animate="visible">
@@ -336,13 +334,13 @@ export default function FacultyRequests() {
                               navigate(`/faculty/request/${req.id}`);
                             }
                           }}
-                          className={`border-b border-slate-50 last:border-0 cursor-pointer transition-colors ${
-                            isSelected ? 'bg-orange-50/60 hover:bg-orange-50/80' : 'hover:bg-slate-50/70'
+                          className={`border-b border-slate-100 last:border-0 cursor-pointer transition-colors ${
+                            isSelected ? 'bg-orange-50/70 hover:bg-orange-50/90' : 'hover:bg-slate-50/60'
                           }`}
                         >
                           {/* Selection Checkbox */}
                           <td
-                            className="w-10 px-4 py-3.5 text-center"
+                            className="w-10 px-4 py-3 text-center"
                             onClick={e => {
                               e.stopPropagation();
                               toggleSelect(req.id);
@@ -356,55 +354,87 @@ export default function FacultyRequests() {
                             />
                           </td>
 
-                          <td className="px-4 py-3.5">
+                          <td className="px-4 py-3">
                             <div className="flex items-center gap-2.5">
                               <Avatar name={req.student?.name || 'S'} src={req.student?.avatarUrl} size="sm" role="student" />
-                              <span className="text-[13px] font-semibold text-slate-800">{req.student?.name}</span>
+                              <span className="text-[13px] font-semibold text-slate-800 truncate max-w-[180px]">{req.student?.name}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <span className="text-[13px] font-mono text-slate-500">{req.student?.rollNumber}</span>
+                          <td className="px-3 py-3">
+                            <span className="text-[12.5px] font-mono text-slate-500">{req.student?.rollNumber}</span>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-orange-50 text-orange-700 border border-orange-200">
-                                {req.student?.department || 'CSD'}
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-orange-50 text-orange-700 border border-orange-200/80">
+                                {req.student?.department || 'CSIT'}
                               </span>
                               <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-600 border border-slate-200">
                                 {req.student?.year || (req.student?.semester ? `${Math.ceil(req.student.semester / 2)}${Math.ceil(req.student.semester / 2) === 1 ? 'st' : Math.ceil(req.student.semester / 2) === 2 ? 'nd' : Math.ceil(req.student.semester / 2) === 3 ? 'rd' : 'th'} Yr` : '3rd Yr')}
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <span className="text-[13px] text-slate-600">{req.reasonLabel}</span>
+                          <td className="px-4 py-3">
+                            <span className="text-[13px] text-slate-700 font-medium">{req.reasonLabel}</span>
                           </td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-3 py-3 text-center">
                             {proofDocName ? (
-                              <div className="flex items-center gap-1.5 text-[11px] font-bold text-orange-600 bg-orange-50/90 hover:bg-orange-100 border border-orange-200/80 px-2.5 py-1 rounded-lg transition-colors w-fit">
-                                <Paperclip size={12} className="text-orange-500 flex-shrink-0" />
-                                <span className="truncate max-w-[130px]">{proofDocName}</span>
-                              </div>
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-orange-600 bg-orange-50 border border-orange-200/80 px-2 py-0.5 rounded-lg">
+                                <Paperclip size={11} className="text-orange-500" />
+                                Proof
+                              </span>
                             ) : (
-                              <span className="text-[12px] text-slate-400 italic">No document</span>
+                              <span className="text-[12px] text-slate-300 font-medium">—</span>
                             )}
                           </td>
-                          <td className="px-4 py-3.5">
-                            <span className="text-[13px] text-slate-500">{formatDate(req.date)}</span>
-                            {req.submittedAt && (
-                              <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                Sub: {formatSubmittedAt(req.submittedAt)}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[12.5px] font-medium text-slate-700">{formatDate(req.date)}</span>
+                              {req.periods && (
+                                <div className="inline-flex items-center gap-0.5 shrink-0">
+                                  {req.periods
+                                    .split(/[, ]+/)
+                                    .filter(Boolean)
+                                    .map((p, idx) => (
+                                      <span
+                                        key={idx}
+                                        style={{
+                                          width: '15px',
+                                          height: '15px',
+                                          minWidth: '15px',
+                                          minHeight: '15px',
+                                          borderRadius: '50%',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          padding: 0,
+                                          lineHeight: 1,
+                                          fontSize: '8px',
+                                        }}
+                                        className={`font-bold font-mono ${
+                                          req.status === 'approved'
+                                            ? 'bg-orange-500 text-white shadow-2xs'
+                                            : 'bg-slate-200 text-slate-700'
+                                        }`}
+                                        title={`Period ${p}`}
+                                      >
+                                        {p}
+                                      </span>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
+                            {req.status === 'approved' && (req.finalDecisionName || req.faculty?.name) && (
+                              <p className="text-[10.5px] text-slate-500 font-medium mt-0.5 whitespace-nowrap">
+                                Approved by: <span className="font-semibold text-slate-800">{req.finalDecisionName || req.faculty?.name}</span>
                               </p>
                             )}
                           </td>
-                          <td className="px-4 py-3.5">
-                            <span className="text-[13px] font-medium text-slate-700">{getDays(req)}</span>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
-                          </td>
 
-                          {/* Quick Row Actions (Thick Mark & Wrong Mark in Transparent Orange Theme) */}
-                          <td className="px-5 py-3.5 text-right" onClick={e => e.stopPropagation()}>
+                          {/* Quick Row Actions */}
+                          <td className="px-5 py-3 text-right" onClick={e => e.stopPropagation()}>
                             {isPending ? (
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
@@ -414,7 +444,7 @@ export default function FacultyRequests() {
                                   title="Accept Request"
                                   className="w-7 h-7 bg-orange-500/15 hover:bg-orange-500 active:scale-90 text-orange-600 hover:text-white border border-orange-400/40 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-2xs"
                                 >
-                                  <Check size={14} className="stroke-[3.5]" />
+                                  <Check size={13} className="stroke-[3.5]" />
                                 </button>
                                 <button
                                   type="button"
@@ -423,11 +453,11 @@ export default function FacultyRequests() {
                                   title="Reject Request"
                                   className="w-7 h-7 bg-rose-500/15 hover:bg-rose-500 active:scale-90 text-rose-600 hover:text-white border border-rose-400/40 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-2xs"
                                 >
-                                  <X size={14} className="stroke-[3.5]" />
+                                  <X size={13} className="stroke-[3.5]" />
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-[11px] text-slate-400 font-medium">—</span>
+                              <span className="text-[11px] text-slate-300 font-medium">—</span>
                             )}
                           </td>
                         </motion.tr>
@@ -538,15 +568,51 @@ export default function FacultyRequests() {
                           </div>
                         </div>
 
-                        {/* Reason, Days & Proof Row */}
+                        {/* Reason, Days, Proof & Periods Row */}
                         <div className="flex items-center justify-between text-[11.5px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-semibold text-slate-700 truncate max-w-[140px]">{req.reasonLabel}</span>
+                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                            <span className="font-semibold text-slate-700 truncate max-w-[130px]">{req.reasonLabel}</span>
                             {proofDocName && (
                               <span className="flex items-center gap-1 text-[9.5px] font-bold text-orange-600 bg-orange-100/70 px-1.5 py-0.5 rounded-md shrink-0">
                                 <Paperclip size={9} />
                                 Proof
                               </span>
+                            )}
+                            {/* Small Perfect Static Circles for Periods */}
+                            {req.periods && (
+                              <div className="inline-flex items-center gap-1 shrink-0">
+                                {req.periods
+                                  .split(/[, ]+/)
+                                  .filter(Boolean)
+                                  .map((p, idx) => (
+                                    <span
+                                      key={idx}
+                                      style={{
+                                        width: '18px',
+                                        height: '18px',
+                                        minWidth: '18px',
+                                        minHeight: '18px',
+                                        maxWidth: '18px',
+                                        maxHeight: '18px',
+                                        borderRadius: '50%',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: 0,
+                                        lineHeight: 1,
+                                        fontSize: '9.5px',
+                                      }}
+                                      className={`font-bold font-mono transition-all ${
+                                        req.status === 'approved'
+                                          ? 'bg-orange-500 text-white shadow-xs'
+                                          : 'bg-slate-200 text-slate-700'
+                                      }`}
+                                      title={`Period ${p}${req.status === 'approved' ? ' (Approved)' : ''}`}
+                                    >
+                                      {p}
+                                    </span>
+                                  ))}
+                              </div>
                             )}
                           </div>
                           <div className="flex items-center gap-1 text-slate-400 shrink-0 text-[11px]">

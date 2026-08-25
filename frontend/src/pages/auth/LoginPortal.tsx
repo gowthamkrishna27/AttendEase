@@ -58,8 +58,19 @@ export default function LoginPortal() {
   const redirectParam = new URLSearchParams(location.search).get('redirect');
 
   const getPostLoginTarget = (role: UserRole) => {
-    if (redirectParam) return redirectParam;
-    if (fromPath) return fromPath;
+    if (redirectParam) {
+      const trimmed = redirectParam.trim();
+      // Ensure redirect is strictly a safe relative internal route (starts with /, not // or \ or contains protocol)
+      if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.includes('\\') && !trimmed.includes('://')) {
+        return trimmed;
+      }
+    }
+    if (fromPath) {
+      const trimmed = fromPath.trim();
+      if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.includes('\\') && !trimmed.includes('://')) {
+        return trimmed;
+      }
+    }
     return role === 'student' ? '/student' : role === 'faculty' ? '/faculty' : '/hod';
   };
 

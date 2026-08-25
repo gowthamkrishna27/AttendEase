@@ -19,6 +19,7 @@ export interface Student {
   department: string;
   semester: number;
   email: string;
+  phone?: string;
   section?: string;
   year?: string;
   avatarUrl?: string;
@@ -64,6 +65,8 @@ export interface AttendanceRequest {
   primaryFaculty?: Faculty;
   facultyIds?: string[];
   faculties?: Faculty[];
+  shareToken?: string;
+  shareUrl?: string;
   reviewedAt?: string;
   rejectionReason?: string;
   finalDecisionBy?: string;

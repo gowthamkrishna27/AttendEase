@@ -70,6 +70,7 @@ model User {
   notifications         Notification[]
   passkeys              UserPasskey[]
   attendanceSubmissions AttendanceSubmission[]
+  createdShareLinks     PermissionRequestShareLink[] @relation("UserCreatedShareLinks")
 
   @@index([role])
   @@index([department])
@@ -111,12 +112,35 @@ model Request {
   faculties           RequestFaculty[]
   actions             RequestAction[]
   notifications       Notification[]
+  shareLinks          PermissionRequestShareLink[]
 
   @@index([studentId])
   @@index([status])
   @@index([submittedAt(sort: Desc)])
   @@index([primaryFacultyId])
   @@index([publicId])
+}
+
+/// Dedicated secure share link for attendance permission requests
+model PermissionRequestShareLink {
+  id             String    @id @default(cuid())
+  requestId      String    // references Request.id
+  token          String    @unique // cryptographically secure token: "8F4K2P9X7M"
+  createdBy      String    // references User.userId
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  isActive       Boolean   @default(true)
+  lastAccessedAt DateTime?
+
+  request        Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  creator        User      @relation("UserCreatedShareLinks", fields: [createdBy], references: [userId], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([token])
+  @@index([createdBy])
+  @@index([isActive])
+  @@map("permission_request_share_links")
 }
 
 /// Join table: which faculty members are assigned to review a request
