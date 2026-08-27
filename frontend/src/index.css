@@ -238,6 +238,7 @@
   }
 }
 
+<<<<<<< Updated upstream
 /* ═══════════════════════════════════════
     DARK MODE THEME SYSTEM
 ═══════════════════════════════════════ */
@@ -313,3 +314,13 @@ html.dark [style*="border-bottom: 1px solid #EEF2F7"] {
   border-color: #334155 !important;
 }
 
+=======
+/* Custom class to hide native select dropdown arrows only on mobile viewports */
+@media (max-width: 640px) {
+  .mobile-select-no-arrow {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+  }
+}
+>>>>>>> Stashed changes

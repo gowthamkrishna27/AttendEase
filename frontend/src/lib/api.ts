@@ -1,4 +1,4 @@
-import { getSecureToken, saveSecureToken, clearSecureToken as clearNativeSecureToken } from './nativeAuth';
+import { saveSecureToken } from './nativeAuth';
 
 function getApiBaseUrl(): string {
   const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
@@ -106,6 +106,10 @@ export interface AttendanceRequest {
   reason: RequestReason;
   reasonLabel: string;
   date: string;
+  endDate?: string;
+  periods?: string;
+  grantedPeriods?: string;
+  originalPeriods?: string;
   startTime: string;
   endTime: string;
   description: string;
@@ -114,6 +118,10 @@ export interface AttendanceRequest {
   submittedAt: string;
   facultyId?: string;
   faculty?: Faculty;
+  primaryFacultyId?: string;
+  facultyIds?: string[];
+  shareToken?: string;
+  shareUrl?: string;
   faculties?: Faculty[];
   reviewedAt?: string;
   finalDecisionBy?: 'Faculty' | 'HOD' | string;
@@ -295,6 +303,20 @@ export async function deleteRequest(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/api/requests/${id}`, {
     method: 'DELETE',
   });
+}
+
+export async function updateRequest(
+  id: string,
+  data: Partial<CreateRequestPayload> & { periods?: string },
+): Promise<AttendanceRequest> {
+  const res = await apiFetch<{ request: AttendanceRequest }>(
+    `/api/requests/${id}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    },
+  );
+  return res.request;
 }
 
 export async function reviewRequest(

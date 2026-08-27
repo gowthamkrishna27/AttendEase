@@ -1,4 +1,6 @@
-import admin from 'firebase-admin';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
+import type { Message } from 'firebase-admin/messaging';
 import { prisma } from '../db/prisma.js';
 
 /**
@@ -6,18 +8,18 @@ import { prisma } from '../db/prisma.js';
  */
 
 // Initialize Firebase Admin SDK
-if (!admin.apps.length) {
+if (!getApps().length) {
   try {
     const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
     if (serviceAccountVar) {
       const serviceAccount = JSON.parse(serviceAccountVar);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+      initializeApp({
+        credential: cert(serviceAccount),
       });
       console.log('[FCM Backend] Initialized Firebase Admin SDK with service account credentials.');
     } else {
       // Fallback initialization for default project
-      admin.initializeApp({
+      initializeApp({
         projectId: process.env.FIREBASE_PROJECT_ID || 'attendease-mobile-app',
       });
       console.log('[FCM Backend] Initialized Firebase Admin SDK with default project config.');
@@ -49,7 +51,7 @@ export async function sendFcmNotification(
     return false;
   }
 
-  const message: admin.messaging.Message = {
+  const message: Message = {
     token: fcmToken,
     notification: {
       title,
@@ -73,7 +75,7 @@ export async function sendFcmNotification(
   console.log(`[FCM Backend] Firebase send started for target token ${fcmToken.slice(0, 12)}...`, { title, data });
 
   try {
-    const response = await admin.messaging().send(message);
+    const response = await getMessaging().send(message);
     console.log(`[FCM Backend] Firebase response success -> MessageId: ${response}`);
     return true;
   } catch (error: any) {

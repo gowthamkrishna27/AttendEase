@@ -27,13 +27,12 @@ export default function HODRequestDetails() {
       try {
         return await api.getRequest(id!);
       } catch (err) {
-        const cachedList = queryClient.getQueryData<api.AttendanceRequest[]>(['requests']) || [];
-        const cached = cachedList.find(r => r.id === id || (r as any).requestId === id);
-        if (cached) return cached;
         throw err;
       }
     },
     enabled: Boolean(id),
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);

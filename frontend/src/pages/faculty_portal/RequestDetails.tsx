@@ -3,14 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, FileText } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
-import { Avatar } from '../../components/shared/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/shared/Modal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import { formatDate, formatTime } from '../../lib/utils';
-
-
 import { useAuth } from '../../context/AuthContext';
 
 export default function FacultyRequestDetails() {
@@ -34,30 +31,71 @@ export default function FacultyRequestDetails() {
       }
     },
     enabled: !!id,
+    staleTime: 0,
+    gcTime: 0,
   });
+
+  const invalidateAllRelatedQueries = () => {
+    void queryClient.invalidateQueries({ queryKey: ['requests'] });
+    void queryClient.invalidateQueries({ queryKey: ['facultyRequests'] });
+    void queryClient.invalidateQueries({ queryKey: ['studentRequests'] });
+    void queryClient.invalidateQueries({ queryKey: ['public-approved-requests'] });
+    void queryClient.invalidateQueries({ queryKey: ['public-approved-requests-for-attendance'] });
+    void queryClient.invalidateQueries({ queryKey: ['attendanceSubmissions'] });
+    void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  };
 
   const reviewMutation = useMutation({
-    mutationFn: ({ action, reason }: { action: 'approve' | 'reject'; reason?: string }) =>
-      api.reviewRequest(id!, action, reason),
-    onMutate: async ({ action }) => {
-      await queryClient.cancelQueries({ queryKey: ['request', id] });
-      await queryClient.cancelQueries({ queryKey: ['requests'] });
-
-      const newStatus = action === 'approve' ? 'approved' : 'rejected';
-      queryClient.setQueryData<api.AttendanceRequest>(['request', id], old =>
-        old ? { ...old, status: newStatus as any } : old
-      );
-
-      queryClient.setQueryData<api.AttendanceRequest[]>(['requests'], old =>
-        (old || []).map(r => r.id === id ? { ...r, status: newStatus as any } : r)
-      );
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      void queryClient.invalidateQueries({ queryKey: ['request', id] });
+    mutationFn: (payload: { action: 'approve' | 'reject'; reason?: string }) =>
+      api.reviewRequest(id!, payload.action, payload.reason),
+    onSuccess: (updatedReq) => {
+      queryClient.setQueryData(['request', id], updatedReq);
+      invalidateAllRelatedQueries();
       setConfirmModal(null);
+      setRejectionReason('');
     },
   });
+
+  const [originalPeriodsList, setOriginalPeriodsList] = useState<number[]>([]);
+  const [selectedPeriods, setSelectedPeriods] = useState<number[]>([]);
+  const [isEditPeriodsOpen, setIsEditPeriodsOpen] = useState(false);
+
+  const requestOriginalPeriods = request?.originalPeriods || request?.periods;
+  if (requestOriginalPeriods && originalPeriodsList.length === 0) {
+    const parsed = requestOriginalPeriods.split(',').map((p: string) => parseInt(p.trim())).filter((n: number) => !isNaN(n));
+    if (parsed.length > 0) {
+      setOriginalPeriodsList(parsed);
+      setSelectedPeriods(parsed);
+    }
+  }
+
+  const togglePeriod = (p: number) => {
+    setSelectedPeriods(prev =>
+      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+    );
+  };
+
+  const updatePeriodsMutation = useMutation({
+    mutationFn: (periods: string) => api.updateRequest(id!, { periods }),
+    onSuccess: (updatedReq) => {
+      queryClient.setQueryData(['request', id], updatedReq);
+      invalidateAllRelatedQueries();
+      setIsEditPeriodsOpen(false);
+    },
+    onError: (err: any) => {
+      alert(err?.message || 'Failed to update periods.');
+    }
+  });
+
+  const handleSavePeriods = () => {
+    if (selectedPeriods.length === 0) {
+      alert('Please select at least one period.');
+      return;
+    }
+    const sorted = [...selectedPeriods].sort((a, b) => a - b);
+    const periodsStr = sorted.join(',');
+    updatePeriodsMutation.mutate(periodsStr);
+  };
 
   if (isLoading) {
     return (
@@ -82,29 +120,34 @@ export default function FacultyRequestDetails() {
     );
   }
 
+  const loggedInUserId = (user?.id || '').toLowerCase().trim();
+  const loggedInUserCustomId = ((user as any)?.userId || '').toLowerCase().trim();
+  const loggedInUserEmail = (user?.email || '').toLowerCase().trim();
+
+  const primaryFacId = (request?.facultyId || '').toLowerCase().trim();
+  const primaryFacEmail = (request?.faculty?.email || '').toLowerCase().trim();
+  const assignedFacultyIds = (request?.facultyIds || []).map((fid: string) => fid.toLowerCase().trim());
+  const assignedEmails = (request?.faculties || []).map((f: any) => (f.email || '').toLowerCase().trim());
+
+  const isAssigned =
+    loggedInUserId === primaryFacId ||
+    loggedInUserCustomId === primaryFacId ||
+    loggedInUserEmail === primaryFacEmail ||
+    assignedFacultyIds.includes(loggedInUserId) ||
+    assignedFacultyIds.includes(loggedInUserCustomId) ||
+    assignedEmails.includes(loggedInUserEmail);
+
+  const isRequestClosed = (() => {
+    if (!request?.date) return false;
+    const targetDateStr = request.endDate || request.date;
+    const targetDate = new Date(targetDateStr);
+    targetDate.setHours(23, 59, 59, 999);
+    return new Date() > targetDate;
+  })();
+
   const currentStatus = request.status;
 
-  const isAssignedFaculty = () => {
-    if (!user || !request) return true;
-    if (user.role === 'admin' || user.role === 'hod') return true;
 
-    const userEmail = (user.email || '').toLowerCase();
-    const userName = (user.name || '').toLowerCase();
-    const userId = user.id;
-
-    if (request.facultyId && request.facultyId === userId) return true;
-    if (request.faculty?.email && request.faculty.email.toLowerCase() === userEmail) return true;
-    if (request.faculty?.name && request.faculty.name.toLowerCase() === userName) return true;
-
-    if (request.facultyIds && request.facultyIds.includes(userId)) return true;
-    if (request.faculties && request.faculties.some(f => f.email?.toLowerCase() === userEmail || f.name?.toLowerCase() === userName || f.id === userId)) return true;
-
-    if (!request.facultyId && !request.faculty?.email && (!request.faculties || request.faculties.length === 0)) return true;
-
-    return false;
-  };
-
-  const isAssigned = isAssignedFaculty();
 
   const handleConfirm = () => {
     reviewMutation.mutate({
@@ -237,6 +280,27 @@ export default function FacultyRequestDetails() {
                 <p className="text-[14px] font-medium text-[#111111]">
                   {formatTime(request.startTime)} – {formatTime(request.endTime)}
                 </p>
+                {request.periods && (
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <p className="text-[11px] font-semibold text-orange-600">
+                      Periods: {request.periods}
+                    </p>
+                    {isAssigned && !isRequestClosed && (
+                      <button
+                        onClick={() => {
+                          const targetPeriodsStr = request.originalPeriods || request.periods || '';
+                          const originalParsed = targetPeriodsStr.split(',').map((p: string) => parseInt(p.trim())).filter((n: number) => !isNaN(n));
+                          setSelectedPeriods(originalParsed);
+                          setIsEditPeriodsOpen(true);
+                        }}
+                        className="text-[16px] font-black text-black hover:text-orange-500 hover:bg-slate-100 hover:scale-105 active:scale-90 transition-all cursor-pointer inline-flex items-center justify-center w-7 h-7 rounded-full -ml-0.5"
+                        title="Edit granted periods"
+                      >
+                        ✎
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -282,40 +346,62 @@ export default function FacultyRequestDetails() {
           <p className="text-[15px] text-[#111111] leading-relaxed">{request.description}</p>
         </div>
 
-        {/* Actions — only show approve/reject if assigned and pending */}
-        {currentStatus === 'pending' && isAssigned && (
-          <div className="flex gap-3">
-            <Button
-              variant="secondary"
-              size="lg"
-              className="flex-1 border-danger/30 text-danger hover:bg-danger/5"
-              onClick={() => setConfirmModal('reject')}
-            >
-              Reject
-            </Button>
-            <Button
-              size="lg"
-              className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white shadow-sm shadow-orange-500/25 border-none font-semibold active:scale-[0.98]"
-              onClick={() => setConfirmModal('approve')}
-            >
-              Approve Request
-            </Button>
-          </div>
+        {/* Actions — show Approve/Reject if pending, show Reject if approved, show Approve if rejected */}
+        {isAssigned && !isRequestClosed && (
+          currentStatus === 'pending' ? (
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                size="lg"
+                className="flex-1 border-danger/30 text-danger hover:bg-danger/5"
+                onClick={() => setConfirmModal('reject')}
+              >
+                Reject
+              </Button>
+              <Button
+                size="lg"
+                className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white shadow-sm shadow-orange-500/25 border-none font-semibold active:scale-[0.98]"
+                onClick={() => setConfirmModal('approve')}
+              >
+                Approve Request
+              </Button>
+            </div>
+          ) : currentStatus === 'approved' ? (
+            <div className="flex flex-col gap-3">
+              <div className="rounded-xl px-5 py-4 text-center border bg-success/5 border-success/20">
+                <p className="text-[15px] font-semibold text-success">
+                  ✓ Request Approved
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                size="lg"
+                className="w-full border-danger/30 text-danger hover:bg-danger/5"
+                onClick={() => setConfirmModal('reject')}
+              >
+                Reject Request
+              </Button>
+            </div>
+          ) : currentStatus === 'rejected' ? (
+            <div className="flex flex-col gap-3">
+              <div className="rounded-xl px-5 py-4 text-center border bg-danger/5 border-danger/20">
+                <p className="text-[15px] font-semibold text-danger">
+                  ✗ Request Rejected
+                </p>
+              </div>
+              <Button
+                size="lg"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white shadow-sm shadow-orange-500/25 border-none font-semibold active:scale-[0.98]"
+                onClick={() => setConfirmModal('approve')}
+              >
+                Approve Request
+              </Button>
+            </div>
+          ) : null
         )}
 
-        {/* Pending & Not Assigned Notice */}
-        {currentStatus === 'pending' && !isAssigned && (
-          <div className="rounded-xl px-5 py-4 text-center bg-slate-100/90 border border-slate-200 shadow-2xs">
-            <p className="text-[14px] font-bold text-slate-800 flex items-center justify-center gap-1.5">
-              🔒 Approval Restricted to Assigned Reviewer
-            </p>
-            <p className="text-[12px] text-slate-600 mt-1">
-              This request is assigned to <span className="font-semibold text-slate-900">{request.faculty?.name || 'the assigned faculty member'}</span>. Only the assigned faculty or HOD can approve or reject this request.
-            </p>
-          </div>
-        )}
-
-        {currentStatus !== 'pending' && (
+        {/* If the request status is not pending and we are either unassigned or it is closed, show standard status banner */}
+        {(!isAssigned || isRequestClosed) && currentStatus !== 'pending' && (
           <div className={`rounded-xl px-5 py-4 text-center border ${currentStatus === 'approved'
             ? 'bg-success/5 border-success/20'
             : 'bg-danger/5 border-danger/20'
@@ -323,6 +409,15 @@ export default function FacultyRequestDetails() {
             <p className={`text-[15px] font-semibold ${currentStatus === 'approved' ? 'text-success' : 'text-danger'
               }`}>
               {currentStatus === 'approved' ? '✓ Request Approved' : '✗ Request Rejected'}
+            </p>
+          </div>
+        )}
+
+        {/* Read-only banner for unassigned faculty on pending requests */}
+        {!isAssigned && currentStatus === 'pending' && (
+          <div className="rounded-xl px-5 py-4 text-center border bg-slate-50 border-slate-200">
+            <p className="text-[14px] font-semibold text-slate-500">
+              Read-Only View (Not Assigned to You)
             </p>
           </div>
         )}
@@ -370,6 +465,57 @@ export default function FacultyRequestDetails() {
             onClick={handleConfirm}
           >
             {confirmModal === 'approve' ? 'Approve' : 'Reject'}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Edit Periods Modal */}
+      <Modal
+        open={isEditPeriodsOpen}
+        onClose={() => setIsEditPeriodsOpen(false)}
+        title="Edit Granted Periods"
+        description="Select or deselect periods to grant permission only for the selected ones. Saving will automatically approve the request for these periods."
+        size="sm"
+      >
+        <div className="py-4">
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">
+            Select Periods ({selectedPeriods.length} selected)
+          </label>
+          <div className="grid grid-cols-4 gap-2.5">
+            {originalPeriodsList.map(p => {
+              const isSel = selectedPeriods.includes(p);
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => togglePeriod(p)}
+                  className={`h-11 rounded-xl text-xs font-extrabold border transition-all cursor-pointer flex items-center justify-center ${
+                    isSel
+                      ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  Period {p}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={() => setIsEditPeriodsOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white font-semibold"
+            onClick={handleSavePeriods}
+            loading={updatePeriodsMutation.isPending}
+          >
+            Save & Grant
           </Button>
         </div>
       </Modal>

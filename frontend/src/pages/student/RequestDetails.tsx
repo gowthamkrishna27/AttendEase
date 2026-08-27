@@ -16,6 +16,8 @@ export default function RequestDetails() {
     queryKey: ['request', id],
     queryFn: () => api.getRequest(id!),
     enabled: !!id,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   if (isLoading) {

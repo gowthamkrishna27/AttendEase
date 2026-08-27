@@ -103,11 +103,11 @@ router.post('/register-device', async (req: Request, res: Response) => {
 
     const user = req.user!;
     await prisma.user.update({
-      where: { userId: user.userId },
+      where: { userId: (user as any).userId },
       data: { fcmToken },
     });
 
-    console.log(`[FCM Backend] Saved FCM device token to PostgreSQL for user ${user.name} (${user.userId}): ${fcmToken.slice(0, 15)}...`);
+    console.log(`[FCM Backend] Saved FCM device token to PostgreSQL for user ${(user as any).name} (${(user as any).userId}): ${fcmToken.slice(0, 15)}...`);
     res.json({ success: true, message: 'FCM Device token registered & stored in PostgreSQL successfully' });
   } catch (err) {
     console.error('POST /notifications/register-device error:', err);

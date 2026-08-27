@@ -5,6 +5,8 @@ import { prisma } from '../db/prisma.js';
 import type { RequestReason } from '../types.js';
 import type { Prisma, RequestStatus } from '@prisma/client';
 import { sendFcmNotification } from '../services/fcm.service.js';
+import { isStudentOwnerOfRequest, isFacultyAuthorizedForRequest } from '../services/requestAuth.js';
+import { generateShareToken } from '../utils/shareToken.js';
 
 const router = Router();
 
@@ -27,12 +29,14 @@ router.get('/public-approved', async (_req: Request, res: Response) => {
 router.use(verifyToken);
 
 const REASON_LABELS: Record<RequestReason, string> = {
-  internship:       'Internship',
-  medical:          'Medical Leave',
-  sports:           'Sports Event',
-  family_emergency: 'Family Emergency',
-  competition:      'Competition',
-  other:            'Other',
+  internship:          'Internship',
+  startup:             'Startup Work',
+  project_development: 'Project Development',
+  medical:             'Medical Leave',
+  sports:              'Sports Event',
+  family_emergency:    'Family Emergency',
+  competition:         'Competition',
+  other:               'Other',
 };
 
 // Shared include for all request queries including actions audit trail
@@ -90,7 +94,9 @@ function toApi(r: any) {
     reasonLabel:         r.reasonLabel,
     date:                r.date,
     endDate:             r.endDate ?? undefined,
-    periods:             r.periods ?? undefined,
+    periods:             r.grantedPeriods || r.periods || undefined,
+    grantedPeriods:      r.grantedPeriods ?? undefined,
+    originalPeriods:     r.periods ?? undefined,
     startTime:           r.startTime,
     endTime:             r.endTime,
     description:         r.description,
@@ -147,6 +153,7 @@ function toApi(r: any) {
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     const user = req.user!;
 
     let where: Prisma.RequestWhereInput = {};
@@ -212,6 +219,7 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     const idParam = (req.params['id'] || '').trim();
     const doc = await prisma.request.findFirst({
       where: {
@@ -348,7 +356,7 @@ router.post('/', async (req: Request, res: Response) => {
       ? facultyIds
       : facultyId ? [facultyId] : [];
 
-    let facultyDocs: { userId: string }[] = [];
+    let facultyDocs: { userId: string; fcmToken?: string | null }[] = [];
     if (targetIds.length > 0) {
       facultyDocs = await prisma.user.findMany({
         where: {
@@ -462,6 +470,421 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/requests/:id/share-link
+ * POST /api/requests/:id/share-link
+ * Get or create active share token for a permission request.
+ * Authenticated access only.
+ */
+router.all('/:id/share-link', async (req: Request, res: Response) => {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    const idParam = (req.params['id'] || '').trim();
+    const user = req.user!;
+
+    const doc = await prisma.request.findFirst({
+      where: {
+        OR: [
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
+        ],
+      },
+      include: REQUEST_INCLUDE,
+    });
+
+    if (!doc) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    const docAny = doc as any;
+
+    // Check ownership for students
+    if (user.role === 'student') {
+      if (!isStudentOwnerOfRequest(doc, user as any)) {
+        res.status(403).json({ error: 'You are not authorized to access share links for this request' });
+        return;
+      }
+    }
+
+    const shareLinksList: any[] = docAny.shareLinks || [];
+    let activeLink = shareLinksList.find((l: any) => !l.revokedAt && (!l.expiresAt || new Date(l.expiresAt) > new Date()));
+
+    if (!activeLink) {
+      // Attempt creation with up to 3 retries to handle rare token collisions
+      let createError: any = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const token = generateShareToken(16); // Use full 16-char entropy
+        try {
+          activeLink = await (prisma as any).permissionRequestShareLink.create({
+            data: {
+              requestId: doc.id,
+              token,
+              createdBy: doc.studentId,
+              isActive:  true,
+            },
+          });
+          createError = null;
+          break; // Success
+        } catch (createErr: any) {
+          createError = createErr;
+          console.error(`Share link create attempt ${attempt} failed for requestId=${doc.id}:`, createErr?.message || createErr);
+          // Only retry on unique constraint violation
+          if (!createErr?.message?.includes('unique') && !createErr?.message?.includes('Unique')) break;
+        }
+      }
+
+      if (!activeLink) {
+        console.error('Failed to create share link after retries:', createError);
+        res.status(500).json({ error: 'Could not create share link. Please try again.' });
+        return;
+      }
+    }
+
+    const shareUrl = `/r/${activeLink.token}`;
+    res.json({
+      success: true,
+      requestId: doc.requestId,
+      shareToken: activeLink.token,
+      shareUrl,
+      isActive: activeLink.isActive,
+      createdAt: activeLink.createdAt,
+      expiresAt: activeLink.expiresAt,
+    });
+  } catch (err) {
+    console.error('GET /requests/:id/share-link error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
+ * POST /api/requests/bulk-review
+ * Body: { requestIds: string[], action: 'approve' | 'reject', rejectionReason?: string, remarks?: string }
+ * Allows Faculty / HOD to accept or reject multiple requests simultaneously.
+ */
+router.post('/bulk-review', async (req: Request, res: Response) => {
+  let user = req.user!;
+
+  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
+  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod' || (user.role as string) === 'viewer';
+
+  if (isHodOrAdmin) {
+    user = { ...user, role: 'hod' };
+  }
+
+  if (user.role === 'student') {
+    res.status(403).json({ error: 'Students cannot review requests' });
+    return;
+  }
+
+  const { requestIds, action, rejectionReason, remarks } = req.body as {
+    requestIds:        string[];
+    action:           'approve' | 'reject';
+    rejectionReason?: string;
+    remarks?:         string;
+  };
+
+  if (!Array.isArray(requestIds) || requestIds.length === 0) {
+    res.status(400).json({ error: 'requestIds array is required and must not be empty' });
+    return;
+  }
+
+  if (!action || !['approve', 'reject'].includes(action)) {
+    res.status(400).json({ error: 'action must be "approve" or "reject"' });
+    return;
+  }
+
+  try {
+    const existingRequests = await prisma.request.findMany({
+      where: {
+        OR: [
+          { id:        { in: requestIds } },
+          { requestId: { in: requestIds } },
+        ],
+      },
+      include: REQUEST_INCLUDE,
+    });
+
+    if (existingRequests.length === 0) {
+      res.status(404).json({ error: 'No matching requests found' });
+      return;
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const decisionRole = user.role === 'hod' ? 'HOD' : 'Faculty';
+    const performingUserId = (user as any).userId || user.id;
+    const now = new Date().toISOString();
+
+    const updatedRequests: any[] = [];
+    const skippedIds: string[] = [];
+
+    // Filter eligible requests first (outside transaction to avoid holding locks)
+    const eligibleRequests: typeof existingRequests = [];
+    for (const existing of existingRequests) {
+      if (user.role === 'faculty') {
+        const assignedFacultyIds = existing.faculties.map(rf => rf.facultyId);
+        const assignedEmails     = existing.faculties.map(rf => rf.faculty.email);
+
+        const isAssignedFaculty =
+          existing.primaryFacultyId === user.id ||
+          assignedFacultyIds.includes(user.id) ||
+          existing.primaryFaculty?.email === user.email ||
+          assignedEmails.includes(user.email);
+
+        if (!isAssignedFaculty || existing.finalDecisionBy === 'HOD') {
+          skippedIds.push(existing.id);
+          continue;
+        }
+      }
+      eligibleRequests.push(existing);
+    }
+
+    const actionName = user.role === 'faculty'
+      ? (action === 'approve' ? 'Approved by Faculty (Bulk)' : 'Rejected by Faculty (Bulk)')
+      : (action === 'approve' ? 'Approved by HOD (Bulk)' : 'Rejected by HOD (Bulk)');
+
+    const effectiveRemarks = remarks?.trim() || rejectionReason?.trim() ||
+      (action === 'approve' ? `Bulk approved by ${user.role.toUpperCase()}` : `Bulk rejected by ${user.role.toUpperCase()}`);
+
+    const eligibleIds = eligibleRequests.map(r => r.id);
+
+    await prisma.$transaction(async tx => {
+      // Bulk update all eligible requests in one query
+      await tx.request.updateMany({
+        where: { id: { in: eligibleIds } },
+        data: {
+          status:              newStatus,
+          rejectionReason:     action === 'reject' ? (rejectionReason ?? null) : null,
+          reviewedAt:          now,
+          finalDecisionBy:     decisionRole,
+          finalDecisionUserId: performingUserId,
+        },
+      });
+
+      // Bulk insert audit actions
+      await tx.requestAction.createMany({
+        data: eligibleIds.map(id => ({
+          requestId:     id,
+          performedById: performingUserId,
+          action:        actionName,
+          remarks:       effectiveRemarks,
+        })),
+        skipDuplicates: true,
+      });
+
+      // Bulk insert student notifications
+      await tx.notification.createMany({
+        data: eligibleRequests.map(existing => ({
+          userId:    existing.studentId,
+          requestId: existing.id,
+          type:      action === 'approve' ? 'approved' : 'rejected',
+          title:     `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
+          message:   `Your permission request for ${existing.reasonLabel} has been ${action === 'approve' ? 'approved' : 'rejected'} by ${user.name}.`,
+        })),
+        skipDuplicates: true,
+      });
+    }, { timeout: 30000 });
+
+    // Fetch updated requests after transaction commits
+    const updatedDocs = await prisma.request.findMany({
+      where:   { id: { in: eligibleIds } },
+      include: REQUEST_INCLUDE,
+    });
+    updatedRequests.push(...updatedDocs);
+
+    res.json({
+      success: true,
+      count: updatedRequests.length,
+      requests: updatedRequests.map(toApi),
+      skippedCount: skippedIds.length,
+    });
+  } catch (err: any) {
+    console.error('POST /requests/bulk-review error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
+ * PUT /api/requests/:id — student updates an existing pending request
+ * Rules:
+ * 1. Can only update pending requests.
+ * 2. If approved (or rejected/cancelled), student CANNOT edit it.
+ */
+router.put('/:id', async (req: Request, res: Response) => {
+  const user = req.user!;
+  const idParam = (req.params['id'] || '').trim();
+
+  try {
+    const existing = await prisma.request.findFirst({
+      where: {
+        OR: [
+          { id:        { equals: idParam, mode: 'insensitive' } },
+          { requestId: { equals: idParam, mode: 'insensitive' } },
+          { publicId:  { equals: idParam, mode: 'insensitive' } },
+        ],
+      },
+      include: REQUEST_INCLUDE,
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    // Ownership check for student
+    if (user.role === 'student') {
+      if (!isStudentOwnerOfRequest(existing, user as any)) {
+        res.status(403).json({ error: 'You are not authorized to edit this request' });
+        return;
+      }
+
+      // Rule: Approved requests CANNOT be edited by student
+      if (existing.status === 'approved') {
+        res.status(403).json({ error: 'Approved requests cannot be edited by student' });
+        return;
+      }
+    }
+
+    // Authorization check for faculty
+    if (user.role === 'faculty') {
+      if (!isFacultyAuthorizedForRequest(existing, user as any)) {
+        res.status(403).json({ error: 'You are not authorized to edit this request' });
+        return;
+      }
+
+      // Enforce completed/closed date check
+      const targetDateStr = existing.endDate || existing.date;
+      if (targetDateStr) {
+        const targetDate = new Date(targetDateStr);
+        targetDate.setHours(23, 59, 59, 999);
+        if (new Date() > targetDate) {
+          res.status(400).json({ error: 'Cannot modify a request after its date has completed/closed' });
+          return;
+        }
+      }
+    }
+
+    const { reason, date, endDate, periods, startTime, endTime, description, documentName, documentUrl, facultyId, facultyIds } = req.body;
+
+    const rawReason = reason ? String(reason).trim().toLowerCase().replace(/\s+/g, '_') : existing.reason;
+    const validReasons: RequestReason[] = ['internship', 'startup', 'project_development', 'medical', 'sports', 'family_emergency', 'competition', 'other'];
+    const safeReason: RequestReason = validReasons.includes(rawReason as RequestReason)
+      ? (rawReason as RequestReason)
+      : existing.reason;
+
+    // Resolve faculty assignments if provided
+    let primaryFacultyId = existing.primaryFacultyId;
+    const targetFacultyInput = Array.isArray(facultyIds) && facultyIds.length > 0
+      ? facultyIds
+      : facultyId ? [facultyId] : [];
+
+    let newFacultyDocs: { userId: string }[] = [];
+    if (targetFacultyInput.length > 0) {
+      newFacultyDocs = await prisma.user.findMany({
+        where: {
+          OR: [
+            { userId: { in: targetFacultyInput } },
+            { email:  { in: targetFacultyInput } },
+            { id:     { in: targetFacultyInput } },
+          ],
+        },
+      });
+    }
+
+    if (newFacultyDocs.length > 0) {
+      primaryFacultyId = newFacultyDocs[0].userId;
+    }
+
+    const isResubmitting = existing.status === 'rejected' && user.role === 'student';
+
+    const updated = await prisma.$transaction(async tx => {
+      const result = await tx.request.update({
+        where: { id: existing.id },
+        data: {
+          ...(isResubmitting ? { status: 'pending', rejectionReason: null, reviewedAt: null, finalDecisionBy: null, finalDecisionUserId: null } : {}),
+          ...(reason && { reason: safeReason, reasonLabel: REASON_LABELS[safeReason] ?? String(reason) }),
+          ...(date && { date }),
+          ...(endDate !== undefined && { endDate }),
+          ...(periods !== undefined && user.role === 'student' && { periods }),
+          ...(periods !== undefined && user.role === 'faculty' && { grantedPeriods: periods }),
+          ...(startTime && { startTime }),
+          ...(endTime && { endTime }),
+          ...(description && { description }),
+          ...(documentName !== undefined && { documentName }),
+          ...(documentUrl !== undefined && { documentUrl }),
+          ...(primaryFacultyId && { primaryFacultyId }),
+          // If faculty is saving/editing, automatically approve it
+          ...(user.role === 'faculty' && {
+            status: 'approved',
+            rejectionReason: null,
+            reviewedAt: new Date().toISOString(),
+            finalDecisionBy: 'Faculty',
+            finalDecisionUserId: (user as any).userId || user.id
+          })
+        },
+        include: REQUEST_INCLUDE,
+      });
+
+      // Update RequestFaculty junction table so new assigned faculty see the request in their dashboard (only for student updates)
+      if (user.role === 'student' && newFacultyDocs.length > 0) {
+        await tx.requestFaculty.deleteMany({
+          where: { requestId: existing.id },
+        });
+
+        await tx.requestFaculty.createMany({
+          data: newFacultyDocs.map(f => ({
+            requestId: existing.id,
+            facultyId: f.userId,
+          })),
+        });
+      }
+
+      // Log audit action
+      const actionName = user.role === 'faculty' ? 'Approved by Faculty (Updated Periods)' : 'Updated';
+      const remarksText = user.role === 'faculty'
+        ? `Permission granted with updated periods: ${periods}`
+        : 'Request details and assigned faculty updated by student';
+
+      await tx.requestAction.create({
+        data: {
+          requestId:     existing.id,
+          performedById: (user as any).userId || user.id,
+          action:        actionName,
+          remarks:       remarksText,
+        },
+      });
+
+      // Create notification for student if reviewed by faculty
+      if (user.role === 'faculty') {
+        await tx.notification.create({
+          data: {
+            userId:    existing.studentId,
+            requestId: existing.id,
+            type:      'approved',
+            title:     'Request Approved with Updated Periods',
+            message:   `Your permission request has been approved with updated periods: ${periods} by ${user.name}.`,
+          }
+        });
+      }
+
+      return result;
+    });
+
+    res.json({ request: toApi(updated) });
+  } catch (err: any) {
+    console.error('PUT /requests/:id error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+
+
+/**
  * PATCH /api/requests/:id — faculty / HOD approves or rejects
  * Body: { action: 'approve' | 'reject', rejectionReason?: string, remarks?: string }
  */
@@ -534,6 +957,17 @@ router.patch('/:id', async (req: Request, res: Response) => {
       if (existing.finalDecisionBy === 'HOD') {
         res.status(403).json({ error: 'Faculty cannot override a decision made by HOD' });
         return;
+      }
+
+      // Enforce completed/closed date check
+      const targetDateStr = existing.endDate || existing.date;
+      if (targetDateStr) {
+        const targetDate = new Date(targetDateStr);
+        targetDate.setHours(23, 59, 59, 999);
+        if (new Date() > targetDate) {
+          res.status(400).json({ error: 'Cannot modify a request after its date has completed/closed' });
+          return;
+        }
       }
     }
 

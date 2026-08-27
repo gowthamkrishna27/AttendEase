@@ -87,6 +87,7 @@ model Request {
   date                String
   endDate             String?
   periods             String?
+  grantedPeriods      String?
   startTime           String
   endTime             String
   description         String

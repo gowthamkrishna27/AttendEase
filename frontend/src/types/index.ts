@@ -1,9 +1,11 @@
 // TypeScript type definitions for AttendEase
 
-export type RequestStatus = 'pending' | 'approved' | 'rejected';
+export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export type RequestReason =
   | 'internship'
+  | 'startup'
+  | 'project_development'
   | 'medical'
   | 'sports'
   | 'family_emergency'
@@ -38,6 +40,8 @@ export interface AttendanceRequest {
   date: string; // ISO date string YYYY-MM-DD
   endDate?: string; // ISO date string YYYY-MM-DD for multi-day leave
   periods?: string; // comma-separated period numbers e.g. "1,2,3,4"
+  grantedPeriods?: string;
+  originalPeriods?: string;
   startTime: string; // HH:mm
   endTime: string; // HH:mm
   description: string;

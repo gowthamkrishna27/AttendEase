@@ -37,9 +37,24 @@ const tabActiveClass: Record<TabValue, string> = {
 export default function FacultyRequests() {
   const navigate = useNavigate();
 
+<<<<<<< Updated upstream
   const [search, setSearch]   = useState('');
   const [department, setDept] = useState('');
   const [tab, setTab]         = useState<TabValue>('all');
+=======
+  const [search, setSearch]         = useState('');
+  const [department, setDept]       = useState('');
+  const [yearFilter, setYearFilter] = useState('');
+  const [tab, setTab]               = useState<TabValue>('all');
+  const [reasonFilter, setReasonFilter] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [toastMsg, setToastMsg]     = useState<{ text: string; isError?: boolean } | null>(null);
+
+  const showToast = (text: string, isError = false) => {
+    setToastMsg({ text, isError });
+    setTimeout(() => setToastMsg(null), 4000);
+  };
+>>>>>>> Stashed changes
 
   const { data: requestsList = [] } = useQuery({
     queryKey: ['requests'],
@@ -54,7 +69,14 @@ export default function FacultyRequests() {
       req.reasonLabel.toLowerCase().includes(search.toLowerCase()) ||
       (req.student?.rollNumber ?? '').toLowerCase().includes(search.toLowerCase());
     const matchesDept = !department || req.student?.department === department;
+<<<<<<< Updated upstream
     return matchesTab && matchesSearch && matchesDept;
+=======
+    const studentYear = req.student?.year || (req.student?.semester ? `${Math.ceil(req.student.semester / 2)}${Math.ceil(req.student.semester / 2) === 1 ? 'st' : Math.ceil(req.student.semester / 2) === 2 ? 'nd' : Math.ceil(req.student.semester / 2) === 3 ? 'rd' : 'th'} Year` : '');
+    const matchesYear = !yearFilter || studentYear === yearFilter;
+    const matchesReason = !reasonFilter || req.reason === reasonFilter;
+    return matchesTab && matchesSearch && matchesDept && matchesYear && matchesReason;
+>>>>>>> Stashed changes
   });
 
   const getDays = (_req: AttendanceRequest) => 1;
@@ -94,6 +116,7 @@ export default function FacultyRequests() {
                 className="w-full pl-9 pr-4 py-2.5 text-[13px] sm:text-[14px] bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/12 transition-all shadow-subtle"
               />
             </div>
+<<<<<<< Updated upstream
             <div className="relative w-full sm:w-auto">
               <SlidersHorizontal size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
               <select
@@ -104,6 +127,79 @@ export default function FacultyRequests() {
                 <option value="">All Departments</option>
                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
+=======
+            <div className="flex items-center gap-0 w-full sm:w-auto bg-white border border-slate-200 rounded-xl overflow-hidden shadow-subtle shrink-0">
+              {/* All Branches */}
+              <div className="relative w-1/4 sm:w-auto shrink-0 border-r border-slate-100 flex items-center">
+                <SlidersHorizontal size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none hidden xs:block sm:left-3.5 sm:size-[14]" />
+                <select
+                  value={department}
+                  onChange={e => setDept(e.target.value)}
+                  className="w-full h-[42px] pl-1.5 xs:pl-6 sm:pl-9 pr-3.5 xs:pr-4.5 sm:pr-6 text-[11px] xs:text-[12px] sm:text-[13px] bg-transparent outline-none focus:bg-slate-50/50 appearance-none cursor-pointer text-slate-700 font-semibold border-none shrink-0"
+                >
+                  <option value="">All Branches</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  <option value="CSE">CSE</option>
+                  <option value="IT">IT</option>
+                  <option value="ECE">ECE</option>
+                  <option value="EEE">EEE</option>
+                  <option value="MECH">MECH</option>
+                  <option value="CIVIL">CIVIL</option>
+                </select>
+                <span className="absolute right-1.5 xs:right-2 sm:right-3.5 top-[48%] -translate-y-1/2 pointer-events-none text-[10px] xs:text-[11px] sm:text-[12px] text-slate-400 font-black">⌄</span>
+              </div>
+
+              {/* All Years */}
+              <div className="relative w-1/4 sm:w-auto shrink-0 border-r border-slate-100 flex items-center">
+                <select
+                  value={yearFilter}
+                  onChange={e => setYearFilter(e.target.value)}
+                  className="w-full h-[42px] pl-1.5 xs:pl-3 sm:pl-4 pr-3.5 xs:pr-4.5 sm:pr-6 text-[11px] xs:text-[12px] sm:text-[13px] bg-transparent outline-none focus:bg-slate-50/50 appearance-none cursor-pointer text-slate-700 font-semibold border-none shrink-0"
+                >
+                  <option value="">All Years</option>
+                  <option value="1st Year">1st Year</option>
+                  <option value="2nd Year">2nd Year</option>
+                  <option value="3rd Year">3rd Year</option>
+                  <option value="4th Year">4th Year</option>
+                </select>
+                <span className="absolute right-1.5 xs:right-2 sm:right-3.5 top-[48%] -translate-y-1/2 pointer-events-none text-[10px] xs:text-[11px] sm:text-[12px] text-slate-400 font-black">⌄</span>
+              </div>
+
+              {/* All Status */}
+              <div className="relative w-1/4 sm:w-auto shrink-0 border-r border-slate-100 flex items-center">
+                <select
+                  value={tab}
+                  onChange={e => setTab(e.target.value as TabValue)}
+                  className="w-full h-[42px] pl-1.5 xs:pl-3 sm:pl-4 pr-3.5 xs:pr-4.5 sm:pr-6 text-[11px] xs:text-[12px] sm:text-[13px] bg-transparent outline-none focus:bg-slate-50/50 appearance-none cursor-pointer text-slate-700 font-semibold border-none shrink-0"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending ({requestsList.filter(r => r.status === 'pending').length})</option>
+                  <option value="approved">Approved ({requestsList.filter(r => r.status === 'approved').length})</option>
+                  <option value="rejected">Rejected ({requestsList.filter(r => r.status === 'rejected').length})</option>
+                </select>
+                <span className="absolute right-1.5 xs:right-2 sm:right-3.5 top-[48%] -translate-y-1/2 pointer-events-none text-[10px] xs:text-[11px] sm:text-[12px] text-slate-400 font-black">⌄</span>
+              </div>
+
+              {/* All Reasons */}
+              <div className="relative w-1/4 sm:w-auto shrink-0 flex items-center">
+                <select
+                  value={reasonFilter}
+                  onChange={e => setReasonFilter(e.target.value)}
+                  className="w-full h-[42px] pl-1.5 xs:pl-3 sm:pl-4 pr-3.5 xs:pr-4.5 sm:pr-6 text-[11px] xs:text-[12px] sm:text-[13px] bg-transparent outline-none focus:bg-slate-50/50 appearance-none cursor-pointer text-slate-700 font-semibold border-none shrink-0"
+                >
+                  <option value="">All Reasons</option>
+                  <option value="internship">Internship</option>
+                  <option value="startup">Startup Work</option>
+                  <option value="project_development">Project Development</option>
+                  <option value="medical">Medical Leave</option>
+                  <option value="sports">Sports Event</option>
+                  <option value="family_emergency">Family Emergency</option>
+                  <option value="competition">Competition</option>
+                  <option value="other">Other</option>
+                </select>
+                <span className="absolute right-1.5 xs:right-2 sm:right-3.5 top-[48%] -translate-y-1/2 pointer-events-none text-[10px] xs:text-[11px] sm:text-[12px] text-slate-400 font-black">⌄</span>
+              </div>
+>>>>>>> Stashed changes
             </div>
           </div>
 
@@ -136,7 +232,7 @@ export default function FacultyRequests() {
               title="No requests found"
               description="Try adjusting your filters."
               action={
-                <Button variant="secondary" onClick={() => { setSearch(''); setDept(''); setTab('all'); }}>
+                <Button variant="secondary" onClick={() => { setSearch(''); setDept(''); setTab('all'); setReasonFilter(''); }}>
                   Clear filters
                 </Button>
               }
@@ -230,10 +326,20 @@ export default function FacultyRequests() {
                           <StatusBadge status={req.status} finalDecisionBy={req.finalDecisionBy} finalDecisionName={req.finalDecisionName} />
                         </div>
 
+<<<<<<< Updated upstream
                         {/* Reason & Proof */}
                         <div className="flex items-center justify-between text-[12px] text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-slate-700">{req.reasonLabel}</span>
+=======
+                        {/* Reason, Days & Proof Row */}
+                        <div className="flex items-center justify-between gap-2 text-[11.5px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <span className="font-semibold text-slate-700 truncate">
+                              {req.reasonLabel}
+                              {req.periods ? ` (Periods ${req.periods.split(',').map((p: string) => p.trim()).join(', ')})` : ''}
+                            </span>
+>>>>>>> Stashed changes
                             {proofDocName && (
                               <span className="flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-100/70 px-2 py-0.5 rounded-md">
                                 <Paperclip size={10} />
