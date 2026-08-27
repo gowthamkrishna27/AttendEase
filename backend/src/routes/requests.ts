@@ -460,7 +460,7 @@ function toApi(r: any) {
     year:        student.year       ?? undefined,
     semester:    student.semester   ?? 1,
     email:       student.email,
-    avatarUrl:   student.avatarUrl  ?? undefined,
+    avatarUrl:   student.avatarUrl  || (student.rollNumber ? `https://srkrexams.in/SRKR/photo/${student.rollNumber.toUpperCase()}.jpg` : (fallbackRoll ? `https://srkrexams.in/SRKR/photo/${fallbackRoll.toUpperCase()}.jpg` : undefined)),
   } : {
     id:          r.studentId || 'stu-unknown',
     name:        r.studentName || fallbackRoll,
@@ -469,7 +469,7 @@ function toApi(r: any) {
     year:        undefined,
     semester:    1,
     email:       `${fallbackRoll.toLowerCase()}@srkrec.ac.in`,
-    avatarUrl:   undefined,
+    avatarUrl:   fallbackRoll ? `https://srkrexams.in/SRKR/photo/${fallbackRoll.toUpperCase()}.jpg` : undefined,
   };
 
   const facultyObj = faculty ? {

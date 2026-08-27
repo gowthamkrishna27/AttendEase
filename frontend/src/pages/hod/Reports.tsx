@@ -1,23 +1,14 @@
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  FileSpreadsheet,
   Download,
-  BarChart2,
   Eye,
   Search,
   ChevronDown,
   ChevronRight,
-  Filter,
   CheckCircle2,
   Clock,
   XCircle,
-  FolderOpen,
-  Folder,
-  Layers,
-  FileText,
-  User,
-  Calendar,
   X,
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
@@ -25,7 +16,7 @@ import { ExcelSheetViewerModal } from '../../components/shared/ExcelSheetViewerM
 import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 import * as api from '../../lib/api';
-import type { AttendanceRequest, Faculty } from '../../types';
+import type { AttendanceRequest } from '../../types';
 
 const REASON_METADATA: Record<string, { label: string; color: string; bg: string }> = {
   internship:          { label: 'Internship', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
@@ -58,11 +49,6 @@ export default function HODReports() {
   const { data: requestsList = [] } = useQuery({
     queryKey: ['requests'],
     queryFn: () => api.getRequests(),
-  });
-
-  const { data: facultyList = [] } = useQuery({
-    queryKey: ['faculty'],
-    queryFn: () => api.getFaculty(),
   });
 
   const total    = requestsList.length;

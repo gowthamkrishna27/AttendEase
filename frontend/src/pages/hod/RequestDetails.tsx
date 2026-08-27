@@ -168,18 +168,25 @@ export default function HODRequestDetails() {
           }}
         >
           {/* Photo */}
-          <div className="w-28 sm:w-32 flex-shrink-0 relative bg-slate-100 flex items-center justify-center overflow-hidden">
-            {request.student?.avatarUrl ? (
-              <img
-                src={request.student.avatarUrl}
-                alt={request.student.name}
-                className="w-full h-full object-cover object-top"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-            ) : null}
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-500 text-3xl font-bold -z-10">
-              {(request.student?.name || 'S').charAt(0)}
-            </div>
+          <div className="w-28 sm:w-32 flex-shrink-0 relative bg-slate-100 flex items-center justify-center overflow-hidden border-r border-slate-100">
+            <img
+              src={
+                request.student?.avatarUrl ||
+                (request.student?.rollNumber
+                  ? `https://srkrexams.in/SRKR/photo/${request.student.rollNumber.toUpperCase()}.jpg`
+                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(request.student?.name || 'Student')}&background=EA580C&color=fff&size=256`)
+              }
+              alt={request.student?.name || 'Student Photo'}
+              className="w-full h-full object-cover object-top"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.src.includes('ui-avatars.com')) {
+                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    request.student?.name || 'Student'
+                  )}&background=EA580C&color=fff&size=256`;
+                }
+              }}
+            />
           </div>
 
           {/* Info */}

@@ -1,6 +1,10 @@
 /**
- * Meta WhatsApp Cloud API Service (1,000 Free Tier / Month)
- * Handles automated WhatsApp dispatch for AttendEase permission reviews.
+ * WhatsApp Notification Service
+ * Supports:
+ *  1. Twilio WhatsApp API (Instant sandbox / No Meta verification needed)
+ *  2. Green-API / UltraMsg (Scan WhatsApp QR code / 1-minute setup)
+ *  3. Meta WhatsApp Cloud API (Free tier)
+ *  4. Development Simulation (Console preview)
  */
 
 export interface WhatsAppDecisionData {
@@ -39,7 +43,7 @@ export function normalizePhoneNumber(rawPhone: string): string | null {
 /**
  * Builds formatted markdown text for WhatsApp message.
  */
-function buildWhatsAppMessageText(data: WhatsAppDecisionData): string {
+export function buildWhatsAppMessageText(data: WhatsAppDecisionData): string {
   const isApproved = data.status === 'approved';
   const statusEmoji = isApproved ? '✅' : '❌';
   const statusText = isApproved ? '*APPROVED*' : '*REJECTED*';
@@ -68,27 +72,116 @@ function buildWhatsAppMessageText(data: WhatsAppDecisionData): string {
 }
 
 /**
- * Sends WhatsApp notification via Meta Cloud API or simulates in local dev mode.
+ * Dispatches via Twilio WhatsApp API or SMS fallback
  */
-export async function sendWhatsAppDecisionNotification(data: WhatsAppDecisionData): Promise<boolean> {
-  const phone = normalizePhoneNumber(data.recipientPhone);
-  if (!phone) {
-    console.warn(`[WhatsAppService] Invalid recipient phone number: "${data.recipientPhone}". Skipping.`);
+async function sendViaTwilio(phone: string, messageText: string): Promise<boolean> {
+  const accountSid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
+  const authToken = (process.env.TWILIO_AUTH_TOKEN || '').trim();
+  const rawFrom = (process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886').trim();
+  const fromNumber = rawFrom.startsWith('whatsapp:') ? rawFrom : `whatsapp:${rawFrom}`;
+  const twilioPhone = (process.env.TWILIO_PHONE_NUMBER || '').trim();
+
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+  const basicAuth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+
+  // 1. Attempt WhatsApp dispatch
+  try {
+    const params = new URLSearchParams();
+    params.append('To', `whatsapp:+${phone}`);
+    params.append('From', fromNumber);
+    params.append('Body', messageText);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${basicAuth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    });
+
+    const data = (await res.json()) as any;
+    if (res.ok) {
+      console.log(`[WhatsAppService (Twilio)] Sent WhatsApp to +${phone} (SID: ${data?.sid})`);
+      return true;
+    }
+
+    console.warn(`[WhatsAppService (Twilio WhatsApp)] (${res.status}): ${data?.message || JSON.stringify(data)}`);
+  } catch (err: any) {
+    console.warn(`[WhatsAppService (Twilio WhatsApp)] Failed:`, err?.message || err);
+  }
+
+  // 2. Fallback to SMS if Twilio phone number is present
+  if (twilioPhone) {
+    try {
+      console.log(`[WhatsAppService] Attempting Twilio SMS fallback from ${twilioPhone}...`);
+      const smsParams = new URLSearchParams();
+      smsParams.append('To', `+${phone}`);
+      smsParams.append('From', twilioPhone);
+      smsParams.append('Body', messageText);
+
+      const smsRes = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${basicAuth}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: smsParams.toString(),
+      });
+
+      const smsData = (await smsRes.json()) as any;
+      if (smsRes.ok) {
+        console.log(`[WhatsAppService (Twilio SMS)] Sent SMS to +${phone} (SID: ${smsData?.sid})`);
+        return true;
+      }
+      console.error(`[WhatsAppService (Twilio SMS)] Error (${smsRes.status}):`, smsData?.message || smsData);
+    } catch (smsErr: any) {
+      console.error(`[WhatsAppService (Twilio SMS)] Failed:`, smsErr?.message || smsErr);
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Dispatches via Green-API (Instant WhatsApp instance via QR scan)
+ */
+async function sendViaGreenApi(phone: string, messageText: string): Promise<boolean> {
+  const idInstance = (process.env.GREEN_API_INSTANCE_ID || '').trim();
+  const apiTokenInstance = (process.env.GREEN_API_API_TOKEN || '').trim();
+
+  const url = `https://api.green-api.com/waInstance${idInstance}/sendMessage/${apiTokenInstance}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chatId: `${phone}@c.us`,
+        message: messageText,
+      }),
+    });
+
+    const data = (await res.json()) as any;
+    if (!res.ok) {
+      console.error(`[WhatsAppService (Green-API)] Error (${res.status}):`, data);
+      return false;
+    }
+
+    console.log(`[WhatsAppService (Green-API)] Sent WhatsApp to +${phone} (idMessage: ${data?.idMessage})`);
+    return true;
+  } catch (err: any) {
+    console.error(`[WhatsAppService (Green-API)] Failed:`, err?.message || err);
     return false;
   }
+}
 
+/**
+ * Dispatches via Meta WhatsApp Cloud API
+ */
+async function sendViaMeta(phone: string, messageText: string): Promise<boolean> {
   const phoneNumberId = (process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
   const accessToken = (process.env.WHATSAPP_ACCESS_TOKEN || '').trim();
-  const messageText = buildWhatsAppMessageText(data);
-
-  // If credentials are not set, log in simulated development mode
-  if (!phoneNumberId || !accessToken) {
-    console.log(`[WhatsAppService (Simulated)] Message to +${phone}:`);
-    console.log('──────────────────────────────────────────────────');
-    console.log(messageText);
-    console.log('──────────────────────────────────────────────────');
-    return true;
-  }
 
   const endpoint = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
 
@@ -114,16 +207,51 @@ export async function sendWhatsAppDecisionNotification(data: WhatsAppDecisionDat
     });
 
     const result = (await res.json()) as any;
-
     if (!res.ok) {
-      console.error(`[WhatsAppService] Meta Cloud API Error (${res.status}):`, result?.error?.message || result);
+      console.error(`[WhatsAppService (Meta)] Error (${res.status}):`, result?.error?.message || result);
       return false;
     }
 
-    console.log(`[WhatsAppService] WhatsApp notification sent to +${phone} (MessageId: ${result?.messages?.[0]?.id})`);
+    console.log(`[WhatsAppService (Meta)] Sent WhatsApp to +${phone} (MessageId: ${result?.messages?.[0]?.id})`);
     return true;
   } catch (err: any) {
-    console.error(`[WhatsAppService] Failed to send WhatsApp notification to +${phone}:`, err?.message || err);
+    console.error(`[WhatsAppService (Meta)] Failed:`, err?.message || err);
     return false;
   }
 }
+
+/**
+ * Main function: Automatically detects configured WhatsApp provider and sends notification.
+ */
+export async function sendWhatsAppDecisionNotification(data: WhatsAppDecisionData): Promise<boolean> {
+  const phone = normalizePhoneNumber(data.recipientPhone);
+  if (!phone) {
+    console.warn(`[WhatsAppService] Invalid recipient phone number: "${data.recipientPhone}". Skipping.`);
+    return false;
+  }
+
+  const messageText = buildWhatsAppMessageText(data);
+
+  // 1. Green-API (Direct QR scan instance)
+  if (process.env.GREEN_API_INSTANCE_ID && process.env.GREEN_API_API_TOKEN) {
+    return sendViaGreenApi(phone, messageText);
+  }
+
+  // 2. Twilio (WhatsApp with SMS fallback)
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    return sendViaTwilio(phone, messageText);
+  }
+
+  // 3. Meta Cloud API
+  if (process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_ACCESS_TOKEN) {
+    return sendViaMeta(phone, messageText);
+  }
+
+  // 4. Simulated Dev Mode
+  console.log(`[WhatsAppService (Simulated Preview)] Message to +${phone}:`);
+  console.log('──────────────────────────────────────────────────');
+  console.log(messageText);
+  console.log('──────────────────────────────────────────────────');
+  return true;
+}
+

@@ -69,8 +69,6 @@ export default function HODAllRequests() {
     return matchesTab && matchesSearch && matchesDept && matchesYear;
   });
 
-  const getDays = (_req: AttendanceRequest) => 1;
-
   return (
     <PageWrapper role="hod">
       <div className="w-full max-w-[1400px] mx-auto pb-24 px-2 sm:px-4">

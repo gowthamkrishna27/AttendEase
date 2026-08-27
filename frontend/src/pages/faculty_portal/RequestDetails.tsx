@@ -106,19 +106,68 @@ export default function FacultyRequestDetails() {
           <StatusBadge status={currentStatus} />
         </div>
 
-        {/* Student Info Card */}
-        <div className="card p-5 mb-4 bg-white border border-slate-200/90 rounded-2xl shadow-2xs">
-          <p className="text-[13px] font-medium text-[#6B7280] mb-3">Student</p>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-semibold text-[15px]">
-              {request.student?.name?.[0] ?? 'S'}
+        {/* Student Info Card with Photo */}
+        <div
+          className="mb-4 flex flex-row items-stretch bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden"
+          style={{
+            background: '#ffffff',
+            borderRadius: 16,
+            border: '1px solid #E8ECF0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Photo */}
+          <div className="w-24 sm:w-28 flex-shrink-0 relative bg-slate-100 flex items-center justify-center overflow-hidden border-r border-slate-100">
+            <img
+              src={
+                request.student?.avatarUrl ||
+                (request.student?.rollNumber
+                  ? `https://srkrexams.in/SRKR/photo/${request.student.rollNumber.toUpperCase()}.jpg`
+                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(request.student?.name || 'Student')}&background=EA580C&color=fff&size=256`)
+              }
+              alt={request.student?.name || 'Student Photo'}
+              className="w-full h-full object-cover object-top"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.src.includes('ui-avatars.com')) {
+                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    request.student?.name || 'Student'
+                  )}&background=EA580C&color=fff&size=256`;
+                }
+              }}
+            />
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 p-4 sm:px-5 sm:py-4 flex flex-col justify-center gap-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600">Student Profile</p>
+            <p className="text-[16px] font-bold text-slate-900 leading-tight">
+              {request.student?.name}
+            </p>
+            <div className="flex items-center gap-2 flex-wrap text-[13px] text-slate-600 mt-0.5">
+              <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                {request.student?.rollNumber}
+              </span>
+              <span className="font-semibold text-slate-700">
+                {request.student?.department}
+              </span>
+              {request.student?.year && (
+                <span className="text-slate-500">
+                  · Year {request.student.year}
+                </span>
+              )}
+              {request.student?.semester && (
+                <span className="text-slate-500">
+                  · {request.student.semester}th Sem
+                </span>
+              )}
             </div>
-            <div>
-              <p className="text-[15px] font-semibold text-[#111111]">{request.student?.name}</p>
-              <p className="text-[13px] text-[#6B7280]">
-                {request.student?.rollNumber} · {request.student?.department} · Year {request.student?.year}
+            {request.student?.email && (
+              <p className="text-[12px] text-slate-400 mt-0.5 truncate">
+                {request.student.email}
               </p>
-            </div>
+            )}
           </div>
         </div>
 

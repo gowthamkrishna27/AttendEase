@@ -29,17 +29,17 @@ export default function ShareRedirectPage() {
 
     // 2. Direct authenticated role routing
     if (user.role === 'faculty') {
-      navigate(`/faculty/review/${encodeURIComponent(publicId)}`, { replace: true });
+      navigate('/faculty/requests', { replace: true });
       return;
     }
 
     if (user.role === 'hod' || user.role === 'admin') {
-      navigate(`/hod/review/${encodeURIComponent(publicId)}`, { replace: true });
+      navigate('/hod/requests', { replace: true });
       return;
     }
 
     if (user.role === 'student') {
-      navigate(`/student/request/${encodeURIComponent(publicId)}`, { replace: true });
+      navigate('/student/history', { replace: true });
       return;
     }
 

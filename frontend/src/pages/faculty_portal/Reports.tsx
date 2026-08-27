@@ -1,9 +1,7 @@
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  FileSpreadsheet,
   Download,
-  BarChart2,
   Eye,
   Search,
   ChevronDown,
@@ -11,7 +9,6 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
-  FileText,
   X,
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';

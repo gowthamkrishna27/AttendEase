@@ -212,7 +212,7 @@ export function authorizeRequestViewer(request: any, user: AuthUserContext): Req
         viewerType: 'STUDENT_OWNER',
         destination: 'STUDENT_VIEW',
         requestId: resolvedPublicId,
-        redirectPath: `/student/request/${resolvedPublicId}`,
+        redirectPath: '/student/history',
         viewMode: 'read-only',
       };
     }
@@ -230,7 +230,7 @@ export function authorizeRequestViewer(request: any, user: AuthUserContext): Req
         viewerType: 'FACULTY',
         destination: 'FACULTY_REVIEW',
         requestId: resolvedPublicId,
-        redirectPath: `/faculty/review/${resolvedPublicId}`,
+        redirectPath: '/faculty/requests',
       };
     }
     return {
@@ -247,7 +247,7 @@ export function authorizeRequestViewer(request: any, user: AuthUserContext): Req
         viewerType: 'HOD',
         destination: 'HOD_REVIEW',
         requestId: resolvedPublicId,
-        redirectPath: `/hod/review/${resolvedPublicId}`,
+        redirectPath: '/hod/requests',
       };
     }
     return {
@@ -264,7 +264,7 @@ export function authorizeRequestViewer(request: any, user: AuthUserContext): Req
         viewerType: 'ADMIN',
         destination: 'ADMIN_REVIEW',
         requestId: resolvedPublicId,
-        redirectPath: `/hod/review/${resolvedPublicId}`,
+        redirectPath: '/hod/requests',
       };
     }
     return {

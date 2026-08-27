@@ -43,7 +43,7 @@ function mapShareRequest(r: any) {
     year:        student.year       ?? undefined,
     semester:    student.semester   ?? 1,
     email:       student.email,
-    avatarUrl:   student.avatarUrl  ?? undefined,
+    avatarUrl:   student.avatarUrl  || (student.rollNumber ? `https://srkrexams.in/SRKR/photo/${student.rollNumber.toUpperCase()}.jpg` : (fallbackRoll ? `https://srkrexams.in/SRKR/photo/${fallbackRoll.toUpperCase()}.jpg` : undefined)),
   } : {
     id:          r.studentId || 'stu-unknown',
     name:        r.studentName || fallbackRoll,
@@ -52,7 +52,7 @@ function mapShareRequest(r: any) {
     year:        undefined,
     semester:    1,
     email:       `${fallbackRoll.toLowerCase()}@srkrec.ac.in`,
-    avatarUrl:   undefined,
+    avatarUrl:   fallbackRoll ? `https://srkrexams.in/SRKR/photo/${fallbackRoll.toUpperCase()}.jpg` : undefined,
   };
 
   const facultyObj = faculty ? {
@@ -408,11 +408,11 @@ router.get('/view/:publicId', async (req: Request, res: Response) => {
 
     let recommendedRedirect: string | undefined = undefined;
     if (isStudentOwner) {
-      recommendedRedirect = `/student/request/${requestData.publicId || requestData.id}`;
+      recommendedRedirect = '/student/history';
     } else if (isAssignedFaculty) {
-      recommendedRedirect = `/faculty/review/${requestData.publicId || requestData.id}`;
+      recommendedRedirect = '/faculty/requests';
     } else if (isHOD) {
-      recommendedRedirect = `/hod/review/${requestData.publicId || requestData.id}`;
+      recommendedRedirect = '/hod/requests';
     }
 
     res.json({
@@ -480,7 +480,7 @@ router.get('/:publicId', async (req: Request, res: Response) => {
       const stuEmail = (doc.student?.email || '').toLowerCase().trim();
 
       if (stuUserId === userId || (userRoll && stuRoll === userRoll) || (userEmail && stuEmail === userEmail)) {
-        res.json({ success: true, redirectTo: `/student/request/${publicId}` });
+        res.json({ success: true, redirectTo: '/student/history' });
         return;
       }
     }
@@ -492,13 +492,13 @@ router.get('/:publicId', async (req: Request, res: Response) => {
       const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase();
 
       if (primaryFacId === userId || assignedFacultyIds.includes(userId) || primaryEmail === userEmail || assignedEmails.includes(userEmail)) {
-        res.json({ success: true, redirectTo: `/faculty/review/${publicId}` });
+        res.json({ success: true, redirectTo: '/faculty/requests' });
         return;
       }
     }
 
     if (user.role === 'hod' || user.role === 'admin') {
-      res.json({ success: true, redirectTo: `/hod/review/${publicId}` });
+      res.json({ success: true, redirectTo: '/hod/requests' });
       return;
     }
 
