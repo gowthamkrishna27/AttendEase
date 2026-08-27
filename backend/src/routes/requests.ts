@@ -12,6 +12,8 @@ import {
   isHodAuthorizedForRequest,
   isAdminAuthorizedForRequest,
 } from '../services/requestAuth.js';
+import { sendRequestDecisionEmail } from '../services/emailService.js';
+import { sendWhatsAppDecisionNotification } from '../services/whatsappService.js';
 
 const router = Router();
 
@@ -458,7 +460,7 @@ function toApi(r: any) {
     year:        student.year       ?? undefined,
     semester:    student.semester   ?? 1,
     email:       student.email,
-    avatarUrl:   student.avatarUrl  ?? undefined,
+    avatarUrl:   student.avatarUrl  || (student.rollNumber ? `https://srkrexams.in/SRKR/photo/${student.rollNumber.toUpperCase()}.jpg` : (fallbackRoll ? `https://srkrexams.in/SRKR/photo/${fallbackRoll.toUpperCase()}.jpg` : undefined)),
   } : {
     id:          r.studentId || 'stu-unknown',
     name:        r.studentName || fallbackRoll,
@@ -467,7 +469,7 @@ function toApi(r: any) {
     year:        undefined,
     semester:    1,
     email:       `${fallbackRoll.toLowerCase()}@srkrec.ac.in`,
-    avatarUrl:   undefined,
+    avatarUrl:   fallbackRoll ? `https://srkrexams.in/SRKR/photo/${fallbackRoll.toUpperCase()}.jpg` : undefined,
   };
 
   const facultyObj = faculty ? {
@@ -820,7 +822,55 @@ router.post('/hod-direct-grant', async (req: Request, res: Response) => {
       });
 
       if (newDoc) {
-        createdRequests.push(toApi(newDoc));
+        const apiDoc = toApi(newDoc);
+        createdRequests.push(apiDoc);
+
+        // Dispatch exemption email asynchronously
+        try {
+          const studentEmail =
+            newDoc.student?.email ||
+            (newDoc.student?.rollNumber ? `${newDoc.student.rollNumber.toLowerCase()}@srkrec.ac.in` : null);
+
+          if (studentEmail) {
+            const share = newDoc.shareLinks && newDoc.shareLinks.length > 0 ? newDoc.shareLinks[0].token : undefined;
+            void sendRequestDecisionEmail({
+              recipientEmail: studentEmail,
+              studentName: newDoc.student?.name || 'Student',
+              studentRoll: newDoc.student?.rollNumber || newDoc.studentId,
+              department: newDoc.student?.department || 'CSIT',
+              reasonLabel: newDoc.reasonLabel || newDoc.reason,
+              date: newDoc.date,
+              periods: newDoc.periods || undefined,
+              status: 'approved',
+              decisionByRole: 'HOD',
+              reviewerName: user.name || 'Head of Department',
+              shareToken: share,
+              publicId: newDoc.publicId || newDoc.id,
+            }).catch(e => console.warn('[EmailService] Direct grant email dispatch failed:', e));
+          }
+        } catch (emailErr) {
+          console.warn('[EmailService] Failed to trigger direct grant email:', emailErr);
+        }
+
+        // Dispatch exemption WhatsApp notification asynchronously
+        try {
+          if (newDoc.student?.phone) {
+            void sendWhatsAppDecisionNotification({
+              recipientPhone: newDoc.student.phone,
+              studentName: newDoc.student.name,
+              studentRoll: newDoc.student.rollNumber || newDoc.studentId,
+              department: newDoc.student.department || 'CSIT & CSD',
+              reasonLabel: newDoc.reasonLabel || newDoc.reason,
+              date: newDoc.date,
+              periods: newDoc.periods || undefined,
+              status: 'approved',
+              decisionByRole: 'HOD',
+              reviewerName: user.name || 'Head of Department',
+            }).catch(e => console.warn('[WhatsAppService] Direct grant WhatsApp dispatch failed:', e));
+          }
+        } catch (waErr) {
+          console.warn('[WhatsAppService] Failed to trigger direct grant WhatsApp:', waErr);
+        }
       }
     }
 
@@ -1595,6 +1645,57 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
       return result;
     });
+
+    // ── Dispatch Automated Decision Email asynchronously ──
+    try {
+      const studentRecipientEmail =
+        updated.student?.email ||
+        (updated.student?.rollNumber ? `${updated.student.rollNumber.toLowerCase()}@srkrec.ac.in` : null);
+
+      if (studentRecipientEmail) {
+        const activeShare =
+          updated.shareLinks && updated.shareLinks.length > 0 ? updated.shareLinks[0].token : undefined;
+
+        void sendRequestDecisionEmail({
+          recipientEmail: studentRecipientEmail,
+          studentName: updated.student?.name || 'Student',
+          studentRoll: updated.student?.rollNumber || updated.studentId,
+          department: updated.student?.department || 'CSIT',
+          reasonLabel: updated.reasonLabel || updated.reason,
+          date: updated.date,
+          periods: updated.periods || undefined,
+          status: newStatus,
+          rejectionReason: action === 'reject' ? (rejectionReason?.trim() || undefined) : undefined,
+          decisionByRole: decisionRole,
+          reviewerName: user.name,
+          shareToken: activeShare,
+          publicId: updated.publicId || updated.id,
+        }).catch(err => console.warn('[EmailService] Async decision email dispatch failed:', err));
+      }
+    } catch (emailErr) {
+      console.warn('[EmailService] Failed to trigger decision email:', emailErr);
+    }
+
+    // ── Dispatch Automated WhatsApp Notification asynchronously ──
+    try {
+      if (updated.student?.phone) {
+        void sendWhatsAppDecisionNotification({
+          recipientPhone: updated.student.phone,
+          studentName: updated.student.name,
+          studentRoll: updated.student.rollNumber || updated.studentId,
+          department: updated.student.department || 'CSIT & CSD',
+          reasonLabel: updated.reasonLabel || updated.reason,
+          date: updated.date,
+          periods: updated.periods || undefined,
+          status: newStatus,
+          rejectionReason: action === 'reject' ? (rejectionReason?.trim() || undefined) : undefined,
+          decisionByRole: decisionRole,
+          reviewerName: user.name,
+        }).catch(err => console.warn('[WhatsAppService] Async decision WhatsApp dispatch failed:', err));
+      }
+    } catch (waErr) {
+      console.warn('[WhatsAppService] Failed to trigger decision WhatsApp:', waErr);
+    }
 
     res.json({ request: toApi(updated) });
   } catch (err) {

@@ -55,14 +55,13 @@ export default function ShareResolvePage() {
         if (!isMounted) return;
 
         if (res.success && res.authorized) {
-          const reqId = res.requestId || '';
           // Clean destination routing -> existing authenticated views
-          if (res.destination === 'STUDENT_VIEW') {
-            navigate(`/student/request/${encodeURIComponent(reqId)}`, { replace: true });
-          } else if (res.destination === 'FACULTY_REVIEW') {
-            navigate(`/faculty/review/${encodeURIComponent(reqId)}`, { replace: true });
-          } else if (res.destination === 'HOD_REVIEW' || res.destination === 'ADMIN_REVIEW') {
-            navigate(`/hod/review/${encodeURIComponent(reqId)}`, { replace: true });
+          if (res.destination === 'STUDENT_VIEW' || user?.role === 'student') {
+            navigate('/student/history', { replace: true });
+          } else if (res.destination === 'FACULTY_REVIEW' || user?.role === 'faculty') {
+            navigate('/faculty/requests', { replace: true });
+          } else if (res.destination === 'HOD_REVIEW' || res.destination === 'ADMIN_REVIEW' || user?.role === 'hod' || user?.role === 'admin') {
+            navigate('/hod/requests', { replace: true });
           } else if (res.redirectPath) {
             navigate(res.redirectPath, { replace: true });
           } else {

@@ -157,6 +157,7 @@ export interface AttendanceRequest {
   submittedAt: string;
   facultyId?: string;
   faculty?: Faculty;
+  facultyIds?: string[];
   primaryFacultyId?: string;
   primaryFaculty?: Faculty;
   shareToken?: string;

@@ -139,11 +139,11 @@ describe('Unified Canonical Request Authorization & Share Token Test Suite', () 
   // ── TEST C: Authorized Faculty opens Student A's link ──
   it("TEST C: Authorized Faculty opens Student A's link -> Faculty Review", () => {
     assert.equal(isFacultyAuthorizedForRequest(sampleRequestA, facultyAssigned), true);
-    const authRes = authorizeRequestViewer(sampleRequestA, facultyAssigned);
+    const authRes =  authorizeRequestViewer(sampleRequestA, facultyAssigned);
     assert.equal(authRes.authorized, true);
     assert.equal(authRes.viewerType, 'FACULTY');
     assert.equal(authRes.destination, 'FACULTY_REVIEW');
-    assert.equal(authRes.redirectPath, `/faculty/review/${sampleRequestA.publicId}`);
+    assert.equal(authRes.redirectPath, '/faculty/requests');
   });
 
   // ── TEST D: Unauthorized Faculty opens Student A's link ──
@@ -161,6 +161,7 @@ describe('Unified Canonical Request Authorization & Share Token Test Suite', () 
     assert.equal(authRes.authorized, true);
     assert.equal(authRes.viewerType, 'HOD');
     assert.equal(authRes.destination, 'HOD_REVIEW');
+    assert.equal(authRes.redirectPath, '/hod/requests');
   });
 
   // ── TEST F: Unauthorized role (e.g. unknown role or wrong dept HOD) ──

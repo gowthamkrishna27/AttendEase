@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, BookOpen, ShieldCheck,
-  Eye, EyeOff, Fingerprint, Shield,
+  Eye, EyeOff, Fingerprint, Shield, MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../context/AuthContext';
@@ -308,7 +308,19 @@ export default function LoginPortal() {
   };
 
   return (
-    <div className="min-h-screen min-h-[100dvh] w-full bg-white flex flex-col items-center justify-center p-4 sm:p-6 text-slate-900 selection:bg-orange-100 selection:text-orange-900 box-border">
+    <div className="relative min-h-screen min-h-[100dvh] w-full bg-white flex flex-col items-center justify-center p-4 sm:p-6 text-slate-900 selection:bg-orange-100 selection:text-orange-900 box-border">
+      {/* Top Right Feedback Button */}
+      <a
+        href="https://forms.gle/girGw3vVdUfCR5zR6"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Give Feedback & Report Issues"
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 hover:bg-orange-50 text-slate-700 hover:text-orange-600 border border-slate-200/90 hover:border-orange-300 shadow-2xs hover:shadow-xs transition-all duration-200 text-xs font-semibold active:scale-95 group cursor-pointer"
+      >
+        <MessageSquare size={13.5} className="text-orange-500 group-hover:scale-110 transition-transform" />
+        <span>Feedback</span>
+      </a>
+
       {/* Top Centered Brand Logo & Heading (Tailwind Animations) */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
@@ -629,16 +641,6 @@ export default function LoginPortal() {
                 Forgot Password?
               </button>
             )}
-          </div>
-
-          <div className="text-center mt-2 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="text-[12px] font-semibold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
-            >
-              ← Back to Home
-            </button>
           </div>
         </form>
       </motion.div>
