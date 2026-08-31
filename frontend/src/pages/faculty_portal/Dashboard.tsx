@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { CheckSquare, ArrowRight, Camera, Loader2, Check } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { FaceAlignedImage } from '../../components/shared/FaceAlignedImage';
+import { UpcomingInvigilationWidget } from '../../components/invigilation/UpcomingInvigilationWidget';
 import { useAuth } from '../../context/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
@@ -67,6 +68,7 @@ export default function FacultyDashboard() {
           transition={{ duration: 0.3 }}
           className="card overflow-hidden mb-6 sm:mb-8"
         >
+
           <div className="flex flex-col sm:flex-row items-stretch">
             {/* Photo – face-detected & auto-aligned with Cloudinary change button */}
             <div className="sm:w-48 w-full flex-shrink-0 relative group" style={{ minHeight: '220px' }}>
@@ -138,6 +140,13 @@ export default function FacultyDashboard() {
             </div>
           </div>
         </motion.div>
+
+        {/* ── Upcoming Invigilation Duties Widget ── */}
+        {user?.id && (
+          <div className="mb-6 sm:mb-8">
+            <UpcomingInvigilationWidget facultyId={user.id} />
+          </div>
+        )}
 
         {/* ── Take Attendance Primary Action Card (Between Overview & Stats) ── */}
         <motion.div

@@ -6,7 +6,7 @@ import {
   Home, Clock, User, LogOut, LogIn,
   Bell, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-  CheckSquare, UserCheck, Database
+  CheckSquare, UserCheck, Database, ClipboardCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import attendEaseLogo from '../../assets/logo.png';
@@ -45,6 +45,7 @@ const adminNav = [
   { to: '/admin', label: 'Dashboard', icon: Home },
   { to: '/admin/users', label: 'Accounts & Students', icon: Users },
   { to: '/admin/counseling', label: 'Counseling', icon: UserCheck },
+  { to: '/admin/invigilation', label: 'Invigilation Hours', icon: ClipboardCheck },
   { to: '/admin/requests', label: 'Request Logs', icon: ClipboardList },
   { to: '/admin/database', label: 'Database Tables', icon: Database },
   { to: '/admin/settings', label: 'Settings', icon: Settings },
@@ -87,6 +88,7 @@ const adminMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/admin', label: 'Dashboard', icon: Home, type: 'link' },
   { id: 'users', to: '/admin/users', label: 'Accounts', icon: Users, type: 'link' },
   { id: 'counseling', to: '/admin/counseling', label: 'Counseling', icon: UserCheck, type: 'link' },
+  { id: 'invigilation', to: '/admin/invigilation', label: 'Invigilation', icon: ClipboardCheck, type: 'link' },
   { id: 'database', to: '/admin/database', label: 'Database', icon: Database, type: 'link' },
   { id: 'settings', to: '/admin/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
