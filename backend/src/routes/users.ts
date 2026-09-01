@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth.js';
 import { prisma } from '../db/prisma.js';
+import { normalizeToCanonicalSection } from '../constants/canonicalSections.js';
 
 const router = Router();
 
@@ -247,7 +248,13 @@ router.post('/counselee-attendance', verifyToken, async (req: Request, res: Resp
  */
 router.get('/faculty', verifyToken, async (_req: Request, res: Response) => {
   try {
-    const docs = await prisma.user.findMany({ where: { role: { in: ['faculty', 'hod'] } } });
+    const docs = await prisma.user.findMany({
+      where: {
+        role: { in: ['faculty', 'hod'] },
+        isActive: true,
+      },
+      orderBy: { name: 'asc' },
+    });
     res.json({ faculty: docs.map(formatUserResponse) });
   } catch (err) {
     console.error('GET /users/faculty error:', err);
@@ -268,8 +275,7 @@ router.get('/students', verifyToken, async (_req: Request, res: Response) => {
 
     const formatted = students.map((s: any) => {
       const roll = s.rollNumber || s.userId;
-      const isSecB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B') || roll.includes('95A');
-      const derivedSec = isSecB ? 'Section B' : 'Section A';
+      const canonicalSec = normalizeToCanonicalSection(s.department, s.section);
       const sem = s.semester || 6;
       const derivedYear = `${Math.ceil(sem / 2)}th Year`;
 
@@ -281,7 +287,7 @@ router.get('/students', verifyToken, async (_req: Request, res: Response) => {
         department: s.department || 'Computer Science',
         semester:   sem,
         year:       s.year || derivedYear,
-        section:    s.section || derivedSec,
+        section:    canonicalSec || (s.department?.includes('CSD') ? 'CSD-A' : 'CSIT-A'),
         avatarUrl:  s.avatarUrl ?? undefined,
       };
     });

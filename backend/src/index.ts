@@ -16,6 +16,7 @@ import attendanceRoutes    from './routes/attendance.js';
 import invigilationRoutes from './routes/invigilation.js';
 import adminRouter from './admin/index.js';
 import chatRoutes from './routes/chat.js';
+import { getCanonicalRosterForYear } from './services/rosterService.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
 
@@ -95,6 +96,21 @@ app.use('/api/attendance',    attendanceRoutes);
 app.use('/api/invigilation',   invigilationRoutes);
 app.use('/api/admin',         adminRouter);
 app.use('/api/chat',          chatRoutes);
+
+// Canonical Student Roster API
+app.get('/api/students/roster', async (req, res) => {
+  try {
+    const { year } = req.query;
+    const rosterData = await getCanonicalRosterForYear(typeof year === 'string' ? year : undefined);
+    res.json({
+      year: rosterData.year,
+      sections: rosterData.sections,
+    });
+  } catch (error) {
+    console.error('GET /api/students/roster error:', error);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
 
 // ── Root & Health check ───────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {

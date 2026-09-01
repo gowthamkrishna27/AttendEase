@@ -846,41 +846,29 @@ export default function PermissionsPage() {
   });
 
   /**
-   * Determine section dynamically from student department + roll number range or explicit section.
+   * Determine section dynamically from student department and explicit section.
+   * STRICT RULE: Never infer a student's section from roll number.
    */
   const getStudentSectionKey = useCallback((req: any): string => {
     const dept = (req.student?.department ?? '').toUpperCase().trim();
-    const rawRoll = (req.student?.rollNumber ?? req.studentId ?? '').toUpperCase().trim();
     const explicitSec = ((req.student as any)?.section ?? '').toUpperCase().trim();
 
     // CSD students are in Section A
-    if (dept === 'CSD' || rawRoll.includes('62') || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
+    if (dept === 'CSD') {
       return 'CSD — Section A';
     }
 
-    // CSIT: extract the roll suffix
-    // Roll numbers 01–72 → Section A; 73+ and alpha-suffix → Section B
-    const suffix = extractRollSuffix(rawRoll);
-    if (!suffix) {
-      if (explicitSec === 'B' || explicitSec === 'SECTION B') return 'CSIT — Section B';
-      return 'CSIT — Section A';
-    }
+    const cleanSec = explicitSec
+      .replace(/SECTION/g, '')
+      .replace(/SEC/g, '')
+      .replace(/[-_—–\s]/g, '')
+      .trim();
 
-    // Pure numeric suffix
-    if (/^\d+$/.test(suffix)) {
-      const num = parseInt(suffix, 10);
-      return num >= 73 ? 'CSIT — Section B' : 'CSIT — Section A';
-    }
-
-    // Alpha-suffix (A0-C9, D0, D1, LE1-LE12) → Section B
-    if (dept === 'CSIT' || rawRoll.includes('07')) {
+    if (cleanSec === 'B' || cleanSec.endsWith('B') || explicitSec === 'CSIT-B') {
       return 'CSIT — Section B';
     }
 
-    if (explicitSec) {
-      return `${dept || 'CSIT'} — Section ${explicitSec.replace('SECTION', '').trim() || 'A'}`;
-    }
-    return `${dept || 'CSIT'} — Section A`;
+    return 'CSIT — Section A';
   }, []);
 
   // Filtered Approved List

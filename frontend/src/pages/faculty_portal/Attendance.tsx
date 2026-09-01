@@ -222,6 +222,15 @@ export default function FacultyAttendance() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Query canonical sections and rosters for the selected academic year
+  const { data: dbSections = [] } = useQuery<api.PublicSectionItem[]>({
+    queryKey: ['public-sections', selectedYear],
+    queryFn: () => api.getPublicSections(selectedYear),
+    enabled: Boolean(selectedYear),
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
   // Map of full roll numbers, suffixes, userIds to Student record for fast lookup
   const studentInfoMap = useMemo(() => {
     const map = new Map<string, api.Student>();
@@ -333,13 +342,11 @@ export default function FacultyAttendance() {
     let studentSecLetter = '';
 
     if (student?.section) {
-      const s = student.section.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
-      if (s === 'A' || s === 'B') studentSecLetter = s;
-    }
-
-    if (!studentSecLetter && rollUpper) {
-      const isSecB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(rollUpper) || rollUpper.includes('95A');
-      studentSecLetter = isSecB ? 'B' : 'A';
+      const s = student.section.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').replace(/[-_—–\s]/g, '').trim();
+      if (s === 'B' || s.endsWith('B')) studentSecLetter = 'B';
+      else studentSecLetter = 'A';
+    } else {
+      studentSecLetter = 'A';
     }
 
     if (isTargetSecB && studentSecLetter !== 'B') return false;
@@ -523,22 +530,20 @@ export default function FacultyAttendance() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSubmission, permissionRollsKey]);
 
-  // Roll numbers generator for section
+  // Derive roll numbers for section directly from database-backed canonical roster API
   const currentRollNumbers = useMemo(() => {
-    if (sectionFilter.includes('B') || sectionFilter === 'CSIT-B') {
-      const rolls: string[] = [];
-      for (let i = 73; i <= 99; i++) rolls.push(String(i));
-      const series = ['A', 'B', 'C'];
-      series.forEach(prefix => {
-        for (let i = 0; i <= 9; i++) rolls.push(`${prefix}${i}`);
-      });
-      rolls.push('D0', 'D1');
-      for (let i = 1; i <= 13; i++) rolls.push(`LE${i}`);
-      return rolls;
+    if (!sectionFilter || !selectedYear) return [];
+    const matchedSec = dbSections.find(s =>
+      s.value === sectionFilter ||
+      s.id === sectionFilter ||
+      s.key === sectionFilter ||
+      s.key.replace(/[\s—–]/g, '') === sectionFilter.replace(/[\s—–]/g, '')
+    );
+    if (matchedSec && Array.isArray(matchedSec.rollNumbers)) {
+      return matchedSec.rollNumbers;
     }
-    // Section A (CSD, CSD-A, CSIT-A, CSIT A)
-    return Array.from({ length: 72 }, (_, i) => String(i + 1));
-  }, [sectionFilter]);
+    return [];
+  }, [dbSections, sectionFilter, selectedYear]);
 
   // Toggle roll button state
   const handleRollClick = useCallback((roll: string) => {
@@ -678,6 +683,11 @@ export default function FacultyAttendance() {
   });
 
   const handleSubmit = () => {
+    if (currentRollNumbers.length === 0) {
+      showToast('No students available in this section to mark attendance.', true);
+      return;
+    }
+
     if (selectedPeriodIds.length === 0) {
       showToast('Please select at least one period before submitting.', true);
       return;
@@ -843,11 +853,17 @@ export default function FacultyAttendance() {
                       Please select an Academic Year first
                     </div>
                   ) : (
-                    [
-                      { label: 'CSD - Sec A', value: 'CSD-A' },
-                      { label: 'CSIT - Sec A', value: 'CSIT-A' },
-                      { label: 'CSIT - Sec B', value: 'CSIT-B' },
-                    ].map(sec => (
+                    (dbSections.length > 0
+                      ? dbSections.map(s => ({
+                          label: s.label || s.displayName || s.value,
+                          value: s.value || s.id || 'CSIT-A',
+                        }))
+                      : [
+                          { label: 'CSD - Sec A', value: 'CSD-A' },
+                          { label: 'CSIT - Sec A', value: 'CSIT-A' },
+                          { label: 'CSIT - Sec B', value: 'CSIT-B' },
+                        ]
+                    ).map(sec => (
                       <button
                         key={sec.value}
                         type="button"
@@ -1052,52 +1068,58 @@ export default function FacultyAttendance() {
 
               {/* Stationary Icon-App Launcher Grid */}
               <div className="max-w-[820px] mx-auto pt-2 pb-2">
-                <div className="grid grid-cols-6 xs:grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 justify-items-center">
-                  {currentRollNumbers.map(roll => {
-                    const rawStatus = markedAttendance[roll];
-                    const hasPermission = permissionStudentsSet.has(roll);
+                {currentRollNumbers.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-[13px] font-medium bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                    No students available in this section.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-6 xs:grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 justify-items-center">
+                    {currentRollNumbers.map(roll => {
+                      const rawStatus = markedAttendance[roll];
+                      const hasPermission = permissionStudentsSet.has(roll);
 
-                    let effectiveStatus = rawStatus;
-                    if (!rawStatus) {
-                      if (hasPermission) {
-                        effectiveStatus = 'present';
-                      } else if (Object.keys(markedAttendance).length > 0) {
-                        if (markMode === 'present') {
-                          effectiveStatus = 'absent';
-                        } else if (markMode === 'absent') {
+                      let effectiveStatus = rawStatus;
+                      if (!rawStatus) {
+                        if (hasPermission) {
                           effectiveStatus = 'present';
+                        } else if (Object.keys(markedAttendance).length > 0) {
+                          if (markMode === 'present') {
+                            effectiveStatus = 'absent';
+                          } else if (markMode === 'absent') {
+                            effectiveStatus = 'present';
+                          }
                         }
                       }
-                    }
 
-                    const matchedStudent = studentInfoMap.get(roll.toUpperCase()) ||
-                                           permissionMap.get(roll)?.student;
-                    const studentName = matchedStudent?.name;
+                      const matchedStudent = studentInfoMap.get(roll.toUpperCase()) ||
+                                             permissionMap.get(roll)?.student;
+                      const studentName = matchedStudent?.name;
 
-                    let btnStyle = 'bg-slate-100/90 text-slate-700 hover:bg-slate-200 border-slate-200/80';
-                    if (hasPermission) {
-                      // Yellow Approved Permission — IMMUTABLY Yellow for approved permission students
-                      btnStyle = 'bg-[#FDE047] text-slate-950 border-amber-400 shadow-xs ring-2 ring-amber-400/80 font-black scale-[1.02]';
-                    } else if (effectiveStatus === 'present') {
-                      btnStyle = 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20 scale-[1.02] font-extrabold';
-                    } else if (effectiveStatus === 'absent') {
-                      btnStyle = 'bg-rose-500 text-white border-rose-600 shadow-sm shadow-rose-500/20 scale-[1.02] font-extrabold';
-                    }
+                      let btnStyle = 'bg-slate-100/90 text-slate-700 hover:bg-slate-200 border-slate-200/80';
+                      if (hasPermission) {
+                        // Yellow Approved Permission — IMMUTABLY Yellow for approved permission students
+                        btnStyle = 'bg-[#FDE047] text-slate-950 border-amber-400 shadow-xs ring-2 ring-amber-400/80 font-black scale-[1.02]';
+                      } else if (effectiveStatus === 'present') {
+                        btnStyle = 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20 scale-[1.02] font-extrabold';
+                      } else if (effectiveStatus === 'absent') {
+                        btnStyle = 'bg-rose-500 text-white border-rose-600 shadow-sm shadow-rose-500/20 scale-[1.02] font-extrabold';
+                      }
 
-                    return (
-                      <FacultyRollButton
-                        key={roll}
-                        roll={roll}
-                        studentName={studentName}
-                        hasPermission={hasPermission}
-                        btnStyle={btnStyle}
-                        isOwner={isOwner}
-                        onClick={handleRollClick}
-                        onSelectStudent={handleSelectStudentForPreview}
-                      />
-                    );
-                  })}
-                </div>
+                      return (
+                        <FacultyRollButton
+                          key={roll}
+                          roll={roll}
+                          studentName={studentName}
+                          hasPermission={hasPermission}
+                          btnStyle={btnStyle}
+                          isOwner={isOwner}
+                          onClick={handleRollClick}
+                          onSelectStudent={handleSelectStudentForPreview}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* ── Submit / Update Attendance Button (Positioned at the bottom of the numbers list) ── */}

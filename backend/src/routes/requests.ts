@@ -14,6 +14,7 @@ import {
 } from '../services/requestAuth.js';
 import { sendRequestDecisionEmail } from '../services/emailService.js';
 import { sendWhatsAppDecisionNotification } from '../services/whatsappService.js';
+import { getCanonicalRosterForYear } from '../services/rosterService.js';
 
 const router = Router();
 
@@ -70,209 +71,23 @@ function sortRolls(rolls: string[]): string[] {
   });
 }
 
-// Public endpoint for sections list and section-wise student rosters from database
-router.get('/public-sections', async (req: Request, res: Response) => {
+// Public endpoint for canonical sections and section-wise student rosters from database
+const handlePublicSections = async (req: Request, res: Response) => {
   try {
     const { year } = req.query;
-    const targetYear = (typeof year === 'string' && year.trim() && year !== 'all')
-      ? year.trim().toLowerCase()
-      : '3rd year';
-
-    const targetDigitMatch = targetYear.match(/([1-4])/);
-    const targetDigit = targetDigitMatch ? targetDigitMatch[1] : '3';
-    const yearLabel = `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`;
-
-    // Fetch all student users from DB
-    const students = (await prisma.user.findMany({
-      where: {
-        role: 'student',
-        isActive: true,
-      },
-      select: {
-        userId: true,
-        name: true,
-        rollNumber: true,
-        department: true,
-        year: true,
-        section: true,
-        semester: true,
-      } as any,
-      orderBy: { rollNumber: 'asc' },
-    })) as unknown as Array<{
-      userId: string;
-      name: string;
-      rollNumber: string | null;
-      department: string;
-      year?: string | null;
-      section?: string | null;
-      semester: number | null;
-    }>;
-
-    // Filter students by academic year (prioritizing explicit DB year record)
-    const yearStudents = students.filter(s => {
-      const studentYear = (s as any).year as string | undefined;
-      if (studentYear) {
-        const digitMatch = studentYear.match(/([1-4])/);
-        if (digitMatch) return digitMatch[1] === targetDigit;
-      }
-      const sem = s.semester;
-      if (sem && typeof sem === 'number') {
-        const derivedYearNum = String(Math.ceil(sem / 2));
-        return derivedYearNum === targetDigit;
-      }
-      const roll = (s.rollNumber || '').toUpperCase();
-      const isLateralEntry = roll.includes('95A') || roll.includes('LE') || /LE\d+$/i.test(roll);
-
-      if (targetDigit === '3') {
-        return roll.startsWith('24B') || (roll.startsWith('25B') && isLateralEntry);
-      }
-      if (targetDigit === '2') {
-        return roll.startsWith('25B') && !isLateralEntry;
-      }
-      if (targetDigit === '1') {
-        return roll.startsWith('26B') && !isLateralEntry;
-      }
-      if (targetDigit === '4') {
-        return roll.startsWith('23B') || (roll.startsWith('24B') && isLateralEntry);
-      }
-      return targetDigit === '3';
+    const rosterData = await getCanonicalRosterForYear(typeof year === 'string' ? year : undefined);
+    res.json({
+      year: rosterData.year,
+      sections: rosterData.sections,
     });
-
-    // Map of sectionKey -> Section metadata
-    const sectionMap = new Map<string, {
-      key: string;
-      department: string;
-      section: string;
-      year: string;
-      label: string;
-      value: string;
-      rollNumbers: Set<string>;
-      studentCount: number;
-    }>();
-
-    // Default base sections for standard years
-    sectionMap.set('CSD — Section A', {
-      key: 'CSD — Section A',
-      department: 'CSD',
-      section: 'A',
-      year: yearLabel,
-      label: 'CSD - Sec A',
-      value: 'CSD-A',
-      rollNumbers: new Set<string>(),
-      studentCount: 0,
-    });
-    sectionMap.set('CSIT — Section A', {
-      key: 'CSIT — Section A',
-      department: 'CSIT',
-      section: 'A',
-      year: yearLabel,
-      label: 'CSIT - Sec A',
-      value: 'CSIT-A',
-      rollNumbers: new Set<string>(),
-      studentCount: 0,
-    });
-    sectionMap.set('CSIT — Section B', {
-      key: 'CSIT — Section B',
-      department: 'CSIT',
-      section: 'B',
-      year: yearLabel,
-      label: 'CSIT - Sec B',
-      value: 'CSIT-B',
-      rollNumbers: new Set<string>(),
-      studentCount: 0,
-    });
-
-    yearStudents.forEach(s => {
-      const dept = (s.department || 'CSIT').toUpperCase().trim();
-      const rawRoll = (s.rollNumber || s.userId || '').toUpperCase().trim();
-      const suffix = extractRollSuffixBackend(rawRoll);
-
-      let secKey = '';
-      let secValue = '';
-      let secLabel = '';
-      let secLetter = 'A';
-
-      const rawSec = ((s as any).section || '') as string;
-      const explicitSec = rawSec.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
-      if (explicitSec === 'A' || explicitSec === 'B' || explicitSec === 'C' || explicitSec === 'D') {
-        secLetter = explicitSec;
-        secKey = `${dept} — Section ${explicitSec}`;
-        secValue = `${dept}-${explicitSec}`;
-        secLabel = `${dept} - Sec ${explicitSec}`;
-      } else if (dept === 'CSD' || rawRoll.includes('62') || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
-        secKey = 'CSD — Section A';
-        secValue = 'CSD-A';
-        secLabel = 'CSD - Sec A';
-        secLetter = 'A';
-      } else if (dept === 'CSIT' || rawRoll.includes('07')) {
-        let isSecB = false;
-        if (/^\d+$/.test(suffix)) {
-          const num = parseInt(suffix, 10);
-          isSecB = num >= 73;
-        } else {
-          isSecB = true;
-        }
-        if (isSecB) {
-          secKey = 'CSIT — Section B';
-          secValue = 'CSIT-B';
-          secLabel = 'CSIT - Sec B';
-          secLetter = 'B';
-        } else {
-          secKey = 'CSIT — Section A';
-          secValue = 'CSIT-A';
-          secLabel = 'CSIT - Sec A';
-          secLetter = 'A';
-        }
-      } else {
-        secKey = `${dept} — Section A`;
-        secValue = `${dept}-A`;
-        secLabel = `${dept} - Sec A`;
-        secLetter = 'A';
-      }
-
-      if (!sectionMap.has(secKey)) {
-        sectionMap.set(secKey, {
-          key: secKey,
-          department: dept,
-          section: secLetter,
-          year: `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`,
-          label: secLabel,
-          value: secValue,
-          rollNumbers: new Set<string>(),
-          studentCount: 0,
-        });
-      }
-
-      const secObj = sectionMap.get(secKey)!;
-      if (suffix) {
-        secObj.rollNumbers.add(suffix);
-      }
-      secObj.studentCount += 1;
-    });
-
-    // Return only the sections and real student rolls from DB (no dummy fallback data)
-    const result = Array.from(sectionMap.values())
-      .filter(sec => sec.studentCount > 0 || sec.rollNumbers.size > 0)
-      .map(sec => {
-        const rolls = Array.from(sec.rollNumbers);
-        return {
-          key: sec.key,
-          department: sec.department,
-          section: sec.section,
-          year: sec.year,
-          label: sec.label,
-          value: sec.value,
-          rollNumbers: sortRolls(rolls),
-          studentCount: sec.studentCount,
-        };
-      });
-
-    res.json({ sections: result });
   } catch (error) {
     console.error('Error fetching public sections:', error);
     res.status(500).json({ error: 'Internal error' });
   }
-});
+};
+
+router.get('/public-sections', handlePublicSections);
+router.get('/students/roster', handlePublicSections);
 
 // Public endpoint for permissions page viewer & attendance pre-highlighting
 router.get('/public-approved', async (req: Request, res: Response) => {

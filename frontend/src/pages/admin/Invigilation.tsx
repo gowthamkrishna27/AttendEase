@@ -15,7 +15,8 @@ import {
   formatKolkataTime,
   toKolkataIsoString,
   fromIsoToKolkataInputs,
-  DEPARTMENTS
+  DEPARTMENTS,
+  getFacultyInitials
 } from '../../lib/utils';
 
 // Exam Type Badge helper
@@ -110,7 +111,7 @@ export default function AdminInvigilation() {
   });
 
   const facultyUsers = useMemo(() => {
-    return usersList.filter((u) => u.role === 'faculty');
+    return usersList.filter((u) => u.role === 'faculty' && u.isActive !== false);
   }, [usersList]);
 
   // Build query params for invigilation duties
@@ -1022,7 +1023,11 @@ export default function AdminInvigilation() {
 
               {/* Scrollable list of faculty with checkmarks */}
               <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
-                {pickerFacultyList.length === 0 ? (
+                {facultyUsers.length === 0 ? (
+                  <div className="p-4 text-center text-slate-400 text-xs">
+                    No faculty available
+                  </div>
+                ) : pickerFacultyList.length === 0 ? (
                   <div className="p-4 text-center text-slate-400 text-xs">
                     No faculty found matching the search.
                   </div>
@@ -1051,11 +1056,25 @@ export default function AdminInvigilation() {
                           >
                             {isSelected && <Check size={11} strokeWidth={3} />}
                           </div>
-                          <div className="min-w-0">
-                            <span className="font-medium text-slate-900 block truncate">{fac.name}</span>
-                            <span className="text-[11px] text-slate-500 truncate block">
-                              ID: {fac.userId || fac.id} • Dept: {fac.department}
-                            </span>
+                          <div className="w-7 h-7 rounded-lg bg-orange-50 text-orange-700 font-bold text-[11px] flex items-center justify-center shrink-0 overflow-hidden border border-orange-200/60">
+                            {fac.avatarUrl ? (
+                              <img
+                                src={fac.avatarUrl}
+                                alt={fac.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = 'none';
+                                  if (e.currentTarget.parentElement) {
+                                    e.currentTarget.parentElement.innerText = getFacultyInitials(fac.name);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              getFacultyInitials(fac.name)
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-semibold text-slate-900 block truncate text-[13px]">{fac.name}</span>
                           </div>
                         </div>
 

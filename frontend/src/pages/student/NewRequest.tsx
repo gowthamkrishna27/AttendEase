@@ -13,6 +13,7 @@ import {
   BookOpen, PenLine, Send, UserCheck, ChevronDown,
   Check, Zap, Calendar, ChevronsUpDown
 } from 'lucide-react';
+import { getFacultyInitials } from '../../lib/utils';
 
 const schema = z
   .object({
@@ -124,7 +125,11 @@ export default function NewRequest() {
     };
   }, [requestType, selectedPeriods]);
 
-  const { data: rawFacultyList = [] } = useQuery({
+  const {
+    data: rawFacultyList = [],
+    isLoading: isFacultyLoading,
+    isError: isFacultyError,
+  } = useQuery({
     queryKey: ['faculty'],
     queryFn: () => api.getFaculty(),
   });
@@ -267,7 +272,7 @@ export default function NewRequest() {
 
             {/* Target Faculty — Dropdown Box with Avatars */}
             <label style={labelStyle}>
-              Point to Faculty Member(s) <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 400 }}>(Select from dropdown: Class Mentor, Counselor, Subject Teacher)</span>
+              Point to Faculty Member(s)
             </label>
 
             {/* Custom Dropdown Trigger Box */}
@@ -298,17 +303,29 @@ export default function NewRequest() {
                             border: '1px solid #FED7AA', borderRadius: 10,
                           }}
                         >
-                          <div style={{ width: 26, height: 26, borderRadius: 8, overflow: 'hidden', background: '#EA580C', flexShrink: 0 }}>
-                            <img
-                              src={fac.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(fac.name)}&background=F97316&color=fff`}
-                              alt={fac.name}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
+                          <div style={{
+                            width: 26, height: 26, borderRadius: 8, overflow: 'hidden',
+                            background: '#EA580C', color: '#ffffff', flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 10, fontWeight: 700,
+                          }}>
+                            {fac.avatarUrl ? (
+                              <img
+                                src={fac.avatarUrl}
+                                alt={fac.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = 'none';
+                                  if (e.currentTarget.parentElement) {
+                                    e.currentTarget.parentElement.innerText = getFacultyInitials(fac.name);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              getFacultyInitials(fac.name)
+                            )}
                           </div>
                           <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{fac.name}</span>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: '#EA580C', background: 'rgba(234,88,12,0.1)', padding: '1px 5px', borderRadius: 4 }}>
-                            {fac.department}
-                          </span>
                         </div>
                       );
                     })}
@@ -339,53 +356,81 @@ export default function NewRequest() {
                       display: 'flex', flexDirection: 'column', gap: 4,
                     }}
                   >
-                    {facultyList.map((f: api.Faculty, idx: number) => {
-                      const isSelected = selectedFacultyIds.includes(f.id);
-                      const designationTag = f.designation || (idx % 3 === 0 ? 'Class Mentor' : idx % 3 === 1 ? 'Counselor' : 'Subject Faculty');
-                      return (
-                        <div
-                          key={f.id}
-                          onClick={() => {
-                            toggleFaculty(f.id);
-                          }}
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
-                            background: isSelected ? '#FFF7ED' : 'transparent',
-                            border: isSelected ? '1px solid #FED7AA' : '1px solid transparent',
-                            transition: 'all 0.12s ease',
-                          }}
-                          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = '#F8FAFC'; }}
-                          onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ width: 34, height: 34, borderRadius: 10, overflow: 'hidden', background: '#EA580C', flexShrink: 0, border: '1px solid #FED7AA' }}>
-                              <img
-                                src={f.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(f.name)}&background=F97316&color=fff`}
-                                alt={f.name}
-                                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(f.name)}&background=F97316&color=fff`;
-                                }}
-                              />
+                    {isFacultyLoading ? (
+                      <div style={{ padding: '16px 12px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+                        Loading faculty...
+                      </div>
+                    ) : isFacultyError ? (
+                      <div style={{ padding: '16px 12px', textAlign: 'center', color: '#EF4444', fontSize: 13 }}>
+                        Failed to load faculty
+                      </div>
+                    ) : facultyList.length === 0 ? (
+                      <div style={{ padding: '16px 12px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+                        No faculty available
+                      </div>
+                    ) : (
+                      facultyList.map((f: api.Faculty) => {
+                        const isSelected = selectedFacultyIds.includes(f.id);
+                        return (
+                          <div
+                            key={f.id}
+                            onClick={() => {
+                              toggleFaculty(f.id);
+                            }}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
+                              background: isSelected ? '#FFF7ED' : 'transparent',
+                              border: isSelected ? '1px solid #FED7AA' : '1px solid transparent',
+                              transition: 'all 0.12s ease',
+                            }}
+                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = '#F8FAFC'; }}
+                            onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                              <div style={{
+                                width: 32, height: 32, borderRadius: 8,
+                                background: '#F97316', color: '#ffffff',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 11, fontWeight: 700,
+                                overflow: 'hidden', flexShrink: 0,
+                              }}>
+                                {f.avatarUrl ? (
+                                  <img
+                                    src={f.avatarUrl}
+                                    alt={f.name}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLElement).style.display = 'none';
+                                      if (e.currentTarget.parentElement) {
+                                        e.currentTarget.parentElement.innerText = getFacultyInitials(f.name);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  getFacultyInitials(f.name)
+                                )}
+                              </div>
+                              <span style={{
+                                fontSize: 13, fontWeight: 600, color: '#0F172A',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                              }}>
+                                {f.name}
+                              </span>
                             </div>
-                            <div>
-                              <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.2 }}>{f.name}</p>
-                              <p style={{ fontSize: 11, color: '#64748B', margin: '2px 0 0' }}>{f.department} · {designationTag}</p>
+                            <div style={{
+                              width: 18, height: 18, borderRadius: 6,
+                              border: isSelected ? 'none' : '1.5px solid #CBD5E1',
+                              background: isSelected ? '#F97316' : '#fff',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              color: '#fff', flexShrink: 0, marginLeft: 8,
+                            }}>
+                              {isSelected && <Check size={11} strokeWidth={3} />}
                             </div>
                           </div>
-                          <div style={{
-                            width: 18, height: 18, borderRadius: 6,
-                            border: isSelected ? 'none' : '1.5px solid #CBD5E1',
-                            background: isSelected ? '#F97316' : '#fff',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#fff',
-                          }}>
-                            {isSelected && <Check size={11} strokeWidth={3} />}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                     {facultyList.length > 4 && (
                       <div style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,

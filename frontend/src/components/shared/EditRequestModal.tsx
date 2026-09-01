@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AttendanceRequest } from '../../types';
 import { UploadArea } from '../forms/UploadArea';
 import * as api from '../../lib/api';
+import { getFacultyInitials } from '../../lib/utils';
 
 interface EditRequestModalProps {
   request: AttendanceRequest | null;
@@ -321,28 +322,45 @@ export const EditRequestModal: React.FC<EditRequestModalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-0.5">
-              {facultyList.map(f => {
-                const fId = f.id || f.userId || '';
-                const isSelected = !!fId && selectedFacultyIds.includes(fId);
-                return (
-                  <div
-                    key={fId}
-                    onClick={() => toggleFaculty(fId)}
-                    className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all select-none ${isSelected ? 'border-orange-400 bg-orange-50/70 text-orange-950 font-bold' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'}`}
-                  >
-                    <div className="min-w-0 flex items-center gap-2">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold shrink-0 ${isSelected ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                        {f.name.slice(0, 1)}
+              {facultyList.length === 0 ? (
+                <div className="col-span-2 py-4 text-center text-slate-400 text-xs">
+                  No faculty available
+                </div>
+              ) : (
+                facultyList.map(f => {
+                  const fId = f.id || f.userId || '';
+                  const isSelected = !!fId && selectedFacultyIds.includes(fId);
+                  return (
+                    <div
+                      key={fId}
+                      onClick={() => toggleFaculty(fId)}
+                      className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all select-none ${isSelected ? 'border-orange-400 bg-orange-50/70 text-orange-950 font-bold' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'}`}
+                    >
+                      <div className="min-w-0 flex items-center gap-2 flex-1">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden ${isSelected ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                          {f.avatarUrl ? (
+                            <img
+                              src={f.avatarUrl}
+                              alt={f.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                                if (e.currentTarget.parentElement) {
+                                  e.currentTarget.parentElement.innerText = getFacultyInitials(f.name);
+                                }
+                              }}
+                            />
+                          ) : (
+                            getFacultyInitials(f.name)
+                          )}
+                        </div>
+                        <span className="text-[13px] font-semibold text-slate-900 truncate block">{f.name}</span>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-[12px] truncate">{f.name}</p>
-                        <p className="text-[10px] text-slate-400 font-normal">{f.department || 'CSIT'}</p>
-                      </div>
+                      {isSelected && <Check size={14} className="text-orange-600 shrink-0 ml-2" />}
                     </div>
-                    {isSelected && <Check size={14} className="text-orange-600 shrink-0" />}
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 

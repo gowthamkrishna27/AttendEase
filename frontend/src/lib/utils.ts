@@ -313,4 +313,11 @@ export function fromIsoToKolkataInputs(isoString: string | null | undefined): { 
   }
 }
 
-
+export function getFacultyInitials(name: string | undefined | null): string {
+  if (!name) return 'F';
+  const clean = name.replace(/^(Dr\.|Prof\.|Mr\.|Mrs\.|Ms\.)\s+/i, '').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return name.slice(0, 2).toUpperCase();
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}

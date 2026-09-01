@@ -735,14 +735,22 @@ export interface SubmitAttendancePayload {
 }
 
 export interface PublicSectionItem {
+  id?: string;
   key: string;
   department: string;
   section: string;
   year: string;
   label: string;
   value: string;
+  displayName?: string;
   rollNumbers: string[];
   studentCount: number;
+  students?: Array<{
+    userId: string;
+    name: string;
+    rollNumber: string;
+    suffix: string;
+  }>;
 }
 
 export async function getPublicSections(year?: string): Promise<PublicSectionItem[]> {
@@ -750,6 +758,15 @@ export async function getPublicSections(year?: string): Promise<PublicSectionIte
   if (year) params.append('year', year);
   const queryString = params.toString();
   const url = `/api/requests/public-sections${queryString ? `?${queryString}` : ''}`;
+  const res = await apiFetch<{ sections: PublicSectionItem[] }>(url, {}, false);
+  return res.sections ?? [];
+}
+
+export async function getStudentsRoster(year?: string): Promise<PublicSectionItem[]> {
+  const params = new URLSearchParams();
+  if (year) params.append('year', year);
+  const queryString = params.toString();
+  const url = `/api/students/roster${queryString ? `?${queryString}` : ''}`;
   const res = await apiFetch<{ sections: PublicSectionItem[] }>(url, {}, false);
   return res.sections ?? [];
 }
