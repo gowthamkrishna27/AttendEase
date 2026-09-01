@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { CheckSquare, ArrowRight, Camera, Loader2, Check } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { FaceAlignedImage } from '../../components/shared/FaceAlignedImage';
+import { UpcomingInvigilationWidget } from './components/UpcomingInvigilationWidget';
 import { useAuth } from '../../context/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
@@ -138,6 +139,9 @@ export default function FacultyDashboard() {
             </div>
           </div>
         </motion.div>
+
+        {/* ── Upcoming Invigilation Duties Widget ── */}
+        <UpcomingInvigilationWidget />
 
         {/* ── Take Attendance Primary Action Card (Between Overview & Stats) ── */}
         <motion.div

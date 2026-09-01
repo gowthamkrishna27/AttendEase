@@ -13,6 +13,7 @@ import shareRoutes        from './routes/share.js';
 import userRoutes         from './routes/users.js';
 import notificationRoutes  from './routes/notifications.js';
 import attendanceRoutes    from './routes/attendance.js';
+import invigilationRoutes from './routes/invigilation.js';
 import adminRouter from './admin/index.js';
 import chatRoutes from './routes/chat.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
@@ -91,6 +92,7 @@ app.use('/api/share',         shareRoutes);
 app.use('/api/users',         userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/attendance',    attendanceRoutes);
+app.use('/api/invigilation',   invigilationRoutes);
 app.use('/api/admin',         adminRouter);
 app.use('/api/chat',          chatRoutes);
 

@@ -311,6 +311,7 @@ RollButton.displayName = 'RollButton';
 // ── Permission & Attendance Grid Component per Section ────────────────────────
 interface PermissionGridProps {
   sectionKey: string;
+  selectedYear?: string;
   passes: ExtendedAttendanceRequest[];
   markedAttendance: Record<string, 'present' | 'absent'>;
   attendanceSubmissions: api.AttendanceSubmissionItem[];
@@ -328,6 +329,7 @@ interface PermissionGridProps {
 
 const PermissionGrid = React.memo(({
   sectionKey,
+  selectedYear,
   passes,
   markedAttendance,
   attendanceSubmissions,
@@ -366,6 +368,10 @@ const PermissionGrid = React.memo(({
       ? attendanceSubmissions
       : attendanceSubmissions.filter(s => s.id === selectedSubmissionId)
     ).filter(sub => {
+      // 1. Strict Academic Year isolation
+      if (selectedYear && sub.year) {
+        if (sub.year.trim().toLowerCase() !== selectedYear.trim().toLowerCase()) return false;
+      }
       if (!sub.section) return true;
       const subSec = (sub.section || '').toUpperCase().replace(/[\s-]/g, '');
       const currentSec = sectionKey.toUpperCase().replace(/[\s-]/g, '');
@@ -405,7 +411,7 @@ const PermissionGrid = React.memo(({
       });
     });
     return map;
-  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters, sectionKey, hasSelectedPeriods]);
+  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters, sectionKey, selectedYear, hasSelectedPeriods]);
 
   const permissionMap = useMemo(() => {
     const map = new Map<string, ExtendedAttendanceRequest>();
@@ -830,10 +836,11 @@ export default function PermissionsPage() {
     return apiRequests.filter(r => r.status === 'approved' && isLongPermission(r)).length;
   }, [apiRequests]);
 
-  // Query Faculty Attendance Submissions for selected date (Always active for selected date)
+  // Query Faculty Attendance Submissions for selected date & academic year (Live DB Sync)
   const { data: attendanceSubmissions = [] } = useQuery<api.AttendanceSubmissionItem[]>({
-    queryKey: ['public-attendance-submissions', effectiveDate || todayStr],
-    queryFn: () => api.getAttendanceSubmissions(effectiveDate || todayStr),
+    queryKey: ['public-attendance-submissions', effectiveDate || todayStr, selectedYear],
+    queryFn: () => api.getAttendanceSubmissions(effectiveDate || todayStr, undefined, selectedYear || undefined),
+    enabled: Boolean(selectedYear),
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
   });
@@ -995,15 +1002,20 @@ export default function PermissionsPage() {
     return { sectionsMap: map, sectionKeys: keys };
   }, [filteredApproved, sectionFilter, getStudentSectionKey, dbSections]);
 
-  // Filter attendance submissions for current section filter so submissions don't bleed across sections
+  // Filter attendance submissions for current section filter so submissions don't bleed across sections or years
   const activeSectionSubmissions = useMemo(() => {
-    if (sectionFilter === 'all') return attendanceSubmissions;
-    return attendanceSubmissions.filter(sub => {
+    let subs = attendanceSubmissions;
+    if (selectedYear) {
+      const targetYearNorm = selectedYear.trim().toLowerCase();
+      subs = subs.filter(sub => (sub.year || '').trim().toLowerCase() === targetYearNorm);
+    }
+    if (sectionFilter === 'all') return subs;
+    return subs.filter(sub => {
       const subSec = (sub.section || '').toUpperCase().replace(/[\s-]/g, '');
       const filterSec = sectionFilter.toUpperCase().replace(/[\s-]/g, '');
       return subSec.includes(filterSec) || filterSec.includes(subSec);
     });
-  }, [attendanceSubmissions, sectionFilter]);
+  }, [attendanceSubmissions, sectionFilter, selectedYear]);
 
   const handleOpenWhatsApp = useCallback((secKey?: string) => {
     if (selectedPeriodFilters.length === 0) {
@@ -1022,11 +1034,14 @@ export default function PermissionsPage() {
   const whatsAppAttendanceMap = useMemo(() => {
     const map: Record<string, 'present' | 'absent'> = {};
 
-    // Filter submissions for this specific section being shared
+    // Filter submissions for this specific academic year and section being shared
     let relevantSubmissions = (selectedSubmissionId === 'combined'
       ? attendanceSubmissions
       : attendanceSubmissions.filter(s => s.id === selectedSubmissionId)
     ).filter(sub => {
+      if (selectedYear && sub.year) {
+        if (sub.year.trim().toLowerCase() !== selectedYear.trim().toLowerCase()) return false;
+      }
       if (!sub.section) return true;
       const subSec = (sub.section || '').toUpperCase().replace(/[\s-]/g, '');
       const currentSec = whatsAppSectionKey.toUpperCase().replace(/[\s-]/g, '');
@@ -1068,7 +1083,7 @@ export default function PermissionsPage() {
       });
     });
     return { ...map, ...markedAttendance };
-  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters, markedAttendance, whatsAppSectionKey]);
+  }, [attendanceSubmissions, selectedSubmissionId, selectedPeriodFilters, markedAttendance, whatsAppSectionKey, selectedYear]);
 
   const whatsAppPermissionRollsSet = useMemo(() => {
     const set = new Set<string>();
@@ -1659,6 +1674,7 @@ export default function PermissionsPage() {
                 <PermissionGrid
                   key={sectionKey}
                   sectionKey={sectionKey}
+                  selectedYear={selectedYear}
                   customRollNumbers={getDynamicSectionRollNumbers(sectionKey)}
                   passes={sectionsMap[sectionKey] || []}
                   markedAttendance={markedAttendance}

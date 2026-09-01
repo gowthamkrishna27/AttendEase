@@ -210,3 +210,107 @@ export const DEPARTMENTS = [
   'CSIT',
 ];
 
+// ─── Asia/Kolkata (IST) Date & Time Formatting Utilities ─────────────────────
+
+export function formatKolkataDate(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '—';
+  try {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(d.getTime())) return String(dateInput);
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(d);
+  } catch {
+    return String(dateInput);
+  }
+}
+
+export function formatKolkataTime(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '—';
+  try {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(d.getTime())) return String(dateInput);
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).format(d);
+  } catch {
+    return String(dateInput);
+  }
+}
+
+export function formatKolkataDateTime(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '—';
+  try {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(d.getTime())) return String(dateInput);
+    return `${formatKolkataDate(d)}, ${formatKolkataTime(d)}`;
+  } catch {
+    return String(dateInput);
+  }
+}
+
+/**
+ * Converts a date (YYYY-MM-DD) and time (HH:mm) entered in IST (Asia/Kolkata)
+ * into a standard UTC ISO-8601 string.
+ */
+export function toKolkataIsoString(dateStr: string, timeStr: string): string {
+  const trimmedDate = dateStr.trim();
+  const trimmedTime = timeStr.trim();
+  if (!trimmedDate || !trimmedTime) return '';
+  const seconds = trimmedTime.split(':').length === 2 ? `${trimmedTime}:00` : trimmedTime;
+  // Parse with +05:30 IST offset explicitly
+  const isoWithOffset = `${trimmedDate}T${seconds}+05:30`;
+  const parsed = new Date(isoWithOffset);
+  if (isNaN(parsed.getTime())) {
+    throw new Error('Invalid date or time value');
+  }
+  return parsed.toISOString();
+}
+
+/**
+ * Extracts { date: 'YYYY-MM-DD', time: 'HH:mm' } in Asia/Kolkata timezone
+ * from an ISO string for pre-populating HTML <input type="date"> and <input type="time">.
+ */
+export function fromIsoToKolkataInputs(isoString: string | null | undefined): { date: string; time: string } {
+  if (!isoString) return { date: '', time: '' };
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return { date: '', time: '' };
+
+    // Format parts in Asia/Kolkata
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+
+    const parts = formatter.formatToParts(d);
+    let year = '', month = '', day = '', hour = '', minute = '';
+    for (const part of parts) {
+      if (part.type === 'year') year = part.value;
+      if (part.type === 'month') month = part.value;
+      if (part.type === 'day') day = part.value;
+      if (part.type === 'hour') hour = part.value;
+      if (part.type === 'minute') minute = part.value;
+    }
+
+    return {
+      date: `${year}-${month}-${day}`,
+      time: `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`,
+    };
+  } catch {
+    return { date: '', time: '' };
+  }
+}
+
+

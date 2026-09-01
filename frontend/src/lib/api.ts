@@ -977,4 +977,142 @@ export async function revokeShareToken(shareToken: string): Promise<{ success: b
   });
 }
 
+// ─── Invigilation Management (Admin) ──────────────────────────────────────────
+
+export type ExamType = 'MID' | 'SEM' | 'LAB' | 'SUPPLEMENTARY';
+
+export interface AssignedFacultyInfo {
+  assignmentId: string;
+  facultyId: string;
+  userId: string;
+  name: string;
+  email: string;
+  department: string;
+  designation?: string | null;
+  dutyType?: string | null;
+}
+
+export interface InvigilationDuty {
+  id: string;
+  examType: ExamType;
+  examName: string;
+  subjectName: string;
+  startDateTime: string;
+  endDateTime: string;
+  blockName: string;
+  roomNumber: string;
+  createdAt: string;
+  updatedAt: string;
+  assignedFaculty: AssignedFacultyInfo[];
+}
+
+export interface InvigilationDutyListResponse {
+  duties: InvigilationDuty[];
+  total: number;
+}
+
+export interface FacultyAssignmentInput {
+  facultyId: string;
+  dutyType?: string | null;
+}
+
+export interface CreateDutyPayload {
+  examType: ExamType;
+  examName: string;
+  subjectName: string;
+  startDateTime: string;
+  endDateTime: string;
+  blockName: string;
+  roomNumber: string;
+  assignedFaculty: FacultyAssignmentInput[];
+}
+
+export interface UpdateDutyPayload {
+  examType?: ExamType;
+  examName?: string;
+  subjectName?: string;
+  startDateTime?: string;
+  endDateTime?: string;
+  blockName?: string;
+  roomNumber?: string;
+  assignedFaculty?: FacultyAssignmentInput[];
+}
+
+export interface InvigilationFilterParams {
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+  examType?: ExamType;
+  facultyId?: string;
+  department?: string;
+}
+
+export async function getInvigilationDuties(params?: InvigilationFilterParams): Promise<InvigilationDutyListResponse> {
+  const query = new URLSearchParams();
+  if (params) {
+    if (params.date) query.append('date', params.date);
+    if (params.startDate) query.append('startDate', params.startDate);
+    if (params.endDate) query.append('endDate', params.endDate);
+    if (params.examType) query.append('examType', params.examType);
+    if (params.facultyId) query.append('facultyId', params.facultyId);
+    if (params.department) query.append('department', params.department);
+  }
+  const queryString = query.toString();
+  const endpoint = `/api/admin/invigilation${queryString ? `?${queryString}` : ''}`;
+  return apiFetch<InvigilationDutyListResponse>(endpoint);
+}
+
+export async function getInvigilationDuty(id: string): Promise<InvigilationDuty> {
+  const res = await apiFetch<{ duty: InvigilationDuty }>(`/api/admin/invigilation/${encodeURIComponent(id)}`);
+  return res.duty;
+}
+
+export async function createInvigilationDuty(data: CreateDutyPayload): Promise<InvigilationDuty> {
+  const res = await apiFetch<{ duty: InvigilationDuty }>('/api/admin/invigilation', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.duty;
+}
+
+export async function updateInvigilationDuty(id: string, data: UpdateDutyPayload): Promise<InvigilationDuty> {
+  const res = await apiFetch<{ duty: InvigilationDuty }>(`/api/admin/invigilation/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res.duty;
+}
+
+export async function deleteInvigilationDuty(id: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`/api/admin/invigilation/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+// ─── Faculty Invigilation Duties ──────────────────────────────────────────────
+
+export interface FacultyInvigilationDuty {
+  id: string;
+  examType: ExamType;
+  examName: string;
+  subjectName: string;
+  startDateTime: string;
+  endDateTime: string;
+  blockName: string;
+  roomNumber: string;
+  dutyType: string | null;
+  status: 'IN_PROGRESS' | 'UPCOMING';
+}
+
+export interface FacultyInvigilationListResponse {
+  duties: FacultyInvigilationDuty[];
+  total: number;
+}
+
+export async function getMyInvigilationDuties(): Promise<FacultyInvigilationListResponse> {
+  return apiFetch<FacultyInvigilationListResponse>('/api/invigilation/my-duties');
+}
+
+
+
 

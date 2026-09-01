@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Users, Settings, ArrowRight, UserCheck, Database, ClipboardList } from 'lucide-react';
+import { Users, Settings, ArrowRight, UserCheck, Database, ClipboardList, CalendarCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import logo from '../../assets/logo.png';
@@ -28,6 +28,13 @@ export default function AdminDashboard() {
       icon: Users,
       to: '/admin/users',
       tag: `${totalUsers} Accounts`
+    },
+    {
+      label: 'Invigilation Duties',
+      description: 'Schedule, filter, assign faculty, and manage exam invigilation duties',
+      icon: CalendarCheck,
+      to: '/admin/invigilation',
+      tag: 'Invigilation'
     },
     {
       label: 'Counseling Assignment',

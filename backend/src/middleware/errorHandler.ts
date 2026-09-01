@@ -24,6 +24,12 @@ import {
   InvalidCurrentPasswordError,
 } from '../admin/services/user.service.js';
 import { PasswordPolicyError } from '../admin/services/password.service.js';
+import {
+  DutyNotFoundError,
+  InvalidFacultyError,
+  DuplicateFacultyAssignmentError,
+  InvalidDateTimeRangeError,
+} from '../admin/services/invigilation.service.js';
 
 // ── Error → HTTP status mapping ───────────────────────────────────────────────
 
@@ -32,16 +38,20 @@ function resolveStatusCode(err: Error): number {
   if (err instanceof SyntaxError || ('status' in err && (err as any).status === 400)) return 400;
 
   if (
-    err instanceof DuplicateRollNumberError ||
-    err instanceof DuplicateEmailError      ||
-    err instanceof DuplicateUserError       ||
-    err instanceof PasswordPolicyError      ||
-    err instanceof InvalidCurrentPasswordError
+    err instanceof DuplicateRollNumberError         ||
+    err instanceof DuplicateEmailError              ||
+    err instanceof DuplicateUserError               ||
+    err instanceof PasswordPolicyError              ||
+    err instanceof InvalidCurrentPasswordError      ||
+    err instanceof InvalidFacultyError              ||
+    err instanceof DuplicateFacultyAssignmentError  ||
+    err instanceof InvalidDateTimeRangeError
   ) return 400;
 
   if (
     err instanceof StudentNotFoundError ||
-    err instanceof UserNotFoundError
+    err instanceof UserNotFoundError    ||
+    err instanceof DutyNotFoundError
   ) return 404;
 
   if (err instanceof LastAdminError) return 409;
