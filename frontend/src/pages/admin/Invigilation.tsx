@@ -127,7 +127,7 @@ export default function AdminInvigilation() {
   });
 
   const facultyUsers = useMemo(() => {
-    return usersList.filter((u) => u.role === 'faculty' && u.isActive !== false);
+    return usersList.filter((u) => u.role === 'faculty');
   }, [usersList]);
 
   const queryParams = useMemo<api.InvigilationFilterParams>(() => {
@@ -501,7 +501,6 @@ export default function AdminInvigilation() {
           </div>
         ) : filteredDuties.length === 0 ? (
           <EmptyState
-            icon={<CalendarCheck size={32} className="text-slate-300" />}
             title="No invigilation duties found"
             description={
               search || activeFiltersCount > 0
