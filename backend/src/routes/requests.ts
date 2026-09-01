@@ -458,6 +458,7 @@ function toApi(r: any) {
     rollNumber:  student.rollNumber ?? fallbackRoll,
     department:  student.department ?? 'CSIT',
     year:        student.year       ?? undefined,
+    section:     student.section    ?? undefined,
     semester:    student.semester   ?? 1,
     email:       student.email,
     avatarUrl:   student.avatarUrl  || (student.rollNumber ? `https://srkrexams.in/SRKR/photo/${student.rollNumber.toUpperCase()}.jpg` : (fallbackRoll ? `https://srkrexams.in/SRKR/photo/${fallbackRoll.toUpperCase()}.jpg` : undefined)),

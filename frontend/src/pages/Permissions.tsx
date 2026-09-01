@@ -199,6 +199,20 @@ export const parseSubmissionPeriods = (periods: any): number[] => {
   return [];
 };
 
+export const isRequestOnDate = (req: ExtendedAttendanceRequest | AttendanceRequest, targetDate: string): boolean => {
+  if (!req.date) return false;
+  const start = req.date.trim().slice(0, 10);
+  const end = req.endDate ? req.endDate.trim().slice(0, 10) : start;
+  return targetDate >= start && targetDate <= end;
+};
+
+export const isLongPermission = (req?: ExtendedAttendanceRequest | AttendanceRequest | null): boolean => {
+  if (!req || !req.endDate) return false;
+  const start = req.date?.trim().slice(0, 10);
+  const end = req.endDate.trim().slice(0, 10);
+  return Boolean(start && end && start !== end);
+};
+
 const getTodayDateString = () => {
   const d = new Date();
   const year = d.getFullYear();
@@ -226,6 +240,7 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
   const isPermission = Boolean(request);
   const isPresent = markedStatus === 'present' && !isPermission;
   const isAbsent = markedStatus === 'absent' && !isPermission;
+  const isMultiDay = isLongPermission(request);
 
   // Priority: Permission Approved (Yellow) > Present (Green) > Absent (Red) > Unmarked (White)
   let bgColor = '#FFFFFF';
@@ -274,10 +289,18 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
           : isAbsent
             ? `Roll #${rollNo}: Marked Absent${Boolean(request) ? ' (Has Approved Permission — marked absent by faculty)' : ''}`
             : isPermission
-              ? `Roll #${rollNo}: Approved Permission (${request?.reasonLabel}) - Click to view slip`
+              ? `Roll #${rollNo}: Approved ${isMultiDay ? 'Multi-Day ' : ''}Permission (${request?.reasonLabel}${isMultiDay ? ` • ${request?.date} to ${request?.endDate}` : ''}) - Click to view slip`
               : `Roll #${rollNo}: Unmarked`
       }
     >
+      {isMultiDay && (
+        <span
+          className="absolute -top-1.5 -right-1.5 px-1 py-0.2 bg-purple-600 text-white text-[8px] font-black rounded-full shadow-xs border border-white leading-tight uppercase tracking-tighter"
+          title={`Multi-Day Permission: ${request?.date} to ${request?.endDate}`}
+        >
+          MULTI
+        </span>
+      )}
       {rollNo}
     </motion.button>
   );
@@ -398,24 +421,40 @@ const PermissionGrid = React.memo(({
         ? activeSub.periods.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n))
         : []);
 
+    if (activePeriodNums.length === 0) {
+      return map;
+    }
+
     passes.forEach(p => {
       // Filter strictly by period if specific period(s) are selected
-      if (activePeriodNums.length > 0) {
-        const passPeriods = getPeriodsFromRequest(p);
-        const hasOverlap = activePeriodNums.some(pNum => passPeriods.includes(pNum));
-        if (!hasOverlap) return;
-      }
+      const passPeriods = getPeriodsFromRequest(p);
+      const hasOverlap = activePeriodNums.some(pNum => passPeriods.includes(pNum));
+      if (!hasOverlap) return;
 
       const rollStr = p.student?.rollNumber ?? p.studentId;
       const suffix = extractRollSuffix(rollStr);
-      if (suffix && rollNumbers.includes(suffix)) {
-        map.set(suffix, p);
+      if (suffix) {
+        if (rollNumbers.includes(suffix)) {
+          map.set(suffix, p);
+        } else {
+          const matched = rollNumbers.find(r =>
+            r === suffix ||
+            parseInt(r, 10) === parseInt(suffix, 10) ||
+            r.toUpperCase() === rollStr.toUpperCase()
+          );
+          if (matched) {
+            map.set(matched, p);
+          }
+        }
       }
     });
     return map;
   }, [passes, rollNumbers, selectedSubmissionId, attendanceSubmissions, selectedPeriodFilters]);
 
   const permissionCount = permissionMap.size;
+  const longPermissionCount = useMemo(() => {
+    return Array.from(permissionMap.values()).filter(isLongPermission).length;
+  }, [permissionMap]);
 
   // Combine database submission records with in-memory overrides (when no submission exists)
   const combinedAttendance = useMemo(() => {
@@ -445,6 +484,12 @@ const PermissionGrid = React.memo(({
             <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300/80">
               {permissionCount} Permission{permissionCount !== 1 ? 's' : ''}
             </span>
+            {longPermissionCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300/80 font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
+                <span>{longPermissionCount} Long</span>
+              </span>
+            )}
             {hasSelectedPeriods && presentCount > 0 && (
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300/80">
                 {presentCount} Present
@@ -470,9 +515,17 @@ const PermissionGrid = React.memo(({
           <div className="divide-y divide-slate-100">
             {/* Fixed Legend Bar */}
             <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-slate-50/60 border-b border-slate-200/50 text-[11px] font-bold text-slate-700 gap-2">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded bg-yellow-200 border border-yellow-400 inline-block shadow-2xs"></span>
-                <span>Permission ({permissionCount})</span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3.5 h-3.5 rounded bg-yellow-200 border border-yellow-400 inline-block shadow-2xs"></span>
+                  <span>Permission ({permissionCount})</span>
+                </div>
+                {longPermissionCount > 0 && (
+                  <div className="flex items-center gap-1.5 text-purple-800 font-bold">
+                    <span className="px-1 py-0.2 rounded text-[8px] font-black bg-purple-600 text-white uppercase">MULTI</span>
+                    <span>Long Permission ({longPermissionCount})</span>
+                  </div>
+                )}
               </div>
               {hasSelectedPeriods ? (
                 <>
@@ -563,6 +616,7 @@ const PermissionGrid = React.memo(({
               passes.map((pass, index) => {
                 const rollNo = pass.student?.rollNumber ?? pass.studentId;
                 const studentName = pass.student?.name ?? `Student (${rollNo})`;
+                const isMultiDay = isLongPermission(pass);
 
                 return (
                   <div
@@ -581,12 +635,20 @@ const PermissionGrid = React.memo(({
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
                           <Calendar size={11} className="text-orange-500 shrink-0" />
-                          <span>{pass.date} | {formatTime(pass.startTime)} - {formatTime(pass.endTime)}</span>
+                          <span>
+                            {pass.endDate && pass.endDate !== pass.date ? `${pass.date} to ${pass.endDate}` : pass.date} | {formatTime(pass.startTime)} - {formatTime(pass.endTime)}
+                          </span>
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      {isMultiDay && (
+                        <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-lg text-[10px] border border-purple-200/80 flex items-center gap-1">
+                          <Calendar size={10} />
+                          <span>Multi-Day Leave</span>
+                        </span>
+                      )}
                       <span className="px-2.5 py-1 bg-orange-50 text-orange-600 font-bold rounded-lg text-[11px] border border-orange-200/60">
                         {pass.reasonLabel}
                       </span>
@@ -643,6 +705,7 @@ export default function PermissionsPage() {
   const [selectedPeriodFilters, setSelectedPeriodFilters] = useState<number[]>([]);
   const [dateMode, setDateMode] = useState<'today' | 'custom' | 'all'>('today');
   const [customDate, setCustomDate] = useState<string>(getTodayDateString());
+  const [durationFilter, setDurationFilter] = useState<'all' | 'single' | 'long'>('all');
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [markedAttendance, setMarkedAttendance] = useState<Record<string, 'present' | 'absent'>>({});
@@ -762,6 +825,11 @@ export default function PermissionsPage() {
     refetchOnWindowFocus: true,
   });
 
+  // Total count of long permissions in system
+  const totalLongCount = useMemo(() => {
+    return apiRequests.filter(r => r.status === 'approved' && isLongPermission(r)).length;
+  }, [apiRequests]);
+
   // Query Faculty Attendance Submissions for selected date (Always active for selected date)
   const { data: attendanceSubmissions = [] } = useQuery<api.AttendanceSubmissionItem[]>({
     queryKey: ['public-attendance-submissions', effectiveDate || todayStr],
@@ -816,7 +884,22 @@ export default function PermissionsPage() {
       const rollNo = req.student?.rollNumber ?? '';
       const sectionKey = getStudentSectionKey(req);
 
-      const matchesDate = dateMode === 'all' ? true : req.date === effectiveDate;
+      // Date Matching (Supports single-day as well as multi-day long permissions)
+      const matchesDate = dateMode === 'all'
+        ? true
+        : effectiveDate
+          ? isRequestOnDate(req, effectiveDate)
+          : true;
+
+      // Duration / Type filter
+      const isMultiDay = isLongPermission(req);
+      const matchesDuration =
+        durationFilter === 'all'
+          ? true
+          : durationFilter === 'long'
+            ? isMultiDay
+            : !isMultiDay;
+
       const matchesSearch =
         studentName.toLowerCase().includes(search.toLowerCase()) ||
         rollNo.toLowerCase().includes(search.toLowerCase()) ||
@@ -863,9 +946,9 @@ export default function PermissionsPage() {
         matchesPeriod = selectedPeriodFilters.some(p => reqPeriods.includes(p));
       }
 
-      return matchesDate && matchesSearch && matchesYear && matchesSection && matchesPeriod;
+      return matchesDate && matchesDuration && matchesSearch && matchesYear && matchesSection && matchesPeriod;
     });
-  }, [apiRequests, dateMode, effectiveDate, search, selectedYear, sectionFilter, getStudentSectionKey, dbSections, selectedPeriodFilters]);
+  }, [apiRequests, dateMode, effectiveDate, durationFilter, search, selectedYear, sectionFilter, getStudentSectionKey, dbSections, selectedPeriodFilters]);
 
   // Group by Section (Dynamically seeded from DB sections for the academic year)
   const { sectionsMap, sectionKeys } = useMemo(() => {
@@ -923,10 +1006,14 @@ export default function PermissionsPage() {
   }, [attendanceSubmissions, sectionFilter]);
 
   const handleOpenWhatsApp = useCallback((secKey?: string) => {
+    if (selectedPeriodFilters.length === 0) {
+      showToast('Please select particular period(s) above before sharing', true);
+      return;
+    }
     const targetSec = secKey || (sectionKeys.length > 0 ? sectionKeys[0] : (dbSections[0]?.key ?? 'CSIT — Section B'));
     setActiveWhatsAppSection(targetSec);
     setIsWhatsAppModalOpen(true);
-  }, [sectionKeys, dbSections]);
+  }, [sectionKeys, dbSections, selectedPeriodFilters, showToast]);
 
   // WhatsApp Export Calculation
   const whatsAppSectionKey = activeWhatsAppSection || (sectionKeys[0] ?? (dbSections[0]?.key ?? 'CSIT — Section B'));
@@ -1150,12 +1237,64 @@ export default function PermissionsPage() {
                 Approved Permissions &amp; Attendance
               </h1>
               <p className="text-[12px] text-slate-500 mt-0.5">
-                {dateMode === 'today' ? `Today's Grid (${getTodayFormattedDate()})` : 'All Permission Slips Grid'}
+                {dateMode === 'today'
+                  ? `Today's Grid (${getTodayFormattedDate()})`
+                  : dateMode === 'all'
+                    ? 'All Permission Slips Grid'
+                    : `Selected Date Grid (${customDate})`}
+                {durationFilter === 'long' && ' • Multi-Day / Long Permissions Only'}
+                {durationFilter === 'single' && ' • Single-Day Permissions Only'}
               </p>
             </div>
 
-            {/* Controls: View Mode & Date Filter Pills */}
+            {/* Controls: View Mode, Duration Pills & Date Filter Pills */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Duration / Permission Type Pill */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setDurationFilter('all')}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
+                    durationFilter === 'all'
+                      ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDurationFilter('single')}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
+                    durationFilter === 'single'
+                      ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Single-Day
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDurationFilter('long');
+                    if (dateMode === 'today') {
+                      setDateMode('all');
+                    }
+                    showToast('Showing Multi-Day / Long Permissions');
+                  }}
+                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${
+                    durationFilter === 'long'
+                      ? 'bg-purple-600 text-white shadow-2xs font-extrabold'
+                      : 'text-purple-700 hover:text-purple-900'
+                  }`}
+                  title="Filter to show only multi-day and long permissions"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${durationFilter === 'long' ? 'bg-white' : 'bg-purple-600'}`}></span>
+                  <span>Long Permissions{totalLongCount > 0 ? ` (${totalLongCount})` : ''}</span>
+                </button>
+              </div>
+
+              {/* View Mode Toggle */}
               <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
                 <button
                   onClick={() => setViewMode('grid')}
@@ -1196,6 +1335,7 @@ export default function PermissionsPage() {
                 </button>
               )}
 
+              {/* Date Scope Controls */}
               <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-[11px] font-bold">
                 <button
                   type="button"
@@ -1209,6 +1349,21 @@ export default function PermissionsPage() {
                     }`}
                 >
                   Today ({getTodayFormattedDate()})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateMode('all');
+                    showToast('Showing All Permissions (Including Multi-Day & Long Leaves)');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg cursor-pointer transition-all ${dateMode === 'all'
+                    ? 'bg-orange-500 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  title="Show all approved permission slips across all dates"
+                >
+                  All Dates
                 </button>
 
                 {/* Calendar Symbol Icon Button with Date Picker Functionality */}
@@ -1349,8 +1504,9 @@ export default function PermissionsPage() {
                 <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
                   <span>Period Filter:</span>
                   {selectedPeriodFilters.length === 0 ? (
-                    <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                      All Periods
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-300 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                      <span>Select Period (P1 – P8) to View</span>
                     </span>
                   ) : (
                     <button
@@ -1358,7 +1514,7 @@ export default function PermissionsPage() {
                       onClick={() => {
                         setMarkedAttendance({});
                         setSelectedPeriodFilters([]);
-                        showToast('Showing all periods');
+                        showToast('Reset period selection');
                       }}
                       className="px-2 py-0.5 rounded-full bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300 text-[9.5px] font-bold transition-colors cursor-pointer"
                     >
@@ -1469,6 +1625,18 @@ export default function PermissionsPage() {
                   : `Please select your target section for ${selectedYear} above to load attendance & approved permission passes.`
                 }
               </p>
+            </div>
+          ) : selectedPeriodFilters.length === 0 ? (
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-8 sm:p-12 text-center space-y-3 shadow-xs">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 border border-orange-200/60 flex items-center justify-center mx-auto shadow-xs">
+                <Calendar size={24} />
+              </div>
+              <div className="space-y-1 max-w-md mx-auto">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">Select Particular Period(s) to View Permissions Chart</h3>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Student roll numbers and approved permissions will appear here once you select one or more period numbers (P1 – P8) above.
+                </p>
+              </div>
             </div>
           ) : dbSections.length === 0 ? (
             <div className="bg-white border border-slate-200/90 rounded-2xl p-8 text-center space-y-3 shadow-2xs">
@@ -1901,7 +2069,9 @@ export default function PermissionsPage() {
 
                       <div className="col-span-4 text-center space-y-1 self-center">
                         <div className="inline-block px-3 py-1 bg-slate-50 border border-slate-300 rounded-md">
-                          <p className="font-bold text-slate-900 text-[11.5px]">Date: {selectedPass.date}</p>
+                          <p className="font-bold text-slate-900 text-[11.5px]">
+                            Date: {selectedPass.endDate && selectedPass.endDate !== selectedPass.date ? `${selectedPass.date} to ${selectedPass.endDate}` : selectedPass.date}
+                          </p>
                           <p className="font-mono text-slate-600 text-[10.5px]">Ref: SRKR/PERM/{selectedPass.id.toUpperCase()}</p>
                         </div>
                       </div>
@@ -1945,13 +2115,13 @@ export default function PermissionsPage() {
                         I am writing to formally request your approval for an official permission slip. I am <strong>{selectedPass.student?.name ?? selectedPass.studentId}</strong>, bearing Roll Number <strong className="font-mono">{selectedPass.student?.rollNumber ?? selectedPass.studentId}</strong>, studying in 3rd Year, Department of <strong>{selectedPass.student?.department ?? 'CSD'}</strong> (Section <strong>{selectedPass.student?.section ?? (selectedPass as unknown as ExtendedAttendanceRequest).sectionName ?? 'A'}</strong>).
                       </p>
                       <p>
-                        I am requesting permission for <strong>{selectedPass.reasonLabel}</strong> on <strong>{selectedPass.date}</strong> for the time duration of <strong>{selectedPass.startTime} to {selectedPass.endTime}</strong>.
+                        I am requesting permission for <strong>{selectedPass.reasonLabel}</strong> {selectedPass.endDate && selectedPass.endDate !== selectedPass.date ? <>from <strong>{selectedPass.date}</strong> to <strong>{selectedPass.endDate}</strong></> : <>on <strong>{selectedPass.date}</strong></>} for the time duration of <strong>{selectedPass.startTime} to {selectedPass.endTime}</strong>.
                       </p>
 
                       <div className="pl-4 space-y-2 border-l-2 border-orange-500 bg-orange-50/40 p-3 rounded-r-lg text-[11.5px]">
                         <p><strong>Permission Reason:</strong> {selectedPass.reasonLabel}</p>
                         <p><strong>Purpose &amp; Description:</strong> "{selectedPass.description || 'Permission request for academic/personal reasons.'}"</p>
-                        <p><strong>Date &amp; Time Slot:</strong> {selectedPass.date} ({formatTime(selectedPass.startTime)} – {formatTime(selectedPass.endTime)})</p>
+                        <p><strong>Date &amp; Time Slot:</strong> {selectedPass.endDate && selectedPass.endDate !== selectedPass.date ? `${selectedPass.date} to ${selectedPass.endDate}` : selectedPass.date} ({formatTime(selectedPass.startTime)} – {formatTime(selectedPass.endTime)})</p>
                         <p><strong>Approved Faculty Advisor:</strong> {selectedPass.faculty?.name ?? 'Faculty Advisor'}</p>
                       </div>
 

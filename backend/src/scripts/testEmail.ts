@@ -10,7 +10,7 @@ async function main() {
   console.log('CLIENT_URL:', process.env.CLIENT_URL);
 
   const success = await sendRequestDecisionEmail({
-    recipientEmail: 'gowthamkrishna18v@gmail.com',
+    recipientEmail: 'chandanivivek770@gmail.com',
     studentName: 'Gowtham Krishna',
     studentRoll: '24B91A0720',
     department: 'CSIT & CSD',

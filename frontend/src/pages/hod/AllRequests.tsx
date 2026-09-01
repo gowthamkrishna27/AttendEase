@@ -290,7 +290,14 @@ export default function HODAllRequests() {
                         </td>
                         <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(`/hod/request/${req.id}`)}>
                           <div className="flex items-center gap-2">
-                            <span className="text-[12.5px] font-medium text-slate-700">{formatDate(req.date)}</span>
+                            <span className="text-[12.5px] font-medium text-slate-700">
+                              {formatDate(req.date)}{req.endDate && req.endDate !== req.date ? ` – ${formatDate(req.endDate)}` : ''}
+                            </span>
+                            {req.endDate && req.endDate !== req.date && (
+                              <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.2 rounded">
+                                Multi-Day
+                              </span>
+                            )}
                             {req.periods && (
                               <div className="inline-flex items-center gap-0.5 shrink-0">
                                 {req.periods
@@ -445,7 +452,16 @@ export default function HODAllRequests() {
                             </div>
                           )}
                         </div>
-                        <span className="text-[11px] text-slate-400 shrink-0">{formatDate(req.date)}</span>
+                        <div className="flex items-center gap-1 text-slate-400 shrink-0 text-[11px]">
+                          <span>
+                            {formatDate(req.date)}{req.endDate && req.endDate !== req.date ? ` – ${formatDate(req.endDate)}` : ''}
+                          </span>
+                          {req.endDate && req.endDate !== req.date && (
+                            <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1 py-0.2 rounded border border-purple-200">
+                              Multi-Day
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Faculty Badge & Quick Action Row */}
