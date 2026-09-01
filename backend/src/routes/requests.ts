@@ -529,8 +529,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  */
 router.post('/hod-direct-grant', async (req: Request, res: Response) => {
   const user = req.user!;
-  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod';
+  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin';
 
   if (!isHodOrAdmin) {
     res.status(403).json({ error: 'Only HOD or Admin can issue direct classwork exemptions' });
@@ -1010,14 +1009,7 @@ router.all('/:id/share-link', async (req: Request, res: Response) => {
  * Allows Faculty / HOD to accept or reject multiple requests simultaneously.
  */
 router.post('/bulk-review', async (req: Request, res: Response) => {
-  let user = req.user!;
-
-  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod' || (user.role as string) === 'viewer';
-
-  if (isHodOrAdmin) {
-    user = { ...user, role: 'hod' };
-  }
+  const user = req.user!;
 
   if (user.role === 'student') {
     res.status(403).json({ error: 'Students cannot review requests' });
@@ -1285,15 +1277,7 @@ router.put('/:id', async (req: Request, res: Response) => {
  * Body: { action: 'approve' | 'reject', rejectionReason?: string, remarks?: string }
  */
 router.patch('/:id', async (req: Request, res: Response) => {
-  let user = req.user!;
-
-  // Role override from HOD executive control panel
-  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod' || (user.role as string) === 'viewer';
-
-  if (isHodOrAdmin) {
-    user = { ...user, role: 'hod' };
-  }
+  const user = req.user!;
 
   if (user.role === 'student') {
     res.status(403).json({ error: 'Students cannot review requests' });
@@ -1349,19 +1333,20 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
     if (user.role === 'faculty') {
       const isAuthorized = isFacultyAuthorizedForRequest(existing, activeUser as any);
-      if (!isAuthorized && !isHodOrAdmin) {
+      if (!isAuthorized) {
         res.status(403).json({ error: 'This request is not assigned to you' });
         return;
       }
     } else if (user.role === 'hod') {
-      const isAuthorized = isHodAuthorizedForRequest(existing, activeUser as any) || isFacultyAuthorizedForRequest(existing, activeUser as any) || isHodOrAdmin;
+      const isAuthorized = isHodAuthorizedForRequest(existing, activeUser as any) || isFacultyAuthorizedForRequest(existing, activeUser as any);
       if (!isAuthorized) {
         res.status(403).json({ error: 'You are not authorized to review requests for this department' });
         return;
       }
+    } else if (user.role !== 'admin') {
+      res.status(403).json({ error: 'Forbidden: unauthorized to review requests' });
+      return;
     }
-
-    // Admin has full executive authority
 
 
     // ── Determine Action Name & Status ────────────────────────────────────────
@@ -1381,7 +1366,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    const decisionRole = user.role === 'hod' ? 'HOD' : 'Faculty';
+    const decisionRole = user.role === 'admin' ? 'Admin' : (user.role === 'hod' ? 'HOD' : 'Faculty');
 
     const performingUserId = (user as any).userId || user.id;
 
@@ -1658,8 +1643,17 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    // Verify ownership
-    if (user.role === 'student' && existing.studentId !== user.id) {
+    // Verify ownership and deletion authorization:
+    // Student can delete ONLY their own request.
+    // Admin retains administrative deletion capability.
+    // Faculty and HOD cannot delete student requests.
+    const isStudentOwner = user.role === 'student' && (
+      existing.studentId.toLowerCase() === user.id.toLowerCase() ||
+      (user.rollNumber ? existing.studentId.toLowerCase() === user.rollNumber.toLowerCase() : false)
+    );
+    const isAdmin = user.role === 'admin';
+
+    if (!isStudentOwner && !isAdmin) {
       res.status(403).json({ error: 'You are not authorized to delete this request' });
       return;
     }

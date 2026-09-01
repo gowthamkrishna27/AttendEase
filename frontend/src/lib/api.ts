@@ -443,19 +443,16 @@ export async function reviewRequest(
   asHodOrPeriods?: boolean | string,
   periodsParam?: string,
 ): Promise<AttendanceRequest> {
-  const asHod = typeof asHodOrPeriods === 'boolean' ? asHodOrPeriods : undefined;
   const periods = typeof asHodOrPeriods === 'string' ? asHodOrPeriods : periodsParam;
 
   const res = await apiFetch<{ request: AttendanceRequest }>(
     `/api/requests/${id}`,
     {
       method: 'PATCH',
-      ...(asHod ? { headers: { 'x-role-override': 'hod' } } : {}),
       body: JSON.stringify({
         action,
         rejectionReason,
         ...(periods ? { periods } : {}),
-        ...(asHod ? { roleOverride: 'hod' } : {}),
       }),
     },
   );
@@ -657,9 +654,7 @@ export async function importStudentsFile(file: File): Promise<ImportReport> {
   formData.append('file', file);
 
   const token = getStoredToken();
-  const headers: Record<string, string> = {
-    'x-role-override': 'admin',
-  };
+  const headers: Record<string, string> = {};
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }

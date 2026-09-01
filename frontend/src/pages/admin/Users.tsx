@@ -1120,13 +1120,9 @@ export default function AdminUsers() {
                     onChange={e => setFormSection(e.target.value)}
                     className="w-full h-[40px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 font-medium text-slate-700 text-[13px]"
                   >
-                    <option value="CSD-A">CSD-A</option>
-                    <option value="CSD-B">CSD-B</option>
+                    <option value="CSD">CSD</option>
                     <option value="CSIT-A">CSIT-A</option>
                     <option value="CSIT-B">CSIT-B</option>
-                    <option value="Section A">Section A</option>
-                    <option value="Section B">Section B</option>
-                    <option value="Section C">Section C</option>
                   </select>
                 </div>
               </div>

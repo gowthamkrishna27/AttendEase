@@ -124,7 +124,7 @@ export interface SectionRosterItem {
 
 /**
  * Returns the canonical roster for the specified academic year.
- * ALL 3 canonical sections (CSIT-A, CSIT-B, CSD-A) are ALWAYS returned for all 4 years.
+ * ALL 3 canonical sections (CSIT-A, CSIT-B, CSD) are ALWAYS returned for all 4 years.
  * Empty sections return rollNumbers: [] and students: [] (studentCount: 0).
  */
 export async function getCanonicalRosterForYear(yearQuery?: string): Promise<{

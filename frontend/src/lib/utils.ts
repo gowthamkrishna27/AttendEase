@@ -30,14 +30,20 @@ export function formatTimeAgo(dateStr: string): string {
   }
 }
 
-export function formatSubmittedAt(dateStr: string | undefined | null): string {
+export function formatSubmittedAt(dateStr: string | Date | undefined | null): string {
   if (!dateStr) return '';
   try {
-    const d = parseISO(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    const d = dateStr instanceof Date ? dateStr : parseISO(String(dateStr));
+    if (isNaN(d.getTime())) {
+      const fallback = new Date(dateStr as any);
+      if (!isNaN(fallback.getTime())) {
+        return format(fallback, "dd MMM yyyy, hh:mm a");
+      }
+      return String(dateStr);
+    }
     return format(d, "dd MMM yyyy, hh:mm a");
   } catch {
-    return dateStr || '';
+    return String(dateStr) || '';
   }
 }
 

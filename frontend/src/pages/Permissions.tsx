@@ -802,7 +802,7 @@ export default function PermissionsPage() {
       return [...opts, { label: 'All Sections', value: 'all', key: 'All Sections' }];
     }
     return [
-      { label: 'CSD - Sec A', value: 'CSD-A', key: 'CSD — Section A' },
+      { label: 'CSD', value: 'CSD', key: 'CSD' },
       { label: 'CSIT - Sec A', value: 'CSIT-A', key: 'CSIT — Section A' },
       { label: 'CSIT - Sec B', value: 'CSIT-B', key: 'CSIT — Section B' },
       { label: 'All Sections', value: 'all', key: 'All Sections' },
@@ -881,7 +881,7 @@ export default function PermissionsPage() {
 
     // CSD students are in Section A
     if (dept === 'CSD') {
-      return 'CSD — Section A';
+      return 'CSD';
     }
 
     const cleanSec = explicitSec
@@ -954,7 +954,7 @@ export default function PermissionsPage() {
           matchesSection = sectionKey === matchedSecObj.key;
         } else {
           matchesSection =
-            (sectionFilter === 'CSD-A' && sectionKey === 'CSD — Section A') ||
+            (sectionFilter === 'CSD' && sectionKey === 'CSD') ||
             (sectionFilter === 'CSIT-A' && sectionKey === 'CSIT — Section A') ||
             (sectionFilter === 'CSIT-B' && sectionKey === 'CSIT — Section B');
         }
@@ -977,7 +977,7 @@ export default function PermissionsPage() {
 
     const availableKeys = dbSections.length > 0
       ? dbSections.map(s => s.key)
-      : ['CSD — Section A', 'CSIT — Section A', 'CSIT — Section B'];
+      : ['CSD', 'CSIT — Section A', 'CSIT — Section B'];
 
     availableKeys.forEach(k => {
       map[k] = [];
@@ -1005,7 +1005,7 @@ export default function PermissionsPage() {
         );
       } else {
         keys = keys.filter(k => {
-          if (sectionFilter === 'CSD-A') return k.includes('CSD');
+          if (sectionFilter === 'CSD') return k.includes('CSD');
           if (sectionFilter === 'CSIT-A') return k.includes('CSIT') && k.includes('A');
           if (sectionFilter === 'CSIT-B') return k.includes('CSIT') && k.includes('B');
           return true;

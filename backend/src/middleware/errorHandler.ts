@@ -22,6 +22,7 @@ import {
   DuplicateUserError,
   LastAdminError,
   InvalidCurrentPasswordError,
+  InvalidSectionError,
 } from '../admin/services/user.service.js';
 import { PasswordPolicyError } from '../admin/services/password.service.js';
 import {
@@ -43,7 +44,8 @@ function resolveStatusCode(err: Error): number {
     err instanceof PasswordPolicyError              ||
     err instanceof InvalidCurrentPasswordError      ||
     err instanceof InvalidFacultyError              ||
-    err instanceof DuplicateFacultyAssignmentError
+    err instanceof DuplicateFacultyAssignmentError  ||
+    err instanceof InvalidSectionError
   ) return 400;
 
   if (

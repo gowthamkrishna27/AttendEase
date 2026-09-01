@@ -287,7 +287,7 @@ router.get('/students', verifyToken, async (_req: Request, res: Response) => {
         department: s.department || 'Computer Science',
         semester:   sem,
         year:       s.year || derivedYear,
-        section:    canonicalSec || (s.department?.includes('CSD') ? 'CSD-A' : 'CSIT-A'),
+        section:    canonicalSec || (s.department?.includes('CSD') ? 'CSD' : 'CSIT-A'),
         avatarUrl:  s.avatarUrl ?? undefined,
       };
     });

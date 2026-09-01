@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, FileText, User, Eye, Pencil, Trash2, Download } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, FileText, User, Eye, Pencil, Trash2, Download, CheckCircle2 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { WhatsAppShareButton } from '../../components/shared/WhatsAppShareButton';
@@ -44,6 +44,29 @@ export default function RequestDetails() {
     );
   }
 
+function getApprovedAtTimestamp(request: api.AttendanceRequest): string | null {
+  if (request.status !== 'approved') return null;
+
+  if (request.actions?.length) {
+    const approvalAction = [...request.actions]
+      .reverse()
+      .find(
+        action =>
+          action.action &&
+          action.action.toLowerCase().includes('approved')
+      );
+
+    if (approvalAction?.performedAt) {
+      const pAt = approvalAction.performedAt;
+      return pAt instanceof Date ? pAt.toISOString() : String(pAt);
+    }
+  }
+
+  return request.reviewedAt || null;
+}
+
+  const approvedAt = getApprovedAtTimestamp(request);
+
   const timelineSteps = [
     {
       label: 'Submitted',
@@ -53,15 +76,23 @@ export default function RequestDetails() {
     {
       label: 'Faculty Review',
       done: request.status !== 'pending',
-      date: request.reviewedAt,
+      date: request.status === 'approved' ? approvedAt : request.reviewedAt,
     },
     {
       label: request.status === 'rejected' ? 'Rejected' : 'Approved',
       done: request.status !== 'pending',
-      date: request.reviewedAt,
+      date: request.status === 'approved' ? approvedAt : request.reviewedAt,
       isLast: true,
     },
   ];
+
+  const assignedFacultyDisplay = (() => {
+    if (request.faculties && request.faculties.length > 0) {
+      const names = Array.from(new Set(request.faculties.map(f => f.name).filter(Boolean)));
+      if (names.length > 0) return names.join(', ');
+    }
+    return request.faculty?.name || '—';
+  })();
 
   return (
     <PageWrapper role="student">
@@ -82,7 +113,7 @@ export default function RequestDetails() {
               {request.reasonLabel}
             </h1>
             <p className="text-[14px] text-[#6B7280] mt-1">
-              Submitted to {request.faculty?.name || '—'}
+              Submitted to {assignedFacultyDisplay}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -147,6 +178,20 @@ export default function RequestDetails() {
                   <p className="text-[13px] text-[#6B7280] mb-0.5">Submitted On</p>
                   <p className="text-[13px] font-bold text-slate-900 font-mono">
                     {formatSubmittedAt(request.submittedAt)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {request.status === 'approved' && approvedAt && (
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 size={15} />
+                </div>
+                <div>
+                  <p className="text-[13px] text-[#6B7280] mb-0.5">Approved On</p>
+                  <p className="text-[13px] font-bold text-slate-900 font-mono">
+                    {formatSubmittedAt(approvedAt)}
                   </p>
                 </div>
               </div>
@@ -242,6 +287,11 @@ export default function RequestDetails() {
                   >
                     {step.label}
                   </p>
+                  {step.done && step.date && (
+                    <p className="text-[12px] text-[#6B7280] mt-0.5 font-mono">
+                      {formatSubmittedAt(step.date)}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

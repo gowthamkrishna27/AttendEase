@@ -1,4 +1,4 @@
-export type CanonicalSectionId = 'CSIT-A' | 'CSIT-B' | 'CSD-A';
+export type CanonicalSectionId = 'CSIT-A' | 'CSIT-B' | 'CSD';
 
 export interface CanonicalSectionConfig {
   id: CanonicalSectionId;
@@ -24,11 +24,11 @@ export const CANONICAL_SECTIONS: readonly CanonicalSectionConfig[] = [
     shortLabel: 'CSIT - Sec B',
   },
   {
-    id: 'CSD-A',
+    id: 'CSD',
     department: 'CSD',
     section: 'A',
-    displayName: 'CSD — Section A',
-    shortLabel: 'CSD - Sec A',
+    displayName: 'CSD',
+    shortLabel: 'CSD',
   },
 ] as const;
 
@@ -52,10 +52,12 @@ export function normalizeToCanonicalSection(
   const dept = (department || '').trim().toUpperCase();
   const sec = (rawSection || '').trim().toUpperCase();
 
+  if (!sec) return null;
+
   // If already exactly a canonical ID
   if (sec === 'CSIT-A') return 'CSIT-A';
   if (sec === 'CSIT-B') return 'CSIT-B';
-  if (sec === 'CSD-A') return 'CSD-A';
+  if (sec === 'CSD' || sec === 'CSD-A') return 'CSD';
 
   // Normalize section letter
   const cleanSec = sec
@@ -64,29 +66,57 @@ export function normalizeToCanonicalSection(
     .replace(/[-_—–\s]/g, '')
     .trim();
 
-  // CSD Department
-  if (dept.includes('CSD')) {
-    // All CSD students belong to CSD-A
-    return 'CSD-A';
+  // CSD Department or CSD section indicator
+  if (dept.includes('CSD') || sec.includes('CSD')) {
+    return 'CSD';
   }
 
-  // CSIT Department
-  if (dept.includes('CSIT') || dept.includes('IT')) {
+  // CSIT Department or CSIT section indicator
+  if (dept.includes('CSIT') || dept.includes('IT') || sec.includes('CSIT')) {
     if (cleanSec === 'B' || cleanSec.endsWith('B')) {
       return 'CSIT-B';
     }
-    // Default to A if A or empty
-    return 'CSIT-A';
+    if (cleanSec === 'A' || cleanSec.endsWith('A') || !cleanSec) {
+      return 'CSIT-A';
+    }
+    return null;
   }
 
-  // Fallback checks on section string itself
-  if (sec.includes('CSD')) return 'CSD-A';
-  if (sec.includes('CSIT')) {
-    return (cleanSec === 'B' || cleanSec.endsWith('B')) ? 'CSIT-B' : 'CSIT-A';
-  }
+  // Fallback checks if department is not provided or other
+  if (cleanSec === 'B' || cleanSec.endsWith('B')) return 'CSIT-B';
+  if (cleanSec === 'A' || cleanSec.endsWith('A')) return 'CSIT-A';
 
-  if (cleanSec === 'B') return 'CSIT-B';
-  return 'CSIT-A';
+  return null;
+}
+
+/**
+ * Canonical section normalization function with flexible argument order.
+ * Supports:
+ *   toCanonicalSection(department, rawSection)
+ *   toCanonicalSection(rawSection, rollNumber, department)
+ *   toCanonicalSection(rawSection, department)
+ *   toCanonicalSection(rawSection)
+ */
+export function toCanonicalSection(
+  arg1?: string | null,
+  arg2?: string | null,
+  arg3?: string | null
+): CanonicalSectionId | null {
+  // 3 arguments: (rawSection, rollNumber, department)
+  if (arg3 !== undefined) {
+    return normalizeToCanonicalSection(arg3, arg1);
+  }
+  // 2 arguments: check if arg1 is department or rawSection
+  const a1 = (arg1 || '').trim().toUpperCase();
+  const a2 = (arg2 || '').trim().toUpperCase();
+  if (a1 === 'CSIT' || a1 === 'CSD' || a1.includes('DEPARTMENT')) {
+    return normalizeToCanonicalSection(arg1, arg2);
+  }
+  if (a2 === 'CSIT' || a2 === 'CSD' || a2.includes('DEPARTMENT')) {
+    return normalizeToCanonicalSection(arg2, arg1);
+  }
+  // Fallback: (department, rawSection)
+  return normalizeToCanonicalSection(arg1, arg2);
 }
 
 export function getCanonicalSection(id: string): CanonicalSectionConfig | undefined {

@@ -126,6 +126,14 @@ export default function HODRequestDetails() {
     });
   };
 
+  const assignedFacultyDisplay = (() => {
+    if (request.faculties && request.faculties.length > 0) {
+      const names = Array.from(new Set(request.faculties.map(f => f.name).filter(Boolean)));
+      if (names.length > 0) return names.join(', ');
+    }
+    return request.faculty?.name || '—';
+  })();
+
   return (
     <PageWrapper role="hod">
       <div className="max-w-xl mx-auto space-y-4">
@@ -150,7 +158,7 @@ export default function HODRequestDetails() {
           <div>
             <h1 className="text-[24px] font-semibold text-[#111111]">{request.reasonLabel}</h1>
             <p className="text-[14px] text-[#6B7280] mt-1">
-              Assigned to {request.faculty?.name || '—'}
+              Assigned to {assignedFacultyDisplay}
             </p>
           </div>
           <StatusBadge status={request.status} finalDecisionBy={request.finalDecisionBy} finalDecisionName={request.finalDecisionName} />

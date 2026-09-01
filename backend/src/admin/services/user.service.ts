@@ -6,6 +6,7 @@
  */
 import * as userRepo from '../repositories/prisma/user.repository.prisma.js';
 import { hashPassword, verifyPassword } from './password.service.js';
+import { toCanonicalSection } from '../../constants/canonicalSections.js';
 import type {
   CreateUserBody,
   UpdateUserBody,
@@ -40,6 +41,13 @@ export class InvalidCurrentPasswordError extends Error {
   constructor() {
     super('Current password is incorrect.');
     this.name = 'InvalidCurrentPasswordError';
+  }
+}
+
+export class InvalidSectionError extends Error {
+  constructor(sec: string) {
+    super(`Invalid section "${sec}". Allowed canonical sections are CSD, CSIT-A, CSIT-B.`);
+    this.name = 'InvalidSectionError';
   }
 }
 
@@ -86,6 +94,15 @@ export async function createUser(body: CreateUserBody): Promise<UserResponse> {
     }
   }
 
+  // Canonical Section Normalization
+  if (payload.section) {
+    const canonical = toCanonicalSection(payload.department, payload.section);
+    if (!canonical) {
+      throw new InvalidSectionError(payload.section);
+    }
+    payload.section = canonical;
+  }
+
   // Store raw password directly for auth login matching
   const doc = await userRepo.createUser({ ...payload, password: body.password });
   return toResponse(doc as unknown as Record<string, unknown>);
@@ -108,6 +125,24 @@ export async function updateUser(userId: string, patch: UpdateUserBody): Promise
       if (!payload.semester || Math.ceil(payload.semester / 2) !== digit) {
         payload.semester = (digit * 2) - 1;
       }
+    }
+  }
+
+  // Canonical Section Normalization
+  if (payload.section !== undefined) {
+    if (payload.section) {
+      let dept = payload.department;
+      if (!dept) {
+        const existingUser = await userRepo.findUserByUserId(userId);
+        dept = (existingUser as any)?.department;
+      }
+      const canonical = toCanonicalSection(dept, payload.section);
+      if (!canonical) {
+        throw new InvalidSectionError(payload.section);
+      }
+      payload.section = canonical;
+    } else {
+      payload.section = null as any;
     }
   }
 

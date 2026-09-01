@@ -60,7 +60,7 @@ function normalizeStudyYear(rawYear: string | undefined): { year?: string; semes
 }
 
 /**
- * Normalizes section into clean format: "A" | "B" | "C" | "CSIT-A" | "CSD-B", etc.
+ * Normalizes section into clean format: "A" | "B" | "C" | "CSIT-A" | "CSD", etc.
  */
 function normalizeSection(rawSec: string | undefined): string | undefined {
   if (!rawSec) return undefined;
@@ -79,7 +79,7 @@ function normalizeSection(rawSec: string | undefined): string | undefined {
 
   const clean = s.toUpperCase().replace(/\s+/g, ' ');
 
-  // Match "CSIT-A", "CSIT-B", "CSD-A", "CSD-B"
+  // Match "CSIT-A", "CSIT-B", "CSD", "CSD-B"
   const compMatch = clean.match(/\b(CSIT|CSD|CSE|ECE|IT)\s*[-_ ]?\s*([A-D])\b/i);
   if (compMatch && compMatch[1] && compMatch[2]) {
     return `${compMatch[1]}-${compMatch[2]}`;

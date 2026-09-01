@@ -28,6 +28,14 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function getAssignedFacultyDisplay(req: api.AttendanceRequest): string {
+  if (req.faculties && req.faculties.length > 0) {
+    const names = Array.from(new Set(req.faculties.map(f => f.name).filter(Boolean)));
+    if (names.length > 0) return names.join(', ');
+  }
+  return req.faculty?.name || '—';
+}
+
 const card = (extra: object = {}) => ({
   background: '#ffffff',
   borderRadius: 16,
@@ -49,10 +57,12 @@ export default function History() {
   const filtered = studentRequests.filter(req => {
     const matchStatus = filter === 'all' || req.status === filter;
     const q = search.toLowerCase();
+    const facultyStr = getAssignedFacultyDisplay(req).toLowerCase();
     const matchSearch = !q ||
       req.reasonLabel.toLowerCase().includes(q) ||
       (req.description ?? '').toLowerCase().includes(q) ||
-      req.date.includes(q);
+      req.date.includes(q) ||
+      facultyStr.includes(q);
     return matchStatus && matchSearch;
   });
 
@@ -188,8 +198,13 @@ export default function History() {
                         {req.description?.split('.')[0] || '—'}
                       </span>
                     </td>
-                    <td style={{ padding: '12px 14px', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                      {req.faculty?.name ?? '—'}
+                    <td
+                      style={{ padding: '12px 14px', color: '#475569', fontWeight: 500, maxWidth: 220 }}
+                      title={getAssignedFacultyDisplay(req)}
+                    >
+                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {getAssignedFacultyDisplay(req)}
+                      </span>
                     </td>
                     <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                       <StatusBadge status={req.status} />

@@ -869,8 +869,8 @@ export default function FacultyAttendance() {
                     ? 'Select Year First...'
                     : !sectionFilter
                       ? 'Choose Section...'
-                      : sectionFilter === 'CSD-A'
-                        ? 'CSD — Section A'
+                      : sectionFilter === 'CSD'
+                        ? 'CSD'
                         : sectionFilter === 'CSIT-A'
                           ? 'CSIT — Section A'
                           : sectionFilter === 'CSIT-B'
@@ -900,7 +900,7 @@ export default function FacultyAttendance() {
                           value: s.value || s.id || 'CSIT-A',
                         }))
                       : [
-                          { label: 'CSD - Sec A', value: 'CSD-A' },
+                          { label: 'CSD', value: 'CSD' },
                           { label: 'CSIT - Sec A', value: 'CSIT-A' },
                           { label: 'CSIT - Sec B', value: 'CSIT-B' },
                         ]

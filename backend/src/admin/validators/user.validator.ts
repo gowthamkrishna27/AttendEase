@@ -7,6 +7,7 @@
  */
 import { z } from 'zod';
 import { passwordConfig } from '../config/admin.config.js';
+import { toCanonicalSection } from '../../constants/canonicalSections.js';
 
 // ── Password field builder (respects env-configured policy) ───────────────────
 
@@ -51,6 +52,10 @@ export const createUserSchema = z
   .refine(
     (data) => data.role !== 'student' || !!data.rollNumber,
     { message: 'rollNumber is required for student users', path: ['rollNumber'] },
+  )
+  .refine(
+    (data) => !data.section || toCanonicalSection(data.department, data.section) !== null,
+    { message: 'Invalid section. Allowed canonical sections are CSD, CSIT-A, CSIT-B', path: ['section'] },
   );
 
 // ── Update user schema ────────────────────────────────────────────────────────
@@ -70,6 +75,9 @@ export const updateUserSchema = z.object({
 }).refine(
   (body) => Object.values(body).some((v) => v !== undefined),
   { message: 'At least one field must be provided for update' },
+).refine(
+  (data) => !data.section || toCanonicalSection(data.department, data.section) !== null,
+  { message: 'Invalid section. Allowed canonical sections are CSD, CSIT-A, CSIT-B', path: ['section'] },
 );
 
 // ── Self password change (requires current password confirmation) ──────────────
