@@ -3,32 +3,29 @@
  *
  * TypeScript types and interfaces for the Invigilation Management module.
  */
-import type { ExamType } from '@prisma/client';
+import type { ExamType, SessionType } from '@prisma/client';
+
+export type { ExamType, SessionType };
 
 export interface FacultyAssignmentInput {
   facultyId: string;
-  dutyType?: string | null;
 }
 
 export interface CreateDutyInput {
   examType: ExamType;
-  examName: string;
-  subjectName: string;
-  startDateTime: string | Date;
-  endDateTime: string | Date;
-  blockName: string;
-  roomNumber: string;
+  date: string;          // YYYY-MM-DD
+  session: SessionType;  // MORNING | AFTERNOON
+  startTime?: string | null;  // Optional HH:mm
+  endTime?: string | null;    // Optional HH:mm
   assignedFaculty: FacultyAssignmentInput[];
 }
 
 export interface UpdateDutyInput {
   examType?: ExamType;
-  examName?: string;
-  subjectName?: string;
-  startDateTime?: string | Date;
-  endDateTime?: string | Date;
-  blockName?: string;
-  roomNumber?: string;
+  date?: string;
+  session?: SessionType;
+  startTime?: string | null;
+  endTime?: string | null;
   assignedFaculty?: FacultyAssignmentInput[];
 }
 
@@ -37,6 +34,7 @@ export interface InvigilationFilterQuery {
   startDate?: string;
   endDate?: string;
   examType?: ExamType;
+  session?: SessionType;
   facultyId?: string;
   department?: string;
 }
@@ -49,18 +47,15 @@ export interface AssignedFacultyInfo {
   email: string;
   department: string;
   designation?: string | null;
-  dutyType?: string | null;
 }
 
 export interface InvigilationDutyResponse {
   id: string;
   examType: ExamType;
-  examName: string;
-  subjectName: string;
-  startDateTime: string;
-  endDateTime: string;
-  blockName: string;
-  roomNumber: string;
+  date: string;
+  session: SessionType;
+  startTime: string | null;
+  endTime: string | null;
   createdAt: string;
   updatedAt: string;
   assignedFaculty: AssignedFacultyInfo[];

@@ -749,7 +749,9 @@ export interface PublicSectionItem {
     userId: string;
     name: string;
     rollNumber: string;
+    displayRoll?: string;
     suffix: string;
+    isColliding?: boolean;
   }>;
 }
 
@@ -1013,27 +1015,25 @@ export async function revokeShareToken(shareToken: string): Promise<{ success: b
 // ─── Invigilation Management (Admin) ──────────────────────────────────────────
 
 export type ExamType = 'MID' | 'SEM' | 'LAB' | 'SUPPLEMENTARY';
+export type SessionType = 'MORNING' | 'AFTERNOON';
 
 export interface AssignedFacultyInfo {
   assignmentId: string;
-  facultyId: string;
-  userId: string;
+  facultyId: string;   // User.id (cuid)
+  userId: string;      // User.userId (e.g. "fac-001")
   name: string;
   email: string;
   department: string;
   designation?: string | null;
-  dutyType?: string | null;
 }
 
 export interface InvigilationDuty {
   id: string;
   examType: ExamType;
-  examName: string;
-  subjectName: string;
-  startDateTime: string;
-  endDateTime: string;
-  blockName: string;
-  roomNumber: string;
+  date: string;        // YYYY-MM-DD in Asia/Kolkata
+  session: SessionType;
+  startTime: string | null;  // HH:mm or null
+  endTime: string | null;    // HH:mm or null
   createdAt: string;
   updatedAt: string;
   assignedFaculty: AssignedFacultyInfo[];
@@ -1045,29 +1045,24 @@ export interface InvigilationDutyListResponse {
 }
 
 export interface FacultyAssignmentInput {
-  facultyId: string;
-  dutyType?: string | null;
+  facultyId: string;  // User.id or User.userId — backend resolves both
 }
 
 export interface CreateDutyPayload {
   examType: ExamType;
-  examName: string;
-  subjectName: string;
-  startDateTime: string;
-  endDateTime: string;
-  blockName: string;
-  roomNumber: string;
+  date: string;        // YYYY-MM-DD
+  session: SessionType;
+  startTime?: string | null;  // HH:mm, optional
+  endTime?: string | null;    // HH:mm, optional
   assignedFaculty: FacultyAssignmentInput[];
 }
 
 export interface UpdateDutyPayload {
   examType?: ExamType;
-  examName?: string;
-  subjectName?: string;
-  startDateTime?: string;
-  endDateTime?: string;
-  blockName?: string;
-  roomNumber?: string;
+  date?: string;
+  session?: SessionType;
+  startTime?: string | null;
+  endTime?: string | null;
   assignedFaculty?: FacultyAssignmentInput[];
 }
 
@@ -1076,6 +1071,7 @@ export interface InvigilationFilterParams {
   startDate?: string;
   endDate?: string;
   examType?: ExamType;
+  session?: SessionType;
   facultyId?: string;
   department?: string;
 }
@@ -1087,6 +1083,7 @@ export async function getInvigilationDuties(params?: InvigilationFilterParams): 
     if (params.startDate) query.append('startDate', params.startDate);
     if (params.endDate) query.append('endDate', params.endDate);
     if (params.examType) query.append('examType', params.examType);
+    if (params.session) query.append('session', params.session);
     if (params.facultyId) query.append('facultyId', params.facultyId);
     if (params.department) query.append('department', params.department);
   }
@@ -1127,14 +1124,11 @@ export async function deleteInvigilationDuty(id: string): Promise<{ success: boo
 export interface FacultyInvigilationDuty {
   id: string;
   examType: ExamType;
-  examName: string;
-  subjectName: string;
-  startDateTime: string;
-  endDateTime: string;
-  blockName: string;
-  roomNumber: string;
-  dutyType: string | null;
-  status: 'IN_PROGRESS' | 'UPCOMING';
+  date: string;        // YYYY-MM-DD in Asia/Kolkata
+  session: SessionType;
+  startTime: string | null;  // HH:mm or null
+  endTime: string | null;    // HH:mm or null
+  status: 'UPCOMING';
 }
 
 export interface FacultyInvigilationListResponse {
@@ -1145,7 +1139,6 @@ export interface FacultyInvigilationListResponse {
 export async function getMyInvigilationDuties(): Promise<FacultyInvigilationListResponse> {
   return apiFetch<FacultyInvigilationListResponse>('/api/invigilation/my-duties');
 }
-
 
 
 

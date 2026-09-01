@@ -14,17 +14,10 @@ import { verifyToken } from '../middleware/auth.js';
 const router = Router();
 
 /**
- * Calculates the current UTC timestamp and the upper UTC boundary
- * for the end of the +3rd calendar day in Asia/Kolkata timezone.
- *
- * Example: If today is Aug 31 in Asia/Kolkata:
- * - Visible days: Aug 31 (today), Sep 1 (+1), Sep 2 (+2), Sep 3 (+3)
- * - Upper bound: Sep 3 23:59:59.999 IST (= Sep 3 18:29:59.999 UTC)
+ * Returns today's date and the date +3 calendar days from now, in Asia/Kolkata (IST),
+ * as YYYY-MM-DD strings. This is used to filter visible duties for faculty.
  */
-export function getKolkataCalendarBounds(now: Date = new Date()) {
-  const currentTime = now;
-
-  // Format today's date in Asia/Kolkata (YYYY-MM-DD)
+function getKolkataDateBounds(now: Date = new Date()): { todayDate: string; maxDate: string } {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kolkata',
     year: 'numeric',
@@ -34,18 +27,17 @@ export function getKolkataCalendarBounds(now: Date = new Date()) {
 
   const parts = formatter.format(now).split('-');
   const year = parseInt(parts[0]!, 10);
-  const month = parseInt(parts[1]!, 10) - 1; // 0-indexed month
+  const month = parseInt(parts[1]!, 10) - 1;
   const day = parseInt(parts[2]!, 10);
 
-  // +3 calendar days in IST at 23:59:59.999
-  const plus3DayDate = new Date(Date.UTC(year, month, day + 3, 23, 59, 59, 999));
-  // IST is UTC + 5h30m -> subtract 330 minutes to get the UTC ISO timestamp
-  const maxEndUtc = new Date(plus3DayDate.getTime() - (5 * 60 + 30) * 60 * 1000);
+  const todayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  return {
-    currentTime,
-    maxEndUtc,
-  };
+  // +3 calendar days
+  const plus3 = new Date(Date.UTC(year, month, day + 3));
+  const plus3Parts = formatter.format(plus3).split('-');
+  const maxStr = plus3Parts.join('-');
+
+  return { todayDate: todayStr, maxDate: maxStr };
 }
 
 /**
@@ -61,7 +53,7 @@ router.get('/my-duties', verifyToken, async (req: Request, res: Response) => {
       return;
     }
 
-    // Resolve exact database user ID
+    // Resolve exact database user
     const dbUser = await prisma.user.findFirst({
       where: {
         OR: [
@@ -79,67 +71,31 @@ router.get('/my-duties', verifyToken, async (req: Request, res: Response) => {
       return;
     }
 
-    const { currentTime, maxEndUtc } = getKolkataCalendarBounds();
+    const { todayDate, maxDate } = getKolkataDateBounds();
 
-    // Query assignments for logged-in faculty only
+    // Query assignments for logged-in faculty in the date range
     const duties = await prisma.invigilationDuty.findMany({
       where: {
         assignments: {
-          some: {
-            facultyId: dbUser.id,
-          },
+          some: { facultyId: dbUser.id },
         },
-        endDateTime: {
-          gte: currentTime, // Exclude completed duties (currentTime > endDateTime)
-        },
-        startDateTime: {
-          lte: maxEndUtc, // Up to +3 calendar days in Asia/Kolkata
+        date: {
+          gte: todayDate,
+          lte: maxDate,
         },
       },
-      include: {
-        assignments: {
-          where: {
-            facultyId: dbUser.id,
-          },
-          select: {
-            id: true,
-            dutyType: true,
-          },
-        },
-      },
-      orderBy: {
-        startDateTime: 'asc',
-      },
+      orderBy: [{ date: 'asc' }, { session: 'asc' }],
     });
 
-    const nowMs = currentTime.getTime();
-
-    const formattedDuties = duties.map((duty) => {
-      const startMs = duty.startDateTime.getTime();
-      const endMs   = duty.endDateTime.getTime();
-      const isInProgress = startMs <= nowMs && nowMs <= endMs;
-      const assignment = duty.assignments[0];
-
-      return {
-        id:            duty.id,
-        examType:      duty.examType,
-        examName:      duty.examName,
-        subjectName:   duty.subjectName,
-        startDateTime: duty.startDateTime.toISOString(),
-        endDateTime:   duty.endDateTime.toISOString(),
-        blockName:     duty.blockName,
-        roomNumber:    duty.roomNumber,
-        dutyType:      assignment?.dutyType ?? null,
-        status:        isInProgress ? ('IN_PROGRESS' as const) : ('UPCOMING' as const),
-      };
-    });
-
-    // In-progress duties first, then by nearest startDateTime ascending
-    formattedDuties.sort((a, b) => {
-      if (a.status === 'IN_PROGRESS' && b.status !== 'IN_PROGRESS') return -1;
-      if (a.status !== 'IN_PROGRESS' && b.status === 'IN_PROGRESS') return 1;
-      return new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime();
-    });
+    const formattedDuties = duties.map((duty) => ({
+      id:        duty.id,
+      examType:  duty.examType,
+      date:      duty.date,
+      session:   duty.session,
+      startTime: duty.startTime ?? null,
+      endTime:   duty.endTime ?? null,
+      status:    'UPCOMING' as const,
+    }));
 
     res.json({
       duties: formattedDuties,

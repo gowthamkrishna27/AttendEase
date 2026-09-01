@@ -28,7 +28,6 @@ import {
   DutyNotFoundError,
   InvalidFacultyError,
   DuplicateFacultyAssignmentError,
-  InvalidDateTimeRangeError,
 } from '../admin/services/invigilation.service.js';
 
 // ── Error → HTTP status mapping ───────────────────────────────────────────────
@@ -44,8 +43,7 @@ function resolveStatusCode(err: Error): number {
     err instanceof PasswordPolicyError              ||
     err instanceof InvalidCurrentPasswordError      ||
     err instanceof InvalidFacultyError              ||
-    err instanceof DuplicateFacultyAssignmentError  ||
-    err instanceof InvalidDateTimeRangeError
+    err instanceof DuplicateFacultyAssignmentError
   ) return 400;
 
   if (

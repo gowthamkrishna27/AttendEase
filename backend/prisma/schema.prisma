@@ -247,31 +247,33 @@ model AttendanceRecord {
 
 // ─── Invigilation Management ──────────────────────────────────────────────────
 
+enum SessionType {
+  MORNING
+  AFTERNOON
+}
+
 /// Invigilation exam session created by admin
 model InvigilationDuty {
-  id            String                    @id @default(cuid())
-  examType      ExamType
-  examName      String                    // e.g. "MID-1", "Semester End Exam"
-  subjectName   String                    // e.g. "Compiler Design (CS601)"
-  startDateTime DateTime
-  endDateTime   DateTime
-  blockName     String                    // e.g. "CS Block", "Mechanical Block"
-  roomNumber    String                    // e.g. "LH-201", "Lab-2"
-  createdAt     DateTime                  @default(now())
-  updatedAt     DateTime                  @updatedAt
+  id          String                    @id @default(cuid())
+  examType    ExamType                  // MID or SEM (existing enum)
+  date        String                    // YYYY-MM-DD (Asia/Kolkata calendar date)
+  session     SessionType               // MORNING | AFTERNOON
+  startTime   String?                   // Optional HH:mm (24h) local IST time, e.g. "09:30"
+  endTime     String?                   // Optional HH:mm (24h) local IST time, e.g. "12:30"
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
 
-  assignments   InvigilationAssignment[]
+  assignments InvigilationAssignment[]
 
-  @@index([startDateTime])
-  @@index([endDateTime])
+  @@index([date])
+  @@index([examType, session])
 }
 
 /// Faculty member assigned to an invigilation duty
 model InvigilationAssignment {
   id         String            @id @default(cuid())
   dutyId     String
-  facultyId  String            // references User.id
-  dutyType   String?           // optional role e.g. "Chief Invigilator", "Room Invigilator"
+  facultyId  String            // references User.id (cuid primary key)
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 

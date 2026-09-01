@@ -229,6 +229,7 @@ const getTodayFormattedDate = () => {
 // ── Reusable Memoized Roll Button Component ───────────────────────────────────
 interface RollButtonProps {
   rollNo: string;
+  student?: { name: string; rollNumber: string };
   request?: ExtendedAttendanceRequest;
   markedStatus?: 'present' | 'absent';
   isDbMarked?: boolean;
@@ -236,7 +237,7 @@ interface RollButtonProps {
   onClick: () => void;
 }
 
-const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollButtonProps) => {
+const RollButton = React.memo(({ rollNo, student, request, markedStatus, onClick }: RollButtonProps) => {
   const isPermission = Boolean(request);
   const isPresent = markedStatus === 'present' && !isPermission;
   const isAbsent = markedStatus === 'absent' && !isPermission;
@@ -261,6 +262,24 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
     badgeStyle = 'bg-rose-200 border-rose-400 text-rose-950 shadow-xs hover:bg-rose-300 ring-2 ring-rose-400/30 font-black';
   }
 
+  const tooltipTitle = student?.name
+    ? `${student.name} (${student.rollNumber}) — ${
+        isPermission
+          ? `Approved ${isMultiDay ? 'Multi-Day ' : ''}Permission (${request?.reasonLabel}) - Click to view slip`
+          : isPresent
+            ? 'Marked Present'
+            : isAbsent
+              ? 'Marked Absent'
+              : 'Unmarked'
+      }`
+    : isPresent
+      ? `Roll #${rollNo}: Marked Present${Boolean(request) ? ' (Has Approved Permission)' : ''}`
+      : isAbsent
+        ? `Roll #${rollNo}: Marked Absent${Boolean(request) ? ' (Has Approved Permission — marked absent by faculty)' : ''}`
+        : isPermission
+          ? `Roll #${rollNo}: Approved ${isMultiDay ? 'Multi-Day ' : ''}Permission (${request?.reasonLabel}${isMultiDay ? ` • ${request?.date} to ${request?.endDate}` : ''}) - Click to view slip`
+          : `Roll #${rollNo}: Unmarked`;
+
   return (
     <motion.button
       layout
@@ -283,15 +302,7 @@ const RollButton = React.memo(({ rollNo, request, markedStatus, onClick }: RollB
         ${badgeStyle}
         ${textColor}
       `}
-      title={
-        isPresent
-          ? `Roll #${rollNo}: Marked Present${Boolean(request) ? ' (Has Approved Permission)' : ''}`
-          : isAbsent
-            ? `Roll #${rollNo}: Marked Absent${Boolean(request) ? ' (Has Approved Permission — marked absent by faculty)' : ''}`
-            : isPermission
-              ? `Roll #${rollNo}: Approved ${isMultiDay ? 'Multi-Day ' : ''}Permission (${request?.reasonLabel}${isMultiDay ? ` • ${request?.date} to ${request?.endDate}` : ''}) - Click to view slip`
-              : `Roll #${rollNo}: Unmarked`
-      }
+      title={tooltipTitle}
     >
       {isMultiDay && (
         <span
@@ -325,6 +336,7 @@ interface PermissionGridProps {
   onOpenWhatsApp: (sectionKey: string) => void;
   viewMode: 'grid' | 'list';
   customRollNumbers?: string[];
+  students?: api.PublicSectionItem['students'];
 }
 
 const PermissionGrid = React.memo(({
@@ -343,6 +355,7 @@ const PermissionGrid = React.memo(({
   onOpenWhatsApp,
   viewMode,
   customRollNumbers,
+  students,
 }: PermissionGridProps) => {
   const rollNumbers = useMemo(() => {
     if (customRollNumbers && customRollNumbers.length > 0) {
@@ -437,25 +450,37 @@ const PermissionGrid = React.memo(({
       const hasOverlap = activePeriodNums.some(pNum => passPeriods.includes(pNum));
       if (!hasOverlap) return;
 
-      const rollStr = p.student?.rollNumber ?? p.studentId;
-      const suffix = extractRollSuffix(rollStr);
-      if (suffix) {
-        if (rollNumbers.includes(suffix)) {
-          map.set(suffix, p);
-        } else {
-          const matched = rollNumbers.find(r =>
-            r === suffix ||
-            parseInt(r, 10) === parseInt(suffix, 10) ||
-            r.toUpperCase() === rollStr.toUpperCase()
-          );
-          if (matched) {
-            map.set(matched, p);
+      const rollStr = (p.student?.rollNumber ?? p.studentId ?? '').trim();
+      const upper = rollStr.toUpperCase();
+
+      // Check if student belongs to section roster with an explicit displayRoll
+      const studentObj = students?.find(st =>
+        st.rollNumber.toUpperCase() === upper || st.userId.toUpperCase() === upper
+      );
+
+      if (studentObj && studentObj.displayRoll) {
+        map.set(studentObj.displayRoll, p);
+        map.set(studentObj.displayRoll.toUpperCase(), p);
+      } else {
+        const suffix = extractRollSuffix(rollStr);
+        if (suffix) {
+          if (rollNumbers.includes(suffix)) {
+            map.set(suffix, p);
+          } else {
+            const matched = rollNumbers.find(r =>
+              r === suffix ||
+              parseInt(r, 10) === parseInt(suffix, 10) ||
+              r.toUpperCase() === upper
+            );
+            if (matched) {
+              map.set(matched, p);
+            }
           }
         }
       }
     });
     return map;
-  }, [passes, rollNumbers, selectedSubmissionId, attendanceSubmissions, selectedPeriodFilters]);
+  }, [passes, rollNumbers, selectedSubmissionId, attendanceSubmissions, selectedPeriodFilters, students]);
 
   const permissionCount = permissionMap.size;
   const longPermissionCount = useMemo(() => {
@@ -599,6 +624,7 @@ const PermissionGrid = React.memo(({
                       <RollButton
                         key={numStr}
                         rollNo={numStr}
+                        student={students?.find(s => s.displayRoll === numStr || s.rollNumber === numStr || s.suffix === numStr)}
                         request={req}
                         markedStatus={marked}
                         isDbMarked={isDbMarked}
@@ -1664,6 +1690,7 @@ export default function PermissionsPage() {
                   sectionKey={sectionKey}
                   selectedYear={selectedYear}
                   customRollNumbers={getDynamicSectionRollNumbers(sectionKey)}
+                  students={dbSections.find(s => s.key === sectionKey || s.value === sectionKey)?.students}
                   passes={sectionsMap[sectionKey] || []}
                   markedAttendance={markedAttendance}
                   attendanceSubmissions={activeSectionSubmissions}

@@ -231,7 +231,7 @@ export default function FacultyAttendance() {
     refetchOnWindowFocus: true,
   });
 
-  // Map of full roll numbers, suffixes, userIds to Student record for fast lookup
+  // Map of full roll numbers, display rolls, suffixes, userIds to Student record for fast lookup
   const studentInfoMap = useMemo(() => {
     const map = new Map<string, api.Student>();
     allStudents.forEach(s => {
@@ -253,8 +253,22 @@ export default function FacultyAttendance() {
         map.set(s.id.toUpperCase().trim(), s);
       }
     });
+
+    // Also enrich from dbSections which has explicit displayRoll mapping for any colliding/detained students
+    dbSections.forEach(sec => {
+      sec.students?.forEach(st => {
+        const matchingStudent = allStudents.find(s =>
+          (s.rollNumber && s.rollNumber.toUpperCase() === st.rollNumber.toUpperCase()) ||
+          s.id === st.userId
+        );
+        if (matchingStudent && st.displayRoll) {
+          map.set(st.displayRoll.toUpperCase().trim(), matchingStudent);
+        }
+      });
+    });
+
     return map;
-  }, [allStudents]);
+  }, [allStudents, dbSections]);
 
   // Check if an attendance request is valid for the target date (single day or date range)
   const isRequestOnDate = useCallback((req: api.AttendanceRequest, targetDate: string) => {
@@ -392,30 +406,48 @@ export default function FacultyAttendance() {
   // Map of roll strings and suffixes for grid button lookup
   const permissionStudentsSet = useMemo(() => {
     const set = new Set<string>();
+    const matchedSec = dbSections.find(s =>
+      s.value === sectionFilter || s.id === sectionFilter || s.key === sectionFilter
+    );
+
     approvedStudentRollsSet.forEach(rollStr => {
       const trimmed = rollStr.trim();
       const upper = trimmed.toUpperCase();
       set.add(trimmed);
       set.add(upper);
 
-      const suffix = extractRollSuffix(trimmed);
-      if (suffix) {
-        const sufUpper = suffix.toUpperCase();
-        set.add(suffix);
-        set.add(sufUpper);
-        const num = parseInt(suffix, 10);
-        if (!isNaN(num)) {
-          set.add(String(num));
-          set.add(String(num).padStart(2, '0'));
+      // Check if student has an explicit displayRoll in this section roster
+      const studentObj = matchedSec?.students?.find(st =>
+        st.rollNumber.toUpperCase() === upper || st.userId.toUpperCase() === upper
+      );
+
+      if (studentObj && studentObj.displayRoll) {
+        set.add(studentObj.displayRoll);
+        set.add(studentObj.displayRoll.toUpperCase());
+      } else {
+        const suffix = extractRollSuffix(trimmed);
+        if (suffix) {
+          const sufUpper = suffix.toUpperCase();
+          set.add(suffix);
+          set.add(sufUpper);
+          const num = parseInt(suffix, 10);
+          if (!isNaN(num)) {
+            set.add(String(num));
+            set.add(String(num).padStart(2, '0'));
+          }
         }
       }
     });
     return set;
-  }, [approvedStudentRollsSet]);
+  }, [approvedStudentRollsSet, dbSections, sectionFilter]);
 
   const permissionMap = useMemo(() => {
     const map = new Map<string, api.AttendanceRequest>();
     if (selectedPeriodIds.length === 0 || !selectedYear || !sectionFilter) return map;
+
+    const matchedSec = dbSections.find(s =>
+      s.value === sectionFilter || s.id === sectionFilter || s.key === sectionFilter
+    );
 
     approvedRequests.forEach(req => {
       if (req.status === 'approved' && isRequestOnDate(req, selectedDate)) {
@@ -437,15 +469,24 @@ export default function FacultyAttendance() {
             map.set(rollStr, req);
             map.set(upper, req);
 
-            const suffix = extractRollSuffix(rollStr);
-            if (suffix) {
-              const sufUpper = suffix.toUpperCase();
-              map.set(suffix, req);
-              map.set(sufUpper, req);
-              const num = parseInt(suffix, 10);
-              if (!isNaN(num)) {
-                map.set(String(num), req);
-                map.set(String(num).padStart(2, '0'), req);
+            const studentRosterItem = matchedSec?.students?.find(st =>
+              st.rollNumber.toUpperCase() === upper || st.userId.toUpperCase() === upper
+            );
+
+            if (studentRosterItem && studentRosterItem.displayRoll) {
+              map.set(studentRosterItem.displayRoll, req);
+              map.set(studentRosterItem.displayRoll.toUpperCase(), req);
+            } else {
+              const suffix = extractRollSuffix(rollStr);
+              if (suffix) {
+                const sufUpper = suffix.toUpperCase();
+                map.set(suffix, req);
+                map.set(sufUpper, req);
+                const num = parseInt(suffix, 10);
+                if (!isNaN(num)) {
+                  map.set(String(num), req);
+                  map.set(String(num).padStart(2, '0'), req);
+                }
               }
             }
           }
@@ -453,7 +494,7 @@ export default function FacultyAttendance() {
       }
     });
     return map;
-  }, [approvedRequests, selectedDate, selectedPeriodIds, selectedYear, sectionFilter, isRequestOnDate, isStudentInSectionAndYear, studentInfoMap]);
+  }, [approvedRequests, selectedDate, selectedPeriodIds, selectedYear, sectionFilter, isRequestOnDate, isStudentInSectionAndYear, studentInfoMap, dbSections]);
 
   // Derive a stable primitive string from the Set so useEffect can use it as a dep
   // without firing on every render due to Set object reference changes.

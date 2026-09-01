@@ -1,54 +1,53 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CalendarCheck, Clock, MapPin, Building, BookOpen,
-  AlertCircle, RotateCcw, Loader2, Sparkles, CheckCircle2
+  CalendarCheck, Clock,
+  AlertCircle, RotateCcw, Loader2, CheckCircle2
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../../lib/api';
-import {
-  formatKolkataDate,
-  formatKolkataTime,
-  fromIsoToKolkataInputs
-} from '../../../lib/utils';
 
-// Helper to format countdown or relative starting time
-function formatTimeUntilStart(diffMs: number, startIso: string): string {
-  if (diffMs <= 0) return 'Starting now';
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-  const totalMinutes = Math.floor(diffMs / (1000 * 60));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours < 1) {
-    return `Starts in ${minutes} min${minutes === 1 ? '' : 's'}`;
+function formatISTDate(dateStr: string): string {
+  // dateStr is YYYY-MM-DD
+  try {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const d = new Date(Date.UTC(year!, month! - 1, day!));
+    return d.toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  } catch {
+    return dateStr;
   }
-  if (hours < 12) {
-    return minutes > 0 ? `Starts in ${hours}h ${minutes}m` : `Starts in ${hours} hour${hours === 1 ? '' : 's'}`;
-  }
-
-  // Check if it's today in IST
-  const todayIST = fromIsoToKolkataInputs(new Date().toISOString()).date;
-  const dutyDateIST = fromIsoToKolkataInputs(startIso).date;
-
-  if (todayIST === dutyDateIST) {
-    return `Today at ${formatKolkataTime(startIso)}`;
-  }
-
-  return `Starts ${formatKolkataDate(startIso)} at ${formatKolkataTime(startIso)}`;
 }
 
-// Exam Type Badge helper
+function todayIST(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function isDateToday(dateStr: string): boolean {
+  return dateStr === todayIST();
+}
+
+// Exam Type Badge
 function ExamTypeBadge({ type }: { type: api.ExamType }) {
   const styles: Record<api.ExamType, { label: string; bg: string; text: string; border: string }> = {
-    MID: { label: 'MID EXAM', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-    SEM: { label: 'SEMESTER', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-    LAB: { label: 'LAB EXAM', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-    SUPPLEMENTARY: { label: 'SUPPLEMENTARY', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+    MID:           { label: 'MID EXAM',     bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
+    SEM:           { label: 'SEMESTER',     bg: 'bg-emerald-50',text: 'text-emerald-700',border: 'border-emerald-200' },
+    LAB:           { label: 'LAB EXAM',     bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+    SUPPLEMENTARY: { label: 'SUPPLEMENTARY',bg: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200' },
   };
-
   const style = styles[type] || { label: type, bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
-
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-bold tracking-wider uppercase border ${style.bg} ${style.text} ${style.border}`}>
       {style.label}
@@ -56,20 +55,31 @@ function ExamTypeBadge({ type }: { type: api.ExamType }) {
   );
 }
 
+// Session Badge
+function SessionBadge({ session }: { session: api.SessionType }) {
+  const styles: Record<api.SessionType, { label: string; bg: string; text: string }> = {
+    MORNING:   { label: 'Morning',   bg: 'bg-amber-50',  text: 'text-amber-800' },
+    AFTERNOON: { label: 'Afternoon', bg: 'bg-orange-50', text: 'text-orange-800' },
+  };
+  const style = styles[session] || { label: session, bg: 'bg-slate-50', text: 'text-slate-700' };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-medium ${style.bg} ${style.text}`}>
+      <span>{style.label}</span>
+    </span>
+  );
+}
+
+// ── Widget ─────────────────────────────────────────────────────────────────────
+
 export function UpcomingInvigilationWidget() {
-  // Local timer state for live countdown and status recalculation
+  // Local timer for urgency badge refresh
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    // Refresh local time every 30 seconds
-    const interval = setInterval(() => {
-      setNow(Date.now());
-    }, 30000);
-
+    const interval = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch only authenticated faculty's duties from backend endpoint
   const {
     data,
     isLoading,
@@ -85,39 +95,33 @@ export function UpcomingInvigilationWidget() {
 
   const rawDuties = data?.duties || [];
 
-  // Calculate dynamic status and sort:
-  // 1. IN_PROGRESS duties first
-  // 2. Upcoming duties by nearest startDateTime ascending
-  // Exclude completed duties (now > endMs)
+  // Enrich duties with derived fields for urgency display
   const processedDuties = useMemo(() => {
-    const active = rawDuties
-      .map((duty) => {
-        const startMs = new Date(duty.startDateTime).getTime();
-        const endMs = new Date(duty.endDateTime).getTime();
-        const isInProgress = startMs <= now && now <= endMs;
-        const isCompleted = now > endMs;
-        const diffMs = startMs - now;
-        const diffHours = diffMs / (1000 * 60 * 60);
+    const todayStr = todayIST();
 
-        return {
-          ...duty,
-          startMs,
-          endMs,
-          isInProgress,
-          isCompleted,
-          diffMs,
-          diffHours,
-        };
-      })
-      .filter((d) => !d.isCompleted);
+    return rawDuties.map((duty) => {
+      const isToday = duty.date === todayStr;
 
-    active.sort((a, b) => {
-      if (a.isInProgress && !b.isInProgress) return -1;
-      if (!a.isInProgress && b.isInProgress) return 1;
-      return a.startMs - b.startMs;
+      // Calculate days until duty
+      const [dy, dm, dd] = duty.date.split('-').map(Number);
+      const dutyDate = new Date(Date.UTC(dy!, dm! - 1, dd!));
+      const nowDate = new Date();
+      // Reset to IST midnight for comparison
+      const nowIST = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(nowDate);
+      const [ty, tm, td] = nowIST.split('-').map(Number);
+      const todayUTC = new Date(Date.UTC(ty!, tm! - 1, td!));
+      const diffDays = Math.round((dutyDate.getTime() - todayUTC.getTime()) / 86400000);
+
+      return { ...duty, isToday, diffDays };
+    }).sort((a, b) => {
+      // Sort: today first, then by date, then by session (MORNING < AFTERNOON)
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      const sessionOrder = { MORNING: 0, AFTERNOON: 1 };
+      return (sessionOrder[a.session] ?? 0) - (sessionOrder[b.session] ?? 0);
     });
-
-    return active;
   }, [rawDuties, now]);
 
   return (
@@ -129,7 +133,7 @@ export function UpcomingInvigilationWidget() {
     >
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
 
-        {/* ── Widget Header ── */}
+        {/* ── Header ── */}
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-orange-50 text-[#EA580C] border border-orange-100 flex items-center justify-center shrink-0">
@@ -145,7 +149,7 @@ export function UpcomingInvigilationWidget() {
                 )}
               </h2>
               <p className="text-[11.5px] text-slate-400 font-medium">
-                Assigned exam duties (Asia/Kolkata)
+                Assigned exam duties — next 3 days (Asia/Kolkata)
               </p>
             </div>
           </div>
@@ -158,7 +162,7 @@ export function UpcomingInvigilationWidget() {
           )}
         </div>
 
-        {/* ── Loading State ── */}
+        {/* ── Loading ── */}
         {isLoading && (
           <div className="py-6 flex flex-col items-center justify-center gap-2.5 bg-slate-50/50 rounded-xl border border-slate-100 text-slate-400 text-xs">
             <Loader2 size={20} className="animate-spin text-[#EA580C]" />
@@ -166,7 +170,7 @@ export function UpcomingInvigilationWidget() {
           </div>
         )}
 
-        {/* ── Error State (Non-disruptive) ── */}
+        {/* ── Error ── */}
         {isError && !isLoading && (
           <div className="p-4 bg-red-50/70 border border-red-200 rounded-xl flex items-center justify-between gap-3 text-red-800 text-xs">
             <div className="flex items-center gap-2">
@@ -185,72 +189,47 @@ export function UpcomingInvigilationWidget() {
           </div>
         )}
 
-        {/* ── Empty State ── */}
+        {/* ── Empty ── */}
         {!isLoading && !isError && processedDuties.length === 0 && (
           <div className="py-5 px-4 bg-slate-50/60 rounded-xl border border-slate-200/60 flex items-center justify-center gap-2.5 text-center">
             <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
             <span className="text-[13px] font-medium text-slate-600">
-              No upcoming invigilation duties
+              No upcoming invigilation duties in the next 3 days
             </span>
           </div>
         )}
 
-        {/* ── Duties List / Cards ── */}
+        {/* ── Duty Cards ── */}
         {!isLoading && !isError && processedDuties.length > 0 && (
           <div className="space-y-3">
             <AnimatePresence>
               {processedDuties.map((duty) => {
-                const dateStr = formatKolkataDate(duty.startDateTime);
-                const startStr = formatKolkataTime(duty.startDateTime);
-                const endStr = formatKolkataTime(duty.endDateTime);
+                // Urgency: today = red, tomorrow = amber, beyond = slate
+                let borderAccent = 'border-l-slate-300';
+                let urgencyLabel: React.ReactNode = null;
 
-                // Urgency Calculation:
-                // IN PROGRESS:
-                // - border: border-l-emerald-500
-                // - badge: green "In Progress"
-                // UPCOMING:
-                // - diffHours <= 16: RED urgency (border-l-rose-500)
-                // - 16 < diffHours <= 24: YELLOW urgency (border-l-amber-500)
-                // - diffHours > 24: GREEN urgency (border-l-emerald-500)
-                let borderAccent = 'border-l-emerald-500';
-                let urgencyBadge = null;
-
-                if (duty.isInProgress) {
-                  borderAccent = 'border-l-emerald-500 bg-emerald-50/15';
-                  urgencyBadge = (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      <span>In Progress</span>
-                      <span className="font-normal text-emerald-600/90 text-[10.5px]">
-                        • Ends at {endStr}
-                      </span>
-                    </span>
-                  );
-                } else if (duty.diffHours <= 16) {
-                  // RED urgency
+                if (duty.isToday) {
                   borderAccent = 'border-l-rose-500';
-                  urgencyBadge = (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11.5px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                      <Clock size={12} className="text-rose-500" />
-                      <span>{formatTimeUntilStart(duty.diffMs, duty.startDateTime)}</span>
+                  urgencyLabel = (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                      <span>Today</span>
                     </span>
                   );
-                } else if (duty.diffHours <= 24) {
-                  // YELLOW urgency
-                  borderAccent = 'border-l-amber-500';
-                  urgencyBadge = (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                      <Clock size={12} className="text-amber-600" />
-                      <span>{formatTimeUntilStart(duty.diffMs, duty.startDateTime)}</span>
+                } else if (duty.diffDays === 1) {
+                  borderAccent = 'border-l-amber-400';
+                  urgencyLabel = (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                      <Clock size={11} />
+                      <span>Tomorrow</span>
                     </span>
                   );
                 } else {
-                  // GREEN urgency
-                  borderAccent = 'border-l-emerald-500';
-                  urgencyBadge = (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                      <Clock size={12} className="text-slate-500" />
-                      <span>{formatTimeUntilStart(duty.diffMs, duty.startDateTime)}</span>
+                  borderAccent = 'border-l-emerald-400';
+                  urgencyLabel = (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      <Clock size={11} />
+                      <span>In {duty.diffDays} days</span>
                     </span>
                   );
                 }
@@ -266,52 +245,35 @@ export function UpcomingInvigilationWidget() {
                     className={`p-4 rounded-xl border border-slate-200/90 border-l-[4.5px] ${borderAccent} bg-white shadow-2xs hover:border-slate-300 transition-all`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
-                      {/* Left: Exam, Subject, Duty Role */}
-                      <div className="space-y-1 min-w-0">
+                      {/* Left: badges + date */}
+                      <div className="space-y-1.5 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <ExamTypeBadge type={duty.examType} />
-                          {duty.dutyType && (
-                            <span className="text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                              {duty.dutyType}
+                          <SessionBadge session={duty.session} />
+                        </div>
+
+                        <div className="text-[14px] font-bold text-slate-900">
+                          {formatISTDate(duty.date)}
+                        </div>
+
+                        {/* Time if provided */}
+                        {(duty.startTime || duty.endTime) && (
+                          <div className="flex items-center gap-1.5 text-[12.5px] text-slate-600">
+                            <Clock size={13} className="text-slate-400 shrink-0" />
+                            <span>
+                              {duty.startTime && duty.endTime
+                                ? `${duty.startTime} – ${duty.endTime}`
+                                : duty.startTime
+                                ? `From ${duty.startTime}`
+                                : `Until ${duty.endTime}`}
                             </span>
-                          )}
-                        </div>
-
-                        <h3 className="text-[14.5px] sm:text-[15px] font-bold text-slate-900 leading-snug">
-                          {duty.examName}
-                        </h3>
-
-                        <div className="flex items-center gap-1.5 text-[13px] text-slate-700 font-medium">
-                          <BookOpen size={14} className="text-slate-400 shrink-0" />
-                          <span>{duty.subjectName}</span>
-                        </div>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Right: Urgency / Countdown Badge */}
+                      {/* Right: urgency badge */}
                       <div className="shrink-0 self-start">
-                        {urgencyBadge}
-                      </div>
-                    </div>
-
-                    {/* Duty Metadata Footer */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-[12px]">
-                      {/* Date & Time */}
-                      <div className="flex items-center gap-2 text-slate-700">
-                        <Clock size={13.5} className="text-slate-400 shrink-0" />
-                        <span className="font-semibold text-slate-900">{dateStr}</span>
-                        <span className="text-slate-400">•</span>
-                        <span className="text-slate-600">{startStr} – {endStr}</span>
-                      </div>
-
-                      {/* Location */}
-                      <div className="flex items-center gap-2 text-slate-700">
-                        <Building size={13.5} className="text-slate-400 shrink-0" />
-                        <span className="font-medium text-slate-800">{duty.blockName}</span>
-                        <span className="text-slate-400">•</span>
-                        <div className="flex items-center gap-1">
-                          <MapPin size={12} className="text-slate-400 shrink-0" />
-                          <span className="font-semibold text-slate-900">Room {duty.roomNumber}</span>
-                        </div>
+                        {urgencyLabel}
                       </div>
                     </div>
                   </motion.div>

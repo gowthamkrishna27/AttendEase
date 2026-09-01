@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { prisma } from '../../db/prisma.js';
 import {
@@ -9,9 +9,21 @@ import {
   deleteDuty,
   InvalidFacultyError,
   DuplicateFacultyAssignmentError,
-  InvalidDateTimeRangeError,
   DutyNotFoundError,
 } from './invigilation.service.js';
+
+// Helper: returns a YYYY-MM-DD date string N days from today in IST
+function istDatePlus(days: number): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const base = new Date(now.getTime() + days * 86400000);
+  return formatter.format(base); // YYYY-MM-DD
+}
 
 describe('Admin Invigilation Management Service Tests', () => {
   let faculty1: { id: string; userId: string; department: string };
@@ -75,45 +87,33 @@ describe('Admin Invigilation Management Service Tests', () => {
   });
 
   it('1. Successfully creates an invigilation duty with multiple faculty assignments', async () => {
-    const start = new Date(Date.now() + 86400000).toISOString(); // Tomorrow
-    const end   = new Date(Date.now() + 86400000 + 7200000).toISOString(); // +2 hours
-
     const duty = await createDuty({
       examType: 'MID',
-      examName: 'MID-1 Examination',
-      subjectName: 'Compiler Design',
-      startDateTime: start,
-      endDateTime: end,
-      blockName: 'CS Block',
-      roomNumber: 'LH-201',
+      date: istDatePlus(1),    // Tomorrow
+      session: 'MORNING',
+      startTime: '09:30',
+      endTime: '12:30',
       assignedFaculty: [
-        { facultyId: faculty1.id, dutyType: 'Chief Invigilator' },
-        { facultyId: faculty2.userId, dutyType: 'Room Invigilator' }, // Test lookup by userId
+        { facultyId: faculty1.id },
+        { facultyId: faculty2.userId }, // Test lookup by userId
       ],
     });
 
     assert.ok(duty.id, 'Duty should have an ID');
     assert.equal(duty.examType, 'MID');
-    assert.equal(duty.subjectName, 'Compiler Design');
+    assert.equal(duty.session, 'MORNING');
     assert.equal(duty.assignedFaculty.length, 2, 'Should have 2 assigned faculty');
-    
+
     createdDutyId = duty.id;
   });
 
   it('2. Rejects creation with duplicate faculty assignments', async () => {
-    const start = new Date().toISOString();
-    const end   = new Date(Date.now() + 3600000).toISOString();
-
     await assert.rejects(
       async () => {
         await createDuty({
           examType: 'SEM',
-          examName: 'Semester End Exam',
-          subjectName: 'Database Systems',
-          startDateTime: start,
-          endDateTime: end,
-          blockName: 'Main Block',
-          roomNumber: 'LH-101',
+          date: istDatePlus(2),
+          session: 'AFTERNOON',
           assignedFaculty: [
             { facultyId: faculty1.id },
             { facultyId: faculty1.id },
@@ -125,19 +125,12 @@ describe('Admin Invigilation Management Service Tests', () => {
   });
 
   it('3. Rejects assigning a non-faculty user', async () => {
-    const start = new Date().toISOString();
-    const end   = new Date(Date.now() + 3600000).toISOString();
-
     await assert.rejects(
       async () => {
         await createDuty({
           examType: 'LAB',
-          examName: 'Lab Exam',
-          subjectName: 'Web Programming Lab',
-          startDateTime: start,
-          endDateTime: end,
-          blockName: 'Lab Block',
-          roomNumber: 'Lab-1',
+          date: istDatePlus(1),
+          session: 'MORNING',
           assignedFaculty: [
             { facultyId: nonFacultyUser.id },
           ],
@@ -147,28 +140,7 @@ describe('Admin Invigilation Management Service Tests', () => {
     );
   });
 
-  it('4. Rejects invalid date time range (endDateTime <= startDateTime)', async () => {
-    const now = new Date();
-    const earlier = new Date(Date.now() - 3600000);
-
-    await assert.rejects(
-      async () => {
-        await createDuty({
-          examType: 'MID',
-          examName: 'MID-2',
-          subjectName: 'Operating Systems',
-          startDateTime: now.toISOString(),
-          endDateTime: earlier.toISOString(),
-          blockName: 'CS Block',
-          roomNumber: 'LH-202',
-          assignedFaculty: [{ facultyId: faculty1.id }],
-        });
-      },
-      (err: any) => err instanceof InvalidDateTimeRangeError,
-    );
-  });
-
-  it('5. Retrieves duties for administrators with filtering', async () => {
+  it('4. Retrieves duties for administrators with filtering', async () => {
     const resAll = await listDuties({});
     assert.ok(Array.isArray(resAll.duties));
     assert.ok(resAll.total >= 1);
@@ -184,21 +156,37 @@ describe('Admin Invigilation Management Service Tests', () => {
     // Filter by department (through InvigilationAssignment -> User.department)
     const resDept = await listDuties({ department: faculty1.department });
     assert.ok(resDept.duties.some((d) => d.id === createdDutyId));
+
+    // Filter by session
+    const resMorning = await listDuties({ session: 'MORNING' });
+    assert.ok(resMorning.duties.every((d) => d.session === 'MORNING'));
   });
 
-  it('6. Updates duty information and reassigns faculty', async () => {
+  it('5. Updates duty information and reassigns faculty', async () => {
     const updated = await updateDuty(createdDutyId, {
-      examName: 'MID-1 Examination (Rescheduled)',
-      roomNumber: 'LH-305',
+      date: istDatePlus(3),
+      session: 'AFTERNOON',
+      startTime: '14:00',
+      endTime: '17:00',
       assignedFaculty: [
-        { facultyId: faculty2.id, dutyType: 'Sole Invigilator' },
+        { facultyId: faculty2.id },
       ],
     });
 
-    assert.equal(updated.examName, 'MID-1 Examination (Rescheduled)');
-    assert.equal(updated.roomNumber, 'LH-305');
+    assert.equal(updated.session, 'AFTERNOON');
+    assert.equal(updated.startTime, '14:00');
     assert.equal(updated.assignedFaculty.length, 1);
     assert.equal(updated.assignedFaculty[0]?.facultyId, faculty2.id);
+  });
+
+  it('6. Clears optional times by setting to null', async () => {
+    const updated = await updateDuty(createdDutyId, {
+      startTime: null,
+      endTime: null,
+    });
+
+    assert.equal(updated.startTime, null);
+    assert.equal(updated.endTime, null);
   });
 
   it('7. Deletes invigilation duty without deleting User records', async () => {

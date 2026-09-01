@@ -6,38 +6,48 @@
 import { z } from 'zod';
 
 const examTypeEnum = z.enum(['MID', 'SEM', 'LAB', 'SUPPLEMENTARY']);
+const sessionTypeEnum = z.enum(['MORNING', 'AFTERNOON']);
+
+// Optional time string in HH:mm format, or empty/null = no time
+const optionalTimeSchema = z
+  .string()
+  .trim()
+  .refine(
+    (val) => val === '' || /^([01]\d|2[0-3]):[0-5]\d$/.test(val),
+    { message: 'Time must be in HH:mm format (24-hour)' }
+  )
+  .transform((val) => (val === '' ? null : val))
+  .nullable()
+  .optional();
 
 export const facultyAssignmentSchema = z.object({
   facultyId: z.string().trim().min(1, 'facultyId is required'),
-  dutyType:  z.string().trim().max(100).optional().nullable(),
 });
 
 export const createDutySchema = z
   .object({
     examType:        examTypeEnum,
-    examName:        z.string().trim().min(1, 'Exam name is required').max(150),
-    subjectName:     z.string().trim().min(1, 'Subject name is required').max(150),
-    startDateTime:   z
+    date:            z
       .string()
       .trim()
-      .min(1, 'startDateTime is required')
-      .refine((val) => !isNaN(Date.parse(val)), {
-        message: 'startDateTime must be a valid ISO date-time string',
+      .min(1, 'Date is required')
+      .refine((val) => /^\d{4}-\d{2}-\d{2}$/.test(val), {
+        message: 'Date must be in YYYY-MM-DD format',
       }),
-    endDateTime:     z
-      .string()
-      .trim()
-      .min(1, 'endDateTime is required')
-      .refine((val) => !isNaN(Date.parse(val)), {
-        message: 'endDateTime must be a valid ISO date-time string',
-      }),
-    blockName:       z.string().trim().min(1, 'Block name is required').max(100),
-    roomNumber:      z.string().trim().min(1, 'Room number is required').max(100),
+    session:         sessionTypeEnum,
+    startTime:       optionalTimeSchema,
+    endTime:         optionalTimeSchema,
     assignedFaculty: z.array(facultyAssignmentSchema).min(1, 'At least one faculty member must be assigned'),
   })
   .refine(
-    (data) => new Date(data.endDateTime).getTime() > new Date(data.startDateTime).getTime(),
-    { message: 'endDateTime must be strictly after startDateTime', path: ['endDateTime'] },
+    (data) => {
+      // If both times provided, end must be after start
+      if (data.startTime && data.endTime) {
+        return data.endTime > data.startTime;
+      }
+      return true;
+    },
+    { message: 'End time must be after start time', path: ['endTime'] },
   )
   .refine(
     (data) => {
@@ -50,36 +60,26 @@ export const createDutySchema = z
 export const updateDutySchema = z
   .object({
     examType:        examTypeEnum.optional(),
-    examName:        z.string().trim().min(1).max(150).optional(),
-    subjectName:     z.string().trim().min(1).max(150).optional(),
-    startDateTime:   z
+    date:            z
       .string()
       .trim()
-      .min(1)
-      .refine((val) => !isNaN(Date.parse(val)), {
-        message: 'startDateTime must be a valid ISO date-time string',
+      .refine((val) => /^\d{4}-\d{2}-\d{2}$/.test(val), {
+        message: 'Date must be in YYYY-MM-DD format',
       })
       .optional(),
-    endDateTime:     z
-      .string()
-      .trim()
-      .min(1)
-      .refine((val) => !isNaN(Date.parse(val)), {
-        message: 'endDateTime must be a valid ISO date-time string',
-      })
-      .optional(),
-    blockName:       z.string().trim().min(1).max(100).optional(),
-    roomNumber:      z.string().trim().min(1).max(100).optional(),
+    session:         sessionTypeEnum.optional(),
+    startTime:       optionalTimeSchema,
+    endTime:         optionalTimeSchema,
     assignedFaculty: z.array(facultyAssignmentSchema).min(1).optional(),
   })
   .refine(
     (data) => {
-      if (data.startDateTime && data.endDateTime) {
-        return new Date(data.endDateTime).getTime() > new Date(data.startDateTime).getTime();
+      if (data.startTime && data.endTime) {
+        return data.endTime > data.startTime;
       }
       return true;
     },
-    { message: 'endDateTime must be strictly after startDateTime', path: ['endDateTime'] },
+    { message: 'End time must be after start time', path: ['endTime'] },
   )
   .refine(
     (data) => {
@@ -101,10 +101,7 @@ export const filterQuerySchema = z.object({
   startDate:  z.string().trim().optional(),
   endDate:    z.string().trim().optional(),
   examType:   examTypeEnum.optional(),
+  session:    sessionTypeEnum.optional(),
   facultyId:  z.string().trim().optional(),
   department: z.string().trim().optional(),
 });
-
-export type CreateDutyInputValidated = z.infer<typeof createDutySchema>;
-export type UpdateDutyInputValidated = z.infer<typeof updateDutySchema>;
-export type FilterQueryInputValidated = z.infer<typeof filterQuerySchema>;

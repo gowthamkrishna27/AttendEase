@@ -35,29 +35,19 @@ export class DuplicateFacultyAssignmentError extends Error {
   }
 }
 
-export class InvalidDateTimeRangeError extends Error {
-  constructor(message = 'endDateTime must be strictly after startDateTime.') {
-    super(message);
-    this.name = 'InvalidDateTimeRangeError';
-  }
-}
-
 // ── Response Formatter Helper ─────────────────────────────────────────────────
 
 interface DutyWithAssignments {
   id: string;
   examType: any;
-  examName: string;
-  subjectName: string;
-  startDateTime: Date;
-  endDateTime: Date;
-  blockName: string;
-  roomNumber: string;
+  date: string;
+  session: any;
+  startTime: string | null;
+  endTime: string | null;
   createdAt: Date;
   updatedAt: Date;
   assignments: Array<{
     id: string;
-    dutyType: string | null;
     facultyId: string;
     faculty: {
       id: string;
@@ -72,16 +62,14 @@ interface DutyWithAssignments {
 
 function toDutyResponse(doc: DutyWithAssignments): InvigilationDutyResponse {
   return {
-    id:            doc.id,
-    examType:      doc.examType,
-    examName:      doc.examName,
-    subjectName:   doc.subjectName,
-    startDateTime: doc.startDateTime.toISOString(),
-    endDateTime:   doc.endDateTime.toISOString(),
-    blockName:     doc.blockName,
-    roomNumber:    doc.roomNumber,
-    createdAt:     doc.createdAt.toISOString(),
-    updatedAt:     doc.updatedAt.toISOString(),
+    id:        doc.id,
+    examType:  doc.examType,
+    date:      doc.date,
+    session:   doc.session,
+    startTime: doc.startTime ?? null,
+    endTime:   doc.endTime ?? null,
+    createdAt: doc.createdAt.toISOString(),
+    updatedAt: doc.updatedAt.toISOString(),
     assignedFaculty: (doc.assignments || []).map((a) => ({
       assignmentId: a.id,
       facultyId:    a.faculty.id,
@@ -90,7 +78,6 @@ function toDutyResponse(doc: DutyWithAssignments): InvigilationDutyResponse {
       email:        a.faculty.email,
       department:   a.faculty.department,
       designation:  a.faculty.designation,
-      dutyType:     a.dutyType,
     })),
   };
 }
@@ -98,7 +85,7 @@ function toDutyResponse(doc: DutyWithAssignments): InvigilationDutyResponse {
 // ── Faculty Resolution Helper ─────────────────────────────────────────────────
 
 async function resolveAndValidateFaculty(
-  assignedFaculty: Array<{ facultyId: string; dutyType?: string | null }>,
+  assignedFaculty: Array<{ facultyId: string }>,
 ) {
   const requestedIds = assignedFaculty.map((f) => f.facultyId);
 
@@ -134,10 +121,7 @@ async function resolveAndValidateFaculty(
     if (user.role !== 'faculty') {
       throw new InvalidFacultyError(`User "${user.name}" (${user.userId}) is a ${user.role}, not faculty.`);
     }
-    return {
-      user,
-      dutyType: item.dutyType ?? null,
-    };
+    return { user };
   });
 
   // Verify unique resolved user IDs
@@ -149,52 +133,44 @@ async function resolveAndValidateFaculty(
   return resolved;
 }
 
+const dutyInclude = {
+  assignments: {
+    include: {
+      faculty: {
+        select: {
+          id: true,
+          userId: true,
+          name: true,
+          email: true,
+          department: true,
+          designation: true,
+        },
+      },
+    },
+  },
+};
+
 // ── Service Functions ─────────────────────────────────────────────────────────
 
 export async function createDuty(input: CreateDutyInput): Promise<InvigilationDutyResponse> {
-  const start = new Date(input.startDateTime);
-  const end   = new Date(input.endDateTime);
-
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
-    throw new InvalidDateTimeRangeError();
-  }
-
   const resolvedFaculty = await resolveAndValidateFaculty(input.assignedFaculty);
 
   // Atomic creation via transaction
   const createdDuty = await prisma.$transaction(async (tx) => {
     return tx.invigilationDuty.create({
       data: {
-        examType:      input.examType,
-        examName:      input.examName,
-        subjectName:   input.subjectName,
-        startDateTime: start,
-        endDateTime:   end,
-        blockName:     input.blockName,
-        roomNumber:    input.roomNumber,
+        examType:  input.examType,
+        date:      input.date,
+        session:   input.session,
+        startTime: input.startTime ?? null,
+        endTime:   input.endTime ?? null,
         assignments: {
           create: resolvedFaculty.map((item) => ({
             facultyId: item.user.id,
-            dutyType:  item.dutyType,
           })),
         },
       },
-      include: {
-        assignments: {
-          include: {
-            faculty: {
-              select: {
-                id: true,
-                userId: true,
-                name: true,
-                email: true,
-                department: true,
-                designation: true,
-              },
-            },
-          },
-        },
-      },
+      include: dutyInclude,
     });
   });
 
@@ -208,23 +184,24 @@ export async function listDuties(filter: InvigilationFilterQuery): Promise<Invig
     whereConditions['examType'] = filter.examType;
   }
 
-  // Date filtering
+  if (filter.session) {
+    whereConditions['session'] = filter.session;
+  }
+
+  // Date filtering — filter.date expects YYYY-MM-DD string
   if (filter.date) {
-    const startOfDay = new Date(`${filter.date}T00:00:00.000Z`);
-    const endOfDay   = new Date(`${filter.date}T23:59:59.999Z`);
-    whereConditions['startDateTime'] = {
-      gte: startOfDay,
-      lte: endOfDay,
-    };
+    whereConditions['date'] = filter.date;
   } else if (filter.startDate || filter.endDate) {
-    const dateRange: Record<string, Date> = {};
+    // For range queries on string date field we use gte/lte on alphabetical comparison
+    const dateRange: Record<string, string> = {};
     if (filter.startDate) {
-      dateRange['gte'] = new Date(filter.startDate);
+      // filter.startDate may be ISO datetime — extract just the date part
+      dateRange['gte'] = filter.startDate.substring(0, 10);
     }
     if (filter.endDate) {
-      dateRange['lte'] = new Date(filter.endDate);
+      dateRange['lte'] = filter.endDate.substring(0, 10);
     }
-    whereConditions['startDateTime'] = dateRange;
+    whereConditions['date'] = dateRange;
   }
 
   // Filter by faculty
@@ -239,7 +216,7 @@ export async function listDuties(filter: InvigilationFilterQuery): Promise<Invig
     };
   }
 
-  // Filter by department (derived through InvigilationAssignment -> User.department)
+  // Filter by department (through faculty)
   if (filter.department) {
     const existingAssignments = (whereConditions['assignments'] as Record<string, unknown>) || {};
     const existingSome = (existingAssignments['some'] as Record<string, unknown>) || {};
@@ -260,25 +237,8 @@ export async function listDuties(filter: InvigilationFilterQuery): Promise<Invig
 
   const duties = await prisma.invigilationDuty.findMany({
     where: whereConditions,
-    include: {
-      assignments: {
-        include: {
-          faculty: {
-            select: {
-              id: true,
-              userId: true,
-              name: true,
-              email: true,
-              department: true,
-              designation: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      startDateTime: 'asc',
-    },
+    include: dutyInclude,
+    orderBy: [{ date: 'asc' }, { session: 'asc' }],
   });
 
   return {
@@ -290,22 +250,7 @@ export async function listDuties(filter: InvigilationFilterQuery): Promise<Invig
 export async function getDutyById(id: string): Promise<InvigilationDutyResponse> {
   const duty = await prisma.invigilationDuty.findUnique({
     where: { id },
-    include: {
-      assignments: {
-        include: {
-          faculty: {
-            select: {
-              id: true,
-              userId: true,
-              name: true,
-              email: true,
-              department: true,
-              designation: true,
-            },
-          },
-        },
-      },
-    },
+    include: dutyInclude,
   });
 
   if (!duty) {
@@ -325,14 +270,7 @@ export async function updateDuty(id: string, input: UpdateDutyInput): Promise<In
     throw new DutyNotFoundError(id);
   }
 
-  const start = input.startDateTime ? new Date(input.startDateTime) : existingDuty.startDateTime;
-  const end   = input.endDateTime ? new Date(input.endDateTime) : existingDuty.endDateTime;
-
-  if (end <= start) {
-    throw new InvalidDateTimeRangeError();
-  }
-
-  let resolvedFaculty: Array<{ user: { id: string }; dutyType: string | null }> | null = null;
+  let resolvedFaculty: Array<{ user: { id: string } }> | null = null;
   if (input.assignedFaculty) {
     resolvedFaculty = await resolveAndValidateFaculty(input.assignedFaculty);
   }
@@ -348,7 +286,6 @@ export async function updateDuty(id: string, input: UpdateDutyInput): Promise<In
         data: resolvedFaculty.map((item) => ({
           dutyId: id,
           facultyId: item.user.id,
-          dutyType: item.dutyType,
         })),
       });
     }
@@ -356,30 +293,13 @@ export async function updateDuty(id: string, input: UpdateDutyInput): Promise<In
     return tx.invigilationDuty.update({
       where: { id },
       data: {
-        ...(input.examType ? { examType: input.examType } : {}),
-        ...(input.examName ? { examName: input.examName } : {}),
-        ...(input.subjectName ? { subjectName: input.subjectName } : {}),
-        ...(input.startDateTime ? { startDateTime: start } : {}),
-        ...(input.endDateTime ? { endDateTime: end } : {}),
-        ...(input.blockName ? { blockName: input.blockName } : {}),
-        ...(input.roomNumber ? { roomNumber: input.roomNumber } : {}),
+        ...(input.examType !== undefined ? { examType: input.examType } : {}),
+        ...(input.date !== undefined ? { date: input.date } : {}),
+        ...(input.session !== undefined ? { session: input.session } : {}),
+        ...('startTime' in input ? { startTime: input.startTime ?? null } : {}),
+        ...('endTime' in input ? { endTime: input.endTime ?? null } : {}),
       },
-      include: {
-        assignments: {
-          include: {
-            faculty: {
-              select: {
-                id: true,
-                userId: true,
-                name: true,
-                email: true,
-                department: true,
-                designation: true,
-              },
-            },
-          },
-        },
-      },
+      include: dutyInclude,
     });
   });
 
@@ -396,8 +316,7 @@ export async function deleteDuty(id: string): Promise<{ success: boolean; messag
     throw new DutyNotFoundError(id);
   }
 
-  // Deleting InvigilationDuty will automatically cascade delete its InvigilationAssignment records,
-  // while User (faculty) records remain completely untouched.
+  // Cascade delete handles InvigilationAssignment records automatically
   await prisma.invigilationDuty.delete({
     where: { id },
   });
