@@ -16,8 +16,8 @@ const statusConfig: Record<string, { label: string; dot: string; className: stri
   },
   approved: {
     label: 'Approved',
-    dot: 'bg-slate-900',
-    className: 'bg-slate-100 text-slate-900 border border-slate-200/80 font-bold',
+    dot: 'bg-orange-500',
+    className: 'bg-orange-50/80 text-orange-800 border border-orange-200/60 font-semibold',
   },
   rejected: {
     label: 'Rejected',
