@@ -36,6 +36,13 @@ enum RequestReason {
   other
 }
 
+enum ExamType {
+  MID
+  SEM
+  LAB
+  SUPPLEMENTARY
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -63,14 +70,15 @@ model User {
   counselees            User[]                 @relation("FacultyCounselees")
 
   // Relations
-  submittedRequests     Request[]              @relation("StudentRequests")
-  primaryRequests       Request[]              @relation("PrimaryFacultyRequests")
-  assignedRequests      RequestFaculty[]
-  performedActions      RequestAction[]
-  notifications         Notification[]
-  passkeys              UserPasskey[]
-  attendanceSubmissions AttendanceSubmission[]
-  createdShareLinks     PermissionRequestShareLink[] @relation("UserCreatedShareLinks")
+  submittedRequests        Request[]                    @relation("StudentRequests")
+  primaryRequests          Request[]                    @relation("PrimaryFacultyRequests")
+  assignedRequests         RequestFaculty[]
+  performedActions         RequestAction[]
+  notifications            Notification[]
+  passkeys                 UserPasskey[]
+  attendanceSubmissions    AttendanceSubmission[]
+  createdShareLinks        PermissionRequestShareLink[] @relation("UserCreatedShareLinks")
+  invigilationAssignments  InvigilationAssignment[]
 
   @@index([role])
   @@index([department])
@@ -90,6 +98,7 @@ model Request {
   date                String
   endDate             String?
   periods             String?
+  grantedPeriods      String?
   startTime           String
   endTime             String
   description         String
@@ -218,8 +227,9 @@ model AttendanceSubmission {
   markedBy     User               @relation(fields: [markedById], references: [userId])
   records      AttendanceRecord[]
 
-  @@unique([date, section, periods])
+  @@unique([date, section, year, periods])
   @@index([date, section])
+  @@index([date, section, year])
   @@index([markedById])
 }
 
@@ -235,4 +245,40 @@ model AttendanceRecord {
   @@unique([submissionId, rollNumber])
 }
 
+// ─── Invigilation Management ──────────────────────────────────────────────────
 
+/// Invigilation exam session created by admin
+model InvigilationDuty {
+  id            String                    @id @default(cuid())
+  examType      ExamType
+  examName      String                    // e.g. "MID-1", "Semester End Exam"
+  subjectName   String                    // e.g. "Compiler Design (CS601)"
+  startDateTime DateTime
+  endDateTime   DateTime
+  blockName     String                    // e.g. "CS Block", "Mechanical Block"
+  roomNumber    String                    // e.g. "LH-201", "Lab-2"
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  assignments   InvigilationAssignment[]
+
+  @@index([startDateTime])
+  @@index([endDateTime])
+}
+
+/// Faculty member assigned to an invigilation duty
+model InvigilationAssignment {
+  id         String            @id @default(cuid())
+  dutyId     String
+  facultyId  String            // references User.id
+  dutyType   String?           // optional role e.g. "Chief Invigilator", "Room Invigilator"
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  duty       InvigilationDuty  @relation(fields: [dutyId], references: [id], onDelete: Cascade)
+  faculty    User              @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+
+  @@unique([dutyId, facultyId])
+  @@index([facultyId])
+  @@index([dutyId])
+}

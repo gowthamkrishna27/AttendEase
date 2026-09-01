@@ -15,8 +15,9 @@ import { requireAdmin }  from '../middleware/requireAdmin.js';
 import studentRoutes  from './routes/student.routes.js';
 import importRoutes   from './routes/import.routes.js';
 import userRoutes     from './routes/user.routes.js';
-import passwordRoutes from './routes/password.routes.js';
-import databaseRoutes from './routes/database.routes.js';
+import passwordRoutes     from './routes/password.routes.js';
+import databaseRoutes     from './routes/database.routes.js';
+import invigilationRoutes from './routes/invigilation.routes.js';
 
 const adminRouter = Router();
 
@@ -37,6 +38,9 @@ adminRouter.use('/students',        studentRoutes);
 // paths resolve relative to /api/admin/users/...
 adminRouter.use('/users', passwordRoutes);
 adminRouter.use('/users', userRoutes);
+
+// ── Invigilation Management ───────────────────────────────────────────────────
+adminRouter.use('/invigilation', invigilationRoutes);
 
 // ── Database Explorer ─────────────────────────────────────────────────────────
 adminRouter.use('/database', databaseRoutes);

@@ -42,6 +42,7 @@ import HODSettings from './pages/hod/Settings';
 // Pages — admin
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
+import AdminInvigilation from './pages/admin/Invigilation';
 import AdminCounseling from './pages/admin/Counseling';
 import AdminRequests from './pages/admin/Requests';
 import AdminDatabase from './pages/admin/Database';
@@ -171,6 +172,7 @@ function AppRoutes() {
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute role="admin"><AdminUsers /></ProtectedRoute>} />
+        <Route path="/admin/invigilation" element={<ProtectedRoute role="admin"><AdminInvigilation /></ProtectedRoute>} />
         <Route path="/admin/counseling" element={<ProtectedRoute role="admin"><AdminCounseling /></ProtectedRoute>} />
         <Route path="/admin/requests" element={<ProtectedRoute role="admin"><AdminRequests /></ProtectedRoute>} />
         <Route path="/admin/database" element={<ProtectedRoute role="admin"><AdminDatabase /></ProtectedRoute>} />
