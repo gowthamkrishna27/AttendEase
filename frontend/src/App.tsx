@@ -141,6 +141,10 @@ function AppRoutes() {
 
         {/* Student (protected) */}
         <Route path="/student" element={<ProtectedRoute role="student"><StudentHome /></ProtectedRoute>} />
+        <Route path="/student/event" element={<Navigate to="/student" replace />} />
+        <Route path="/student/events" element={<Navigate to="/student" replace />} />
+        <Route path="/event" element={<Navigate to="/student" replace />} />
+        <Route path="/cricket" element={<Navigate to="/student" replace />} />
         <Route path="/student/new-request" element={<ProtectedRoute role="student"><NewRequest /></ProtectedRoute>} />
         <Route path="/student/success" element={<ProtectedRoute role="student"><RequestSuccess /></ProtectedRoute>} />
         <Route path="/student/history" element={<ProtectedRoute role="student"><History /></ProtectedRoute>} />
