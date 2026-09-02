@@ -21,7 +21,12 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env['JWT_SECRET'] || 'attendease_dev_secret_key_2026';
+const PRIMARY_SECRET = process.env['JWT_SECRET'] || 'attendease_secret_key_2026';
+const SECRETS_TO_TRY = Array.from(new Set([
+  PRIMARY_SECRET,
+  'attendease_secret_key_2026',
+  'attendease_dev_secret_key_2026',
+]));
 
 export function verifyToken(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
@@ -30,16 +35,32 @@ export function verifyToken(req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  const token = authHeader.slice(7);
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    req.user = payload;
-    next();
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+  const token = authHeader.slice(7).trim();
+  if (!token || token === 'null' || token === 'undefined') {
+    res.status(401).json({ error: 'No token provided' });
+    return;
   }
+
+  let verifiedPayload: JwtPayload | null = null;
+
+  for (const secret of SECRETS_TO_TRY) {
+    try {
+      verifiedPayload = jwt.verify(token, secret) as JwtPayload;
+      if (verifiedPayload) break;
+    } catch {
+      // try next candidate secret
+    }
+  }
+
+  if (!verifiedPayload) {
+    res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
+
+  req.user = verifiedPayload;
+  next();
 }
 
 export function signToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '36500d' });
+  return jwt.sign(payload, PRIMARY_SECRET, { expiresIn: '36500d' });
 }

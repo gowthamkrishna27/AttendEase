@@ -71,8 +71,8 @@ function toResponse(doc: Record<string, unknown>): UserResponse {
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-export async function listUsers(): Promise<UserListResponse> {
-  const docs = await userRepo.listAllUsers();
+export async function listUsers(role?: string): Promise<UserListResponse> {
+  const docs = await userRepo.listAllUsers(role);
   return { users: docs.map((d) => toResponse(d as unknown as Record<string, unknown>)) };
 }
 

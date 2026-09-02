@@ -6,7 +6,7 @@ import {
   Home, Clock, User, LogOut, LogIn,
   Bell, Plus,
   ClipboardList, Users, BarChart2, Settings, Shield,
-  CheckSquare, UserCheck, Database, CalendarCheck
+  CheckSquare, UserCheck, Database, CalendarCheck, Award
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import attendEaseLogo from '../../assets/logo.png';
@@ -22,6 +22,7 @@ const viewerNav: { to: string; label: string; icon: any }[] = [];
 
 const studentNav = [
   { to: '/student', label: 'Home', icon: Home },
+  { to: '/student/notifications', label: 'Notifications', icon: Bell, hasBadge: true },
   { to: '/student/new-request', label: 'New Request', icon: Plus },
   { to: '/student/history', label: 'History', icon: Clock },
   { to: '/student/profile', label: 'Profile', icon: User },
@@ -31,14 +32,14 @@ const facultyNav = [
   { to: '/faculty/attendance', label: 'Mark Attendance', icon: CheckSquare },
   { to: '/faculty/requests', label: 'Requests', icon: ClipboardList },
   { to: '/faculty/students', label: 'Students', icon: Users },
-  { to: '/faculty/reports', label: 'Reports', icon: BarChart2 },
+  { to: '/faculty/student-activities', label: 'Student Activities', icon: Award },
 ];
 
 const hodNav = [
   { to: '/hod', label: 'Overview', icon: Home },
   { to: '/hod/requests', label: 'All Requests', icon: ClipboardList },
   { to: '/hod/faculty', label: 'Faculty', icon: Users },
-  { to: '/hod/reports', label: 'Reports', icon: BarChart2 },
+  { to: '/hod/student-activities', label: 'Student Activities', icon: Award },
 ];
 
 const adminNav = [
@@ -74,14 +75,14 @@ const facultyMobileBottomNav: BottomNavItem[] = [
   { id: 'attendance', to: '/faculty/attendance', label: 'Attendance', icon: CheckSquare, type: 'link' },
   { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
   { id: 'students', to: '/faculty/students', label: 'Students', icon: Users, type: 'link' },
-  { id: 'reports', to: '/faculty/reports', label: 'Reports', icon: BarChart2, type: 'link' },
+  { id: 'student-activities', to: '/faculty/student-activities', label: 'Activities', icon: Award, type: 'link' },
 ];
 
 const hodMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/hod', label: 'Overview', icon: Home, type: 'link' },
   { id: 'faculty', to: '/hod/faculty', label: 'Faculty', icon: Users, type: 'link' },
   { id: 'requests', to: '/hod/requests', label: 'Requests', icon: ClipboardList, type: 'link' },
-  { id: 'reports', to: '/hod/reports', label: 'Reports', icon: BarChart2, type: 'link' },
+  { id: 'student-activities', to: '/hod/student-activities', label: 'Activities', icon: Award, type: 'link' },
 ];
 
 const adminMobileBottomNav: BottomNavItem[] = [

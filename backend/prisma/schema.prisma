@@ -36,6 +36,14 @@ enum RequestReason {
   other
 }
 
+enum ActivityCategory {
+  internship
+  startup
+  project_work
+  sports
+  house_events
+}
+
 enum ExamType {
   MID
   SEM
@@ -79,6 +87,9 @@ model User {
   attendanceSubmissions    AttendanceSubmission[]
   createdShareLinks        PermissionRequestShareLink[] @relation("UserCreatedShareLinks")
   invigilationAssignments  InvigilationAssignment[]
+  studentActivities        StudentActivity[]            @relation("StudentActivities")
+  coordinatorAccesses      CoordinatorAccess[]          @relation("FacultyCoordinatorAccess")
+  assignedCoordinators     CoordinatorAccess[]          @relation("AdminAssignedCoordinators")
 
   @@index([role])
   @@index([department])
@@ -283,4 +294,71 @@ model InvigilationAssignment {
   @@unique([dutyId, facultyId])
   @@index([facultyId])
   @@index([dutyId])
+}
+
+// ─── Student Activities & Coordinator Authorization ────────────────────────────
+
+/// Student participation record in an extra-curricular activity
+model StudentActivity {
+  id                  String           @id @default(cuid())
+  studentId           String           // references User.userId
+  category            ActivityCategory
+  titleOrCompany      String           // Company name, Startup name, Project title, Sport name, or House event
+  roleOrPosition      String?          // Role/Position, Area, Level, or Event role
+  mentorOrAchievement String?          // Faculty mentor, achievement details, or notes
+  startDate           String?          // YYYY-MM-DD
+  endDate             String?          // YYYY-MM-DD
+  status              String           @default("active") // "active" | "completed" | "archived"
+  isActive            Boolean          @default(true) // Soft deletion
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  student             User             @relation("StudentActivities", fields: [studentId], references: [userId], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([category])
+  @@index([isActive])
+  @@index([category, isActive])
+  @@map("student_activities")
+}
+
+/// Faculty Coordinator assignment with secure authorization code
+model CoordinatorAccess {
+  id           String           @id @default(cuid())
+  facultyId    String           // references User.userId
+  category     ActivityCategory
+  codeHash     String           // One-way hash of coordinator code
+  codeMasked   String           // Masked display e.g. "COORD-****-89AB"
+  isActive     Boolean          @default(true)
+  assignedById String           // references User.userId (admin)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  faculty      User             @relation("FacultyCoordinatorAccess", fields: [facultyId], references: [userId], onDelete: Cascade)
+  assignedBy   User             @relation("AdminAssignedCoordinators", fields: [assignedById], references: [userId])
+
+  @@unique([facultyId, category])
+  @@index([facultyId])
+  @@index([category])
+  @@index([isActive])
+  @@map("coordinator_access")
+}
+
+/// Audit log for coordinator and admin activity management operations
+model ActivityAuditLog {
+  id          String   @id @default(cuid())
+  actorId     String   // references User.userId
+  actorName   String
+  actorRole   String
+  action      String   // "ADD" | "EDIT" | "REMOVE" | "BULK_ADD" | "BULK_REMOVE" | "COORDINATOR_ASSIGNED" | "CODE_REGENERATED" | "ACCESS_TOGGLED"
+  category    String
+  studentId   String?
+  studentName String?
+  details     String?  // JSON string containing change details
+  timestamp   DateTime @default(now())
+
+  @@index([category])
+  @@index([actorId])
+  @@index([timestamp(sort: Desc)])
+  @@map("activity_audit_logs")
 }

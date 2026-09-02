@@ -39,6 +39,9 @@ import HODFaculty from './pages/hod/Faculty';
 import HODReports from './pages/hod/Reports';
 import HODSettings from './pages/hod/Settings';
 
+// Shared Student Activities Page
+import StudentActivitiesPage from './pages/shared/StudentActivitiesPage';
+
 // Pages — admin
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
@@ -160,6 +163,7 @@ function AppRoutes() {
         <Route path="/faculty/request/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
         <Route path="/faculty/review/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
         <Route path="/faculty/students" element={<ProtectedRoute role="faculty"><FacultyStudents /></ProtectedRoute>} />
+        <Route path="/faculty/student-activities" element={<ProtectedRoute role="faculty"><StudentActivitiesPage role="faculty" /></ProtectedRoute>} />
         <Route path="/faculty/reports" element={<ProtectedRoute role="faculty"><FacultyReports /></ProtectedRoute>} />
         <Route path="/faculty/settings" element={<ProtectedRoute role="faculty"><FacultySettings /></ProtectedRoute>} />
 
@@ -169,6 +173,7 @@ function AppRoutes() {
         <Route path="/hod/review/:id" element={<ProtectedRoute role="hod"><HODRequestDetails /></ProtectedRoute>} />
         <Route path="/hod/requests" element={<ProtectedRoute role="hod"><HODAllRequests /></ProtectedRoute>} />
         <Route path="/hod/faculty" element={<ProtectedRoute role="hod"><HODFaculty /></ProtectedRoute>} />
+        <Route path="/hod/student-activities" element={<ProtectedRoute role="hod"><StudentActivitiesPage role="hod" /></ProtectedRoute>} />
         <Route path="/hod/reports" element={<ProtectedRoute role="hod"><HODReports /></ProtectedRoute>} />
         <Route path="/hod/settings" element={<ProtectedRoute role="hod"><HODSettings /></ProtectedRoute>} />
 

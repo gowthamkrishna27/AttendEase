@@ -215,7 +215,7 @@ async function apiFetch<T>(
   }
 
   if (!res.ok) {
-    if (res.status === 401 && auth && !path.includes('/auth/login')) {
+    if (res.status === 401 && auth && !path.includes('/auth/login') && !path.includes('/api/activities') && !path.includes('/api/admin/coordinators')) {
       clearStoredToken();
     }
     const body = await res.json().catch(() => ({ error: res.statusText || 'API error' }));
@@ -550,9 +550,22 @@ export interface CreateUserPayload {
   counselorId?: string;
 }
 
-export async function getUsers(): Promise<AuthUser[]> {
-  const res = await apiFetch<{ users: AuthUser[] }>('/api/admin/users');
-  return res.users ?? [];
+export async function getUsers(role?: string): Promise<AuthUser[]> {
+  if (role === 'student') {
+    try {
+      const res = await apiFetch<{ students: AuthUser[] }>('/api/users/students');
+      return res.students || [];
+    } catch {
+      return [];
+    }
+  }
+  const url = role ? `/api/admin/users?role=${encodeURIComponent(role)}` : '/api/admin/users';
+  const res = await apiFetch<{ users: AuthUser[] }>(url);
+  const list = res.users ?? [];
+  if (role) {
+    return list.filter(u => u.role === role);
+  }
+  return list;
 }
 
 export async function createUser(data: CreateUserPayload): Promise<AuthUser> {
@@ -1134,6 +1147,228 @@ export interface FacultyInvigilationListResponse {
 export async function getMyInvigilationDuties(): Promise<FacultyInvigilationListResponse> {
   return apiFetch<FacultyInvigilationListResponse>('/api/invigilation/my-duties');
 }
+
+// ─── Student Activities & Coordinator Management API ──────────────────────────
+
+export type ActivityCategory = 'internship' | 'startup' | 'project_work' | 'sports' | 'house_events';
+
+export interface StudentActivity {
+  id: string;
+  studentId: string;
+  category: ActivityCategory;
+  titleOrCompany: string;
+  roleOrPosition?: string;
+  mentorOrAchievement?: string;
+  startDate?: string;
+  endDate?: string;
+  status: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  student?: {
+    id: string;
+    userId: string;
+    name: string;
+    email: string;
+    rollNumber?: string;
+    department?: string;
+    year?: string;
+    section?: string;
+    semester?: number;
+    avatarUrl?: string;
+  };
+}
+
+export interface CoordinatorAccess {
+  id: string;
+  facultyId: string;
+  category: ActivityCategory;
+  codeMasked: string;
+  isActive: boolean;
+  assignedById: string;
+  createdAt: string;
+  updatedAt: string;
+  faculty?: {
+    id: string;
+    userId: string;
+    name: string;
+    email: string;
+    department?: string;
+    designation?: string;
+    phone?: string;
+    avatarUrl?: string;
+    isActive: boolean;
+  };
+  assignedBy?: {
+    userId: string;
+    name: string;
+  };
+}
+
+export interface ActivityAuditLog {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  category: string;
+  studentId?: string;
+  studentName?: string;
+  details?: string;
+  timestamp: string;
+}
+
+export async function getStudentActivities(params?: { category?: string; search?: string; status?: string }): Promise<StudentActivity[]> {
+  const query = new URLSearchParams();
+  if (params?.category && params.category !== 'all') query.set('category', params.category);
+  if (params?.search) query.set('search', params.search);
+  if (params?.status && params.status !== 'all') query.set('status', params.status);
+  
+  const queryString = query.toString();
+  const url = `/api/activities${queryString ? `?${queryString}` : ''}`;
+  const res = await apiFetch<{ activities: StudentActivity[] }>(url);
+  return res.activities || [];
+}
+
+export async function verifyCoordinatorCode(category: string, code: string): Promise<{ success: boolean; authorized: boolean; category: string; facultyName?: string }> {
+  return apiFetch<{ success: boolean; authorized: boolean; category: string; facultyName?: string }>('/api/activities/verify-code', {
+    method: 'POST',
+    body: JSON.stringify({ category, code }),
+  });
+}
+
+export async function addStudentActivity(data: {
+  studentId: string;
+  category: string;
+  titleOrCompany: string;
+  roleOrPosition?: string;
+  mentorOrAchievement?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  coordinatorCode?: string;
+}): Promise<StudentActivity> {
+  const headers: Record<string, string> = {};
+  if (data.coordinatorCode) {
+    headers['X-Coordinator-Code'] = data.coordinatorCode;
+  }
+  const res = await apiFetch<{ activity: StudentActivity }>('/api/activities', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(data),
+  });
+  return res.activity;
+}
+
+export async function updateStudentActivity(id: string, data: {
+  titleOrCompany?: string;
+  roleOrPosition?: string;
+  mentorOrAchievement?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  coordinatorCode?: string;
+}): Promise<StudentActivity> {
+  const headers: Record<string, string> = {};
+  if (data.coordinatorCode) {
+    headers['X-Coordinator-Code'] = data.coordinatorCode;
+  }
+  const res = await apiFetch<{ activity: StudentActivity }>(`/api/activities/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(data),
+  });
+  return res.activity;
+}
+
+export async function removeStudentActivity(id: string, coordinatorCode?: string): Promise<{ success: boolean; message: string }> {
+  const headers: Record<string, string> = {};
+  if (coordinatorCode) {
+    headers['X-Coordinator-Code'] = coordinatorCode;
+  }
+  return apiFetch<{ success: boolean; message: string }>(`/api/activities/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers,
+    body: JSON.stringify({ coordinatorCode }),
+  });
+}
+
+export async function bulkAddStudentActivities(data: {
+  studentIds: string[];
+  category: string;
+  titleOrCompany: string;
+  roleOrPosition?: string;
+  mentorOrAchievement?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  coordinatorCode?: string;
+}): Promise<{ success: boolean; addedCount: number; skippedCount: number; message: string }> {
+  const headers: Record<string, string> = {};
+  if (data.coordinatorCode) {
+    headers['X-Coordinator-Code'] = data.coordinatorCode;
+  }
+  return apiFetch<{ success: boolean; addedCount: number; skippedCount: number; message: string }>('/api/activities/bulk-add', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(data),
+  });
+}
+
+export async function bulkRemoveStudentActivities(activityIds: string[], coordinatorCode?: string): Promise<{ success: boolean; removedCount: number; message: string }> {
+  const headers: Record<string, string> = {};
+  if (coordinatorCode) {
+    headers['X-Coordinator-Code'] = coordinatorCode;
+  }
+  return apiFetch<{ success: boolean; removedCount: number; message: string }>('/api/activities/bulk-remove', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ activityIds, coordinatorCode }),
+  });
+}
+
+export async function getActivityAuditLogs(category?: string): Promise<ActivityAuditLog[]> {
+  const url = category && category !== 'all' ? `/api/activities/audit-logs?category=${encodeURIComponent(category)}` : '/api/activities/audit-logs';
+  const res = await apiFetch<{ logs: ActivityAuditLog[] }>(url);
+  return res.logs || [];
+}
+
+export async function getMyCoordinatorAssignments(): Promise<{ success: boolean; isAdmin: boolean; categories: string[] }> {
+  return apiFetch<{ success: boolean; isAdmin: boolean; categories: string[] }>('/api/activities/my-assignments');
+}
+
+export async function getCoordinators(): Promise<CoordinatorAccess[]> {
+  const res = await apiFetch<{ coordinators: CoordinatorAccess[] }>('/api/admin/coordinators');
+  return res.coordinators || [];
+}
+
+export async function assignCoordinator(facultyId: string, category: string, customCode?: string): Promise<{ success: boolean; generatedCode: string; coordinator: CoordinatorAccess }> {
+  return apiFetch<{ success: boolean; generatedCode: string; coordinator: CoordinatorAccess }>('/api/admin/coordinators', {
+    method: 'POST',
+    body: JSON.stringify({ facultyId, category, customCode }),
+  });
+}
+
+export async function regenerateCoordinatorCode(id: string, customCode?: string): Promise<{ success: boolean; generatedCode: string; coordinator: CoordinatorAccess }> {
+  return apiFetch<{ success: boolean; generatedCode: string; coordinator: CoordinatorAccess }>(`/api/admin/coordinators/${encodeURIComponent(id)}/regenerate`, {
+    method: 'POST',
+    body: JSON.stringify({ customCode }),
+  });
+}
+
+export async function toggleCoordinatorStatus(id: string, isActive: boolean): Promise<{ success: boolean; coordinator: CoordinatorAccess }> {
+  return apiFetch<{ success: boolean; coordinator: CoordinatorAccess }>(`/api/admin/coordinators/${encodeURIComponent(id)}/toggle`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isActive }),
+  });
+}
+
+export async function revokeCoordinator(id: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`/api/admin/coordinators/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 
 
 

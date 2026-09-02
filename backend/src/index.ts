@@ -16,6 +16,8 @@ import attendanceRoutes    from './routes/attendance.js';
 import invigilationRoutes from './routes/invigilation.js';
 import adminRouter from './admin/index.js';
 import chatRoutes from './routes/chat.js';
+import activitiesRoutes from './routes/activities.js';
+import coordinatorRoutes from './routes/coordinators.js';
 import { getCanonicalRosterForYear } from './services/rosterService.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
@@ -81,21 +83,23 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Coordinator-Code'],
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ── API Routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth',          rateLimiter(15 * 60 * 1000, 100), authRoutes);
-app.use('/api/requests',      requestRoutes);
-app.use('/api/share',         shareRoutes);
-app.use('/api/users',         userRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/attendance',    attendanceRoutes);
-app.use('/api/invigilation',   invigilationRoutes);
-app.use('/api/admin',         adminRouter);
-app.use('/api/chat',          chatRoutes);
+app.use('/api/auth',              rateLimiter(15 * 60 * 1000, 100), authRoutes);
+app.use('/api/requests',          requestRoutes);
+app.use('/api/share',             shareRoutes);
+app.use('/api/users',             userRoutes);
+app.use('/api/notifications',     notificationRoutes);
+app.use('/api/attendance',        attendanceRoutes);
+app.use('/api/invigilation',       invigilationRoutes);
+app.use('/api/activities',        activitiesRoutes);
+app.use('/api/admin/coordinators', coordinatorRoutes);
+app.use('/api/admin',             adminRouter);
+app.use('/api/chat',              chatRoutes);
 
 // Canonical Student Roster API
 app.get('/api/students/roster', async (req, res) => {
