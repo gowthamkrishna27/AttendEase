@@ -41,6 +41,7 @@ import HODSettings from './pages/hod/Settings';
 
 // Shared Student Activities Page
 import StudentActivitiesPage from './pages/shared/StudentActivitiesPage';
+import AnimationShowcasePage from './pages/shared/AnimationShowcasePage';
 
 // Pages — admin
 import AdminDashboard from './pages/admin/Dashboard';
@@ -125,6 +126,8 @@ function AppRoutes() {
         <Route path="/pavan" element={<Navigate to="/developers" replace />} />
         <Route path="/manasa" element={<Navigate to="/developers" replace />} />
         <Route path="/login" element={<LoginPortal />} />
+        <Route path="/animation" element={<AnimationShowcasePage />} />
+        <Route path="/send-demo" element={<AnimationShowcasePage />} />
         <Route path="/r/:shareToken" element={<ShareResolvePage />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 

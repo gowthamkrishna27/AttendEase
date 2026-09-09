@@ -1,0 +1,453 @@
+/**
+ * Send Button Animation — AttendEase Orange Origami Theme
+ * Reference: IDLE → FOLDING → TRIANGLE → [EXACT ORANGE AIRPLANE] → FLY UP-RIGHT → SENT
+ *
+ * Exact aspect-ratio corrected 8-vertex continuous polygon transformation.
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. REGISTER 8 POLYGON VERTICES (16 CUSTOM PROPERTIES)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@property --sb-p1-x { syntax: "<percentage>"; initial-value: 100%; inherits: false; }
+@property --sb-p1-y { syntax: "<percentage>"; initial-value: 0%;   inherits: false; }
+@property --sb-p2-x { syntax: "<percentage>"; initial-value: 0%;   inherits: false; }
+@property --sb-p2-y { syntax: "<percentage>"; initial-value: 0%;   inherits: false; }
+@property --sb-p3-x { syntax: "<percentage>"; initial-value: 0%;   inherits: false; }
+@property --sb-p3-y { syntax: "<percentage>"; initial-value: 40%;  inherits: false; }
+@property --sb-p4-x { syntax: "<percentage>"; initial-value: 0%;   inherits: false; }
+@property --sb-p4-y { syntax: "<percentage>"; initial-value: 60%;  inherits: false; }
+@property --sb-p5-x { syntax: "<percentage>"; initial-value: 0%;   inherits: false; }
+@property --sb-p5-y { syntax: "<percentage>"; initial-value: 100%; inherits: false; }
+@property --sb-p6-x { syntax: "<percentage>"; initial-value: 40%;  inherits: false; }
+@property --sb-p6-y { syntax: "<percentage>"; initial-value: 100%; inherits: false; }
+@property --sb-p7-x { syntax: "<percentage>"; initial-value: 100%; inherits: false; }
+@property --sb-p7-y { syntax: "<percentage>"; initial-value: 100%; inherits: false; }
+@property --sb-p8-x { syntax: "<percentage>"; initial-value: 100%; inherits: false; }
+@property --sb-p8-y { syntax: "<percentage>"; initial-value: 50%;  inherits: false; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. CONTAINER (.sb-wrap)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sb-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 140px;
+  height: 48px;
+  vertical-align: middle;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. MORPHING BUTTON (.sb-shape)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sb-shape {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0 20px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+  color: #FFFFFF;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  overflow: visible !important;
+  box-sizing: border-box;
+  z-index: 2;
+}
+
+.sb-wrap--variant-white .sb-shape {
+  background: #FFFFFF;
+  color: #EA580C;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+
+.sb-shape:hover:not(:disabled):not(.sb-shape--sending) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.45);
+}
+
+.sb-shape:active:not(:disabled):not(.sb-shape--sending) {
+  transform: translateY(0);
+}
+
+.sb-shape:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* ─── Button Label ("Send") ──────────────────────────────── */
+
+.sb-label {
+  position: relative;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ─── Paper Crease Overlay (Active while folding & triangle) ── */
+
+.sb-fold-crease {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  right: 0;
+  background: #C2410C;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.2s ease;
+}
+
+/* ─── Exact Orange Airplane Origami Facets ───────────────── */
+
+.sb-facet {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+/* Upper wing facet (sunlit light orange highlight) */
+.sb-facet-upper {
+  background: #FB923C;
+  clip-path: polygon(72% 4%, 28% 24%, 42% 50%, 72% 4%);
+}
+
+/* Keel tab facet (deep burnt orange shadow) */
+.sb-facet-keel {
+  background: #C2410C;
+  clip-path: polygon(42% 50%, 36% 56%, 37% 78%, 44% 74%);
+}
+
+/* Lower wing facet (medium core orange base) */
+.sb-facet-lower {
+  background: #EA580C;
+  clip-path: polygon(72% 4%, 44% 74%, 54% 98%, 63% 52%);
+}
+
+/* ─── Warm Orange Flight Trail Lines ─────────────────────── */
+
+.sb-flight-trail {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 90px;
+  height: 24px;
+  transform: translate(-100px, 15px) rotate(38deg);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sb-flight-trail::before,
+.sb-flight-trail::after {
+  content: '';
+  position: absolute;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(249, 115, 22, 0) 0%, rgba(251, 146, 60, 0.75) 80%, rgba(249, 115, 22, 0) 100%);
+}
+
+.sb-flight-trail::before {
+  top: 4px;
+  left: 0;
+  width: 70px;
+}
+
+.sb-flight-trail::after {
+  top: 14px;
+  left: 18px;
+  width: 55px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. ANIMATION TRIGGER (.sb-wrap--sending)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sb-wrap--sending .sb-shape {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  pointer-events: none;
+  will-change: clip-path, transform, opacity;
+  animation: sb-origami-exact-flight 1.9s cubic-bezier(0.25, 1, 0.35, 1) forwards;
+}
+
+/* Fold crease active while folding (18% - 60%) */
+.sb-wrap--sending .sb-fold-crease {
+  animation: sb-crease-fade 1.9s ease forwards;
+}
+
+@keyframes sb-crease-fade {
+  0%, 14% {
+    opacity: 0;
+  }
+  20%, 58% {
+    opacity: 0.7;
+  }
+  68%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Airplane facets emerge as triangle folds into airplane (58% - 72%) */
+.sb-wrap--sending .sb-facet {
+  animation: sb-facets-emerge 1.9s ease forwards;
+}
+
+@keyframes sb-facets-emerge {
+  0%, 55% {
+    opacity: 0;
+  }
+  68%, 100% {
+    opacity: 1;
+  }
+}
+
+/* "Send" text stays faintly visible inside trapezoid while folding then fades */
+.sb-wrap--sending .sb-label {
+  animation: sb-text-fade 1.9s ease forwards;
+}
+
+@keyframes sb-text-fade {
+  0% {
+    opacity: 1;
+  }
+  25% {
+    opacity: 0.38;
+  }
+  40% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Flight trail appears as the plane launches */
+.sb-wrap--sending .sb-flight-trail {
+  animation: sb-trail-appear 1.9s ease forwards;
+}
+
+@keyframes sb-trail-appear {
+  0%, 72% {
+    opacity: 0;
+    transform: translate(-100px, 15px) rotate(38deg);
+  }
+  80% {
+    opacity: 0.8;
+    transform: translate(-70px, -5px) rotate(38deg);
+  }
+  95% {
+    opacity: 0.9;
+    transform: translate(140px, -150px) rotate(38deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(260px, -240px) rotate(38deg);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. STRICT CONTINUOUS GEOMETRIC TIMELINE (ORANGE PAPER AIRPLANE)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes sb-origami-exact-flight {
+
+  /* ── 0% - 6%: STATE 1 — IDLE (Orange Rectangle) ── */
+  0% {
+    clip-path: polygon(
+      100% 0%, 0% 0%, 0% 40%, 0% 60%, 0% 100%, 40% 100%, 100% 100%, 100% 50%
+    );
+    --sb-p1-x: 100%; --sb-p1-y: 0%;
+    --sb-p2-x: 0%;   --sb-p2-y: 0%;
+    --sb-p3-x: 0%;   --sb-p3-y: 40%;
+    --sb-p4-x: 0%;   --sb-p4-y: 60%;
+    --sb-p5-x: 0%;   --sb-p5-y: 100%;
+    --sb-p6-x: 40%;  --sb-p6-y: 100%;
+    --sb-p7-x: 100%; --sb-p7-y: 100%;
+    --sb-p8-x: 100%; --sb-p8-y: 50%;
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+    background: #F97316;
+  }
+
+  /* ── 26%: STATE 2 — FOLDING (Orange Trapezoid with Center Crease) ── */
+  26% {
+    clip-path: polygon(
+      64% 12%, 36% 12%, 28% 51%, 24% 70%, 20% 90%, 50% 90%, 80% 90%, 72% 51%
+    );
+    --sb-p1-x: 64%;  --sb-p1-y: 12%;
+    --sb-p2-x: 36%;  --sb-p2-y: 12%;
+    --sb-p3-x: 28%;  --sb-p3-y: 51%;
+    --sb-p4-x: 24%;  --sb-p4-y: 70%;
+    --sb-p5-x: 20%;  --sb-p5-y: 90%;
+    --sb-p6-x: 50%;  --sb-p6-y: 90%;
+    --sb-p7-x: 80%;  --sb-p7-y: 90%;
+    --sb-p8-x: 72%;  --sb-p8-y: 51%;
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+    background: #F97316;
+  }
+
+  /* ── 50%: STATE 3 — TRIANGLE (Isosceles with Center Fold Crease) ── */
+  50% {
+    clip-path: polygon(
+      50% 8%, 50% 8%, 35% 49%, 27% 70%, 20% 90%, 50% 90%, 80% 90%, 65% 49%
+    );
+    --sb-p1-x: 50%;  --sb-p1-y: 8%;
+    --sb-p2-x: 50%;  --sb-p2-y: 8%;
+    --sb-p3-x: 35%;  --sb-p3-y: 49%;
+    --sb-p4-x: 27%;  --sb-p4-y: 70%;
+    --sb-p5-x: 20%;  --sb-p5-y: 90%;
+    --sb-p6-x: 50%;  --sb-p6-y: 90%;
+    --sb-p7-x: 80%;  --sb-p7-y: 90%;
+    --sb-p8-x: 65%;  --sb-p8-y: 49%;
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+    background: #F97316;
+  }
+
+  /* ── 72%: STATE 4 — EXACT PROPORTIONAL ORANGE REFERENCE AIRPLANE ── */
+  72% {
+    clip-path: polygon(
+      72% 4%, 28% 24%, 42% 50%, 36% 56%, 37% 78%, 44% 74%, 54% 98%, 63% 52%
+    );
+    --sb-p1-x: 72%;  --sb-p1-y: 4%;
+    --sb-p2-x: 28%;  --sb-p2-y: 24%;
+    --sb-p3-x: 42%;  --sb-p3-y: 50%;
+    --sb-p4-x: 36%;  --sb-p4-y: 56%;
+    --sb-p5-x: 37%;  --sb-p5-y: 78%;
+    --sb-p6-x: 44%;  --sb-p6-y: 74%;
+    --sb-p7-x: 54%;  --sb-p7-y: 98%;
+    --sb-p8-x: 63%;  --sb-p8-y: 52%;
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+    background: #EA580C;
+  }
+
+  /* ── 84%: STATE 5 — FLIGHT LAUNCH (GEOMETRY STAYS 100% CONSTANT) ── */
+  84% {
+    clip-path: polygon(
+      72% 4%, 28% 24%, 42% 50%, 36% 56%, 37% 78%, 44% 74%, 54% 98%, 63% 52%
+    );
+    --sb-p1-x: 72%;  --sb-p1-y: 4%;
+    --sb-p2-x: 28%;  --sb-p2-y: 24%;
+    --sb-p3-x: 42%;  --sb-p3-y: 50%;
+    --sb-p4-x: 36%;  --sb-p4-y: 56%;
+    --sb-p5-x: 37%;  --sb-p5-y: 78%;
+    --sb-p6-x: 44%;  --sb-p6-y: 74%;
+    --sb-p7-x: 54%;  --sb-p7-y: 98%;
+    --sb-p8-x: 63%;  --sb-p8-y: 52%;
+    transform: translate(35px, -26px) scale(0.96);
+    opacity: 1;
+    background: #EA580C;
+  }
+
+  /* ── 100%: STATE 5 — FLIGHT DEPARTURE (DECISIVE UPWARD-RIGHT) ── */
+  100% {
+    clip-path: polygon(
+      72% 4%, 28% 24%, 42% 50%, 36% 56%, 37% 78%, 44% 74%, 54% 98%, 63% 52%
+    );
+    --sb-p1-x: 72%;  --sb-p1-y: 4%;
+    --sb-p2-x: 28%;  --sb-p2-y: 24%;
+    --sb-p3-x: 42%;  --sb-p3-y: 50%;
+    --sb-p4-x: 36%;  --sb-p4-y: 56%;
+    --sb-p5-x: 37%;  --sb-p5-y: 78%;
+    --sb-p6-x: 44%;  --sb-p6-y: 74%;
+    --sb-p7-x: 54%;  --sb-p7-y: 98%;
+    --sb-p8-x: 63%;  --sb-p8-y: 52%;
+    transform: translate(340px, -260px) scale(0.75);
+    opacity: 0;
+    background: #EA580C;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. STATE 6 — SENT ("✓ Sent")
+   Matches reference: warm soft-pill with clean orange checkmark & text.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sb-done {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #EA580C;
+  background: #FFF7ED;
+  border: 1.5px solid #FDBA74;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.15);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  transform: scale(0.95);
+  z-index: 5;
+}
+
+.sb-done-check {
+  color: #EA580C;
+  stroke-width: 2.5;
+  flex-shrink: 0;
+}
+
+.sb-wrap--sent .sb-done {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.sb-wrap--sent .sb-shape {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. ACCESSIBILITY — PREFERS-REDUCED-MOTION
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-wrap--sending .sb-shape {
+    animation: none !important;
+    opacity: 0 !important;
+    transition: opacity 0.2s ease !important;
+  }
+  .sb-wrap--sending .sb-label,
+  .sb-wrap--sending .sb-facet,
+  .sb-wrap--sending .sb-fold-crease,
+  .sb-wrap--sending .sb-flight-trail {
+    transition: none !important;
+  }
+}

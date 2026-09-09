@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { UploadArea } from '../../components/forms/UploadArea';
+import { SendButton } from '../../components/ui/SendButton';
 import * as api from '../../lib/api';
 import {
   ArrowLeft, CalendarDays, Clock, FileText, Upload,
@@ -190,7 +191,9 @@ export default function NewRequest() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      navigate('/student/success');
+      window.setTimeout(() => {
+        navigate('/student/success');
+      }, 1800);
     },
   });
 
@@ -668,31 +671,15 @@ export default function NewRequest() {
             >
               Cancel
             </button>
-            <button
+            <SendButton
               type="submit"
               disabled={isSubmitting}
-              style={{
-                flex: 2, height: 48, borderRadius: 13,
-                background: isSubmitting ? '#FED7AA' : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                color: '#fff', fontSize: 14, fontWeight: 700,
-                border: 'none', cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                boxShadow: isSubmitting ? 'none' : '0 4px 14px rgba(249,115,22,0.30)',
-                transition: 'all 0.15s',
-              }}
-            >
-              {isSubmitting ? (
-                <>
-                  <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Send size={15} />
-                  Submit Request
-                </>
-              )}
-            </button>
+              variant="primary"
+              size="md"
+              label={isSubmitting ? 'Submitting...' : 'Submit Request'}
+              sentLabel="Request Dispatched!"
+              style={{ flex: 2, height: 48, borderRadius: 13 }}
+            />
           </div>
         </motion.form>
       </div>

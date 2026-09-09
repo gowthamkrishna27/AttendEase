@@ -6,6 +6,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Button } from '../../components/ui/Button';
+import { SendButton } from '../../components/ui/SendButton';
 import { UploadArea } from '../../components/forms/UploadArea';
 import * as api from '../../lib/api';
 import { getFacultyInitials } from '../../lib/utils';
@@ -159,7 +160,9 @@ export default function EditRequest() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['request', id] });
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      navigate(`/student/request/${id}`);
+      window.setTimeout(() => {
+        navigate(`/student/request/${id}`);
+      }, 1800);
     },
   });
 
@@ -464,19 +467,15 @@ export default function EditRequest() {
             >
               Cancel
             </button>
-            <button
+            <SendButton
               type="submit"
               disabled={isSubmitting}
-              style={{
-                flex: 2, height: 48, borderRadius: 13,
-                background: isSubmitting ? '#FED7AA' : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                boxShadow: '0 4px 14px rgba(249,115,22,0.30)'
-              }}
-            >
-              {isSubmitting ? 'Saving Changes...' : 'Save & Update Request'}
-            </button>
+              variant="primary"
+              size="md"
+              label={isSubmitting ? 'Saving Changes...' : 'Save & Update Request'}
+              sentLabel="Changes Saved!"
+              style={{ flex: 2, height: 48, borderRadius: 13 }}
+            />
           </div>
         </form>
       </div>
