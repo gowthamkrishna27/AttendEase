@@ -1,15 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import {
   Home, Clock, User, LogOut, LogIn,
   Bell, Plus,
-  ClipboardList, Users, BarChart2, Settings, Shield,
+  ClipboardList, Users, Settings, Shield,
   CheckSquare, UserCheck, Database, CalendarCheck, Award
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import attendEaseLogo from '../../assets/logo.png';
+import { MeniscusNavigation } from '../navigation/MeniscusNavigation';
 const srkrLogo = '/srkr-emblem.png';
 
 interface PageWrapperProps {
@@ -65,7 +67,7 @@ type BottomNavItem = {
 const studentMobileBottomNav: BottomNavItem[] = [
   { id: 'home', to: '/student', label: 'Home', icon: Home, type: 'link' },
   { id: 'notifications', to: '/student/notifications', label: 'Notifications', icon: Bell, type: 'link', hasBadge: true },
-  { id: 'fab', type: 'fab', to: '/student/new-request' },
+  { id: 'new-request', to: '/student/new-request', label: 'New', icon: Plus, type: 'link' },
   { id: 'history', to: '/student/history', label: 'History', icon: Clock, type: 'link' },
   { id: 'profile', to: '/student/profile', label: 'Profile', icon: User, type: 'link' },
 ];
@@ -94,10 +96,10 @@ const adminMobileBottomNav: BottomNavItem[] = [
   { id: 'settings', to: '/admin/settings', label: 'Settings', icon: Settings, type: 'link' },
 ];
 
-const pageVariants = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -6 },
+const pageVariants: Variants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.12, ease: 'easeOut' } },
+  exit: { opacity: 0, transition: { duration: 0.08, ease: 'easeIn' } },
 };
 
 export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
@@ -109,8 +111,6 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
     localStorage.removeItem('attendease_theme');
     document.documentElement.classList.remove('dark');
   }, []);
-
-  const unreadCount = 0;
 
   const userPortalLink = user
     ? (user.role === 'admin' ? '/admin' : user.role === 'hod' ? '/hod' : user.role === 'faculty' ? '/faculty' : '/student')
@@ -128,6 +128,25 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
   const hour = new Date().getHours();
   const firstName = user?.name?.split(' ')[0] ?? 'User';
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+
+  const currentBottomNavItems = useMemo(() => {
+    const rawItems =
+      role === 'admin'
+        ? adminMobileBottomNav
+        : role === 'hod'
+        ? hodMobileBottomNav
+        : role === 'faculty'
+        ? facultyMobileBottomNav
+        : studentMobileBottomNav;
+
+    return rawItems.map((item) => ({
+      id: item.id,
+      to: item.to || '',
+      label: item.label || '',
+      icon: item.icon || Home,
+      hasBadge: item.hasBadge,
+    }));
+  }, [role]);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#F3F6FB', fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
@@ -471,8 +490,14 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           initial="initial"
           animate="animate"
           exit="exit"
-          transition={{ duration: 0.22, ease: 'easeOut' }}
-          style={{ flex: 1, padding: '28px 32px', overflowY: 'auto', minWidth: 0 }}
+          style={{
+            flex: 1,
+            padding: '28px 32px',
+            overflowY: 'auto',
+            minWidth: 0,
+            opacity: 'var(--nav-drag-fade, 1)',
+            transition: 'opacity 0.08s ease-out',
+          }}
           className="main-content"
         >
           {/* Greeting header — only on non-admin dashboard home pages */}
@@ -496,78 +521,15 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
       </div>
 
       {/* ═══════════════════════════════════════
-          MOBILE BOTTOM TAB BAR (Hidden in Viewer Mode)
+          MENISCUS LIQUID NAVIGATION (Hidden in Viewer Mode)
       ═══════════════════════════════════════ */}
       {role !== 'viewer' && (
-        <nav className="mobile-bottom-nav print:hidden" style={{
-          display: 'none',
-          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-          height: 64, background: '#ffffff',
-          borderTop: '1px solid #EEF2F7',
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.06)',
-          alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 4px calc(env(safe-area-inset-bottom, 0px) + 2px)',
-        }}>
-          {(role === 'admin' ? adminMobileBottomNav : role === 'hod' ? hodMobileBottomNav : role === 'faculty' ? facultyMobileBottomNav : studentMobileBottomNav).map(item => {
-            if (item.type === 'fab') {
-              // Centre + FAB button -> Navigates to /student/new-request
-              return (
-                <div key="fab" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                  <button
-                    onClick={() => navigate(item.to || '/student/new-request')}
-                    style={{
-                      width: 48, height: 48, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                      border: '3px solid #ffffff', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: '0 4px 14px rgba(249,115,22,0.45)',
-                      transform: 'translateY(-12px)',
-                    }}
-                  >
-                    <Plus size={24} style={{ color: '#fff' }} />
-                  </button>
-                </div>
-              );
-            }
-
-            const Icon = item.icon!;
-            const isRootPage = item.to === '/student' || item.to === '/faculty' || item.to === '/hod' || item.to === '/admin';
-            const active = isRootPage
-              ? (routerLocation.pathname === item.to || routerLocation.pathname === `${item.to}/`)
-              : routerLocation.pathname.startsWith(item.to!);
-            return (
-              <div key={item.id} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minWidth: 0 }}>
-                <Link
-                  to={item.to!}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                    textDecoration: 'none', position: 'relative',
-                    padding: '6px 0', width: '100%',
-                    color: active ? '#F97316' : '#94A3B8',
-                    transition: 'color 0.15s ease',
-                  }}
-                >
-                  <Icon size={20} />
-                  <span style={{
-                    fontSize: 10,
-                    fontWeight: active ? 700 : 500,
-                    whiteSpace: 'nowrap',
-                    textAlign: 'center',
-                    lineHeight: 1.1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    maxWidth: '100%',
-                  }}>
-                    {item.label}
-                  </span>
-                  {item.hasBadge && unreadCount > 0 && (
-                    <span style={{ position: 'absolute', top: 4, right: 'calc(50% - 14px)', width: 7, height: 7, borderRadius: '50%', background: '#F97316', border: '1px solid #fff' }} />
-                  )}
-                </Link>
-              </div>
-            );
-          })}
-        </nav>
+        <MeniscusNavigation
+          items={currentBottomNavItems}
+          activePath={routerLocation.pathname}
+          className="mobile-bottom-nav print:hidden"
+          role={role}
+        />
       )}
 
       {/* ── Responsive CSS ── */}
@@ -586,7 +548,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           .desktop-topbar   { display: flex !important; }
           .desktop-sidebar  { display: flex !important; }
           .mobile-topbar    { display: none !important; }
-          .mobile-bottom-nav{ display: none !important; }
+          .mobile-bottom-nav{ display: ${role === 'viewer' ? 'none' : 'flex'} !important; }
+          .main-content     { padding: 24px 32px 92px !important; }
         }
         /* ── Print ── */
         @media print {

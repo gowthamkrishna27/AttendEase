@@ -10,8 +10,8 @@ import { UploadArea } from '../../components/forms/UploadArea';
 import { SendButton } from '../../components/ui/SendButton';
 import * as api from '../../lib/api';
 import {
-  ArrowLeft, CalendarDays, Clock, FileText, Upload,
-  BookOpen, PenLine, Send, UserCheck, ChevronDown,
+  ArrowLeft, CalendarDays, FileText, Upload,
+  BookOpen, PenLine, UserCheck, ChevronDown,
   Check, Zap, Calendar, ChevronsUpDown
 } from 'lucide-react';
 import { getFacultyInitials } from '../../lib/utils';
@@ -84,7 +84,6 @@ export default function NewRequest() {
   const [file, setFile] = useState<File | null>(null);
   const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [showAllFaculty, setShowAllFaculty] = useState(false);
 
   // New Period Selector & Leave Calendar State
   const [requestType, setRequestType] = useState<'permission' | 'leave'>('permission');
@@ -659,14 +658,14 @@ export default function NewRequest() {
           )}
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: 12, paddingBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, paddingBottom: 8 }}>
             <button
               type="button"
               onClick={() => navigate(-1)}
               style={{
-                flex: 1, height: 48, borderRadius: 13,
+                height: 38, padding: '0 18px', borderRadius: 10,
                 background: '#F8FAFC', border: '1.5px solid #E8EDF2',
-                color: '#64748B', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                color: '#64748B', fontSize: 13, fontWeight: 700, cursor: 'pointer',
               }}
             >
               Cancel
@@ -675,10 +674,10 @@ export default function NewRequest() {
               type="submit"
               disabled={isSubmitting}
               variant="primary"
-              size="md"
-              label={isSubmitting ? 'Submitting...' : 'Submit Request'}
-              sentLabel="Request Dispatched!"
-              style={{ flex: 2, height: 48, borderRadius: 13 }}
+              size="sm"
+              label={isSubmitting ? 'Sending...' : 'Send'}
+              sentLabel="Sent!"
+              style={{ height: 38, width: 104, borderRadius: 10 }}
             />
           </div>
         </motion.form>

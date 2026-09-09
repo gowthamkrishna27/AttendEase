@@ -35,11 +35,21 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 140px;
-  height: 48px;
+  width: 136px;
+  height: 46px;
   vertical-align: middle;
   box-sizing: border-box;
   overflow: visible !important;
+}
+
+.sb-wrap--sm {
+  width: 104px;
+  height: 38px;
+}
+
+.sb-wrap--lg {
+  width: 160px;
+  height: 52px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -70,6 +80,19 @@
   overflow: visible !important;
   box-sizing: border-box;
   z-index: 2;
+}
+
+.sb-shape--sm {
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: 9px;
+  box-shadow: 0 3px 10px rgba(249, 115, 22, 0.3);
+}
+
+.sb-shape--lg {
+  padding: 0 24px;
+  font-size: 16px;
+  border-radius: 14px;
 }
 
 .sb-wrap--variant-white .sb-shape {

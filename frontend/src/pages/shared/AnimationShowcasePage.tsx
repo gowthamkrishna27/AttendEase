@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { SendButton } from '../../components/ui/SendButton';
-import { Sparkles, Sliders, ShieldCheck, ArrowRight, Eye } from 'lucide-react';
+import { MeniscusNavigation } from '../../components/navigation/MeniscusNavigation';
+import { Sparkles, Sliders, ShieldCheck, ArrowRight, Eye, Home, Bell, Plus, Clock, User, CheckSquare, ClipboardList, Users, Award, Waves } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function AnimationShowcasePage() {
@@ -10,6 +11,41 @@ export default function AnimationShowcasePage() {
   const [messageLog, setMessageLog] = useState<string[]>([]);
   const [customLabel, setCustomLabel] = useState<string>('Send');
   const [customSentLabel, setCustomSentLabel] = useState<string>('Sent');
+  const [meniscusRole, setMeniscusRole] = useState<'student' | 'faculty' | 'hod'>('student');
+  const [activeMeniscusPath, setActiveMeniscusPath] = useState<string>('/student');
+
+  const studentItems = [
+    { id: 'home', to: '/student', label: 'Home', icon: Home },
+    { id: 'notifications', to: '/student/notifications', label: 'Notifications', icon: Bell, hasBadge: true },
+    { id: 'new-request', to: '/student/new-request', label: 'New', icon: Plus },
+    { id: 'history', to: '/student/history', label: 'History', icon: Clock },
+    { id: 'profile', to: '/student/profile', label: 'Profile', icon: User },
+  ];
+
+  const facultyItems = [
+    { id: 'home', to: '/faculty', label: 'Dashboard', icon: Home },
+    { id: 'attendance', to: '/faculty/attendance', label: 'Attendance', icon: CheckSquare },
+    { id: 'requests', to: '/faculty/requests', label: 'Requests', icon: ClipboardList },
+    { id: 'students', to: '/faculty/students', label: 'Students', icon: Users },
+    { id: 'activities', to: '/faculty/student-activities', label: 'Activities', icon: Award },
+  ];
+
+  const hodItems = [
+    { id: 'home', to: '/hod', label: 'Overview', icon: Home },
+    { id: 'faculty', to: '/hod/faculty', label: 'Faculty', icon: Users },
+    { id: 'requests', to: '/hod/requests', label: 'Requests', icon: ClipboardList },
+    { id: 'activities', to: '/hod/student-activities', label: 'Activities', icon: Award },
+  ];
+
+  const currentMeniscusItems = useMemo(
+    () =>
+      meniscusRole === 'faculty'
+        ? facultyItems
+        : meniscusRole === 'hod'
+        ? hodItems
+        : studentItems,
+    [meniscusRole]
+  );
 
   const handleSendAction = () => {
     setSendCount((c) => c + 1);
@@ -181,6 +217,83 @@ export default function AnimationShowcasePage() {
                 <span>1.5s</span>
                 <span>2.5s (default)</span>
                 <span>5.0s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════
+            MENISCUS LIQUID NAVIGATION INTERACTIVE SHOWCASE
+        ══════════════════════════════════════════════════════ */}
+        <div className="w-full bg-[#1A162B] border border-orange-500/30 rounded-3xl p-8 sm:p-10 shadow-2xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-indigo-900/60 pb-5">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500/30 text-orange-300 text-xs font-semibold mb-2">
+                <Waves size={13} />
+                <span>Parametric Continuous SVG Liquid Surface</span>
+              </div>
+              <h2 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                <span>Meniscus Liquid Navigation</span>
+              </h2>
+              <p className="text-slate-300 text-sm mt-1">
+                Single continuous SVG path with tangent-solved concave notch, velocity-driven asymmetric shoulder stretching, and volume-preserving bead squash.
+              </p>
+            </div>
+
+            {/* Role Switcher */}
+            <div className="flex items-center gap-2 bg-indigo-950/80 p-1.5 rounded-xl border border-indigo-800/80 self-start sm:self-auto">
+              {(['student', 'faculty', 'hod'] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => {
+                    setMeniscusRole(r);
+                    setActiveMeniscusPath(r === 'faculty' ? '/faculty' : r === 'hod' ? '/hod' : '/student');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition ${
+                    meniscusRole === r
+                      ? 'bg-orange-500 text-white shadow-md'
+                      : 'text-indigo-300 hover:text-white'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Interactive Live Meniscus Bar Canvas — Light Theme Backdrop */}
+          <div className="bg-[#F3F6FB] border border-orange-500/20 rounded-2xl p-8 sm:p-12 flex flex-col items-center justify-center relative min-h-[220px] overflow-visible shadow-inner">
+            <div className="w-full max-w-[500px] relative py-6">
+              <MeniscusNavigation
+                items={currentMeniscusItems}
+                activePath={activeMeniscusPath}
+                style={{ position: 'relative', width: '100%' }}
+                onItemClick={(item) => setActiveMeniscusPath(item.to)}
+              />
+            </div>
+          </div>
+
+          {/* Physics & Feature Highlights */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+            <div className="p-4 rounded-xl bg-indigo-950/50 border border-indigo-800/40">
+              <div className="text-orange-400 font-bold text-xs uppercase tracking-wider mb-1">Continuous Geometry</div>
+              <div className="text-slate-200 text-xs leading-relaxed">
+                Solved via external tangency: <code className="text-orange-300">√((s + rb)² − (s − by)²)</code>. Zero seams or fragmented divs.
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-indigo-950/50 border border-indigo-800/40">
+              <div className="text-orange-400 font-bold text-xs uppercase tracking-wider mb-1">Velocity Asymmetry</div>
+              <div className="text-slate-200 text-xs leading-relaxed">
+                Trailing shoulder pulls out up to 2.1× while leading shoulder compresses to 0.55× during motion.
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-indigo-950/50 border border-indigo-800/40">
+              <div className="text-orange-400 font-bold text-xs uppercase tracking-wider mb-1">Interactive Drag</div>
+              <div className="text-slate-200 text-xs leading-relaxed">
+                Click any tab or drag the bead directly with mouse/touch to watch the surface follow your pointer.
               </div>
             </div>
           </div>
