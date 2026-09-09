@@ -218,14 +218,19 @@ export const MeniscusNavigation: React.FC<MeniscusNavigationProps> = ({
     if (W < 40 || H < 30) return false;
 
     const slots: number[] = [];
-    tabRefs.current.forEach((t) => {
-      if (t) {
+    let allMeasured = true;
+    tabRefs.current.forEach((t, i) => {
+      if (t && i < items.length) {
         const b = t.getBoundingClientRect();
         slots.push(b.left - r.left + b.width / 2);
+      } else if (i < items.length) {
+        allMeasured = false;
       }
     });
 
-    if (slots.length === 0 || slots.length < items.length) {
+    // If any tab couldn't be measured, discard partial data and use uniform fallback
+    if (!allMeasured || slots.length !== items.length) {
+      slots.length = 0;
       const step = W / items.length;
       for (let i = 0; i < items.length; i++) {
         slots.push(step * i + step / 2);
@@ -336,7 +341,18 @@ export const MeniscusNavigation: React.FC<MeniscusNavigationProps> = ({
   // Select tab programmatically or on click
   const selectTab = useCallback(
     (index: number, item: MeniscusNavItem) => {
-      const slotX = stateRef.current.G.slots[index];
+      // Use live DOM measurement for pixel-perfect bubble placement
+      let slotX = stateRef.current.G.slots[index];
+      const dock = dockRef.current;
+      const tabEl = tabRefs.current[index];
+      if (dock && tabEl) {
+        const dockRect = dock.getBoundingClientRect();
+        const tabRect = tabEl.getBoundingClientRect();
+        slotX = tabRect.left - dockRect.left + tabRect.width / 2;
+        // Update cached slot to keep it in sync
+        stateRef.current.G.slots[index] = slotX;
+      }
+
       // Prevent redundant / duplicate trigger if already at this tab
       if (
         stateRef.current.currentIndex === index &&

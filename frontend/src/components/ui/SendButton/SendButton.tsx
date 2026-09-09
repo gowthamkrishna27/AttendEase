@@ -97,7 +97,7 @@ export const SendButton: React.FC<SendButtonProps> = ({
   }, [disabled, isSending, isSent, onSend, autoReset, clearTimers]);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (disabled || isSending) {
+    if (disabled || isSending || isSent) {
       e.preventDefault();
       return;
     }
@@ -105,7 +105,16 @@ export const SendButton: React.FC<SendButtonProps> = ({
     if (type === 'submit' && form && !form.checkValidity()) {
       return;
     }
-    triggerAnimation();
+
+    if (type === 'submit') {
+      // Defer animation to next tick so the native form submit event fires first.
+      // The form's onSubmit (e.g. react-hook-form handleSubmit) runs synchronously
+      // from the native submit — we must not disable the button before that.
+      setTimeout(() => triggerAnimation(), 0);
+    } else {
+      triggerAnimation();
+    }
+
     if (onClick) {
       onClick(e);
     }
@@ -157,7 +166,7 @@ export const SendButton: React.FC<SendButtonProps> = ({
         ]
           .filter(Boolean)
           .join(' ')}
-        disabled={disabled || state !== 'idle'}
+        disabled={disabled}
         aria-disabled={disabled || state !== 'idle'}
         aria-busy={isSending}
         aria-label={isSent ? sentLabel : label}
