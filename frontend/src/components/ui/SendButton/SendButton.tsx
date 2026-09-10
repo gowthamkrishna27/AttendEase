@@ -23,6 +23,12 @@ export interface SendButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEl
   containerStyle?: React.CSSProperties;
   /** Show facet mesh debug outline */
   showFacetDebug?: boolean;
+  /**
+   * External sending signal. When this transitions from false→true,
+   * the origami folding animation auto-triggers. Use this to tie the
+   * animation to actual form submission / API call state.
+   */
+  sending?: boolean;
 }
 
 /**
@@ -46,6 +52,7 @@ export const SendButton: React.FC<SendButtonProps> = ({
   onClick,
   onKeyDown,
   showFacetDebug = false,
+  sending = false,
   ...restProps
 }) => {
   const [state, setState] = useState<SendButtonState>('idle');
@@ -54,6 +61,7 @@ export const SendButton: React.FC<SendButtonProps> = ({
 
   const isSending = state === 'folding';
   const isSent = state === 'sent';
+  const prevSendingRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (resetTimerRef.current !== null) {
@@ -96,22 +104,24 @@ export const SendButton: React.FC<SendButtonProps> = ({
     }, 1850);
   }, [disabled, isSending, isSent, onSend, autoReset, clearTimers]);
 
+  // Auto-trigger animation when external `sending` prop transitions false→true
+  useEffect(() => {
+    if (sending && !prevSendingRef.current && state === 'idle') {
+      triggerAnimation();
+    }
+    prevSendingRef.current = sending;
+  }, [sending, state, triggerAnimation]);
+
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (disabled || isSending || isSent) {
       e.preventDefault();
       return;
     }
-    const form = e.currentTarget.form;
-    if (type === 'submit' && form && !form.checkValidity()) {
-      return;
-    }
 
-    if (type === 'submit') {
-      // Defer animation to next tick so the native form submit event fires first.
-      // The form's onSubmit (e.g. react-hook-form handleSubmit) runs synchronously
-      // from the native submit — we must not disable the button before that.
-      setTimeout(() => triggerAnimation(), 0);
-    } else {
+    // For submit buttons with external `sending` prop, let the native form
+    // submit proceed — animation will be driven by the `sending` prop
+    // transitioning to true once the mutation/API call actually starts.
+    if (type !== 'submit') {
       triggerAnimation();
     }
 

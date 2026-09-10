@@ -673,6 +673,7 @@ export default function NewRequest() {
             <SendButton
               type="submit"
               disabled={isSubmitting}
+              sending={isSubmitting}
               variant="primary"
               size="sm"
               label={isSubmitting ? 'Sending...' : 'Send'}
