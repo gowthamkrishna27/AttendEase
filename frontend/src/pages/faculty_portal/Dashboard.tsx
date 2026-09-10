@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
+import { AnnouncementRenderer } from '../../components/announcements/AnnouncementRenderer';
 
 const cardVariants = {
   hidden: { opacity: 0, y: 10 },
@@ -27,6 +28,12 @@ export default function FacultyDashboard() {
   const { data: requestsList = [] } = useQuery({
     queryKey: ['requests'],
     queryFn: () => api.getRequests(),
+  });
+
+  const { data: announcements = [] } = useQuery({
+    queryKey: ['announcements'],
+    queryFn: api.getAnnouncements,
+    refetchInterval: 60000,
   });
 
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,6 +67,12 @@ export default function FacultyDashboard() {
   return (
     <PageWrapper role="faculty">
       <div className="max-w-4xl mx-auto">
+
+        {/* ── Dynamic Opening Animation / Popup Dialog ── */}
+        <AnnouncementRenderer announcements={announcements} placement="POPUP" />
+
+        {/* ── Dynamic Top Announcements / Banners ── */}
+        <AnnouncementRenderer announcements={announcements} placement="HOME_TOP" />
 
         {/* ── Faculty Profile Banner ── */}
         <motion.div
@@ -183,6 +196,11 @@ export default function FacultyDashboard() {
           </div>
         </motion.div>
 
+        {/* ── Dynamic Middle Announcements / Widgets ── */}
+        <div className="mb-6 sm:mb-8">
+          <AnnouncementRenderer announcements={announcements} placement="HOME_MIDDLE" />
+        </div>
+
         {/* ── Summary Stats ── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -209,6 +227,9 @@ export default function FacultyDashboard() {
             </motion.div>
           ))}
         </motion.div>
+
+        {/* ── Dynamic Bottom Announcements ── */}
+        <AnnouncementRenderer announcements={announcements} placement="HOME_BOTTOM" />
 
       </div>
     </PageWrapper>

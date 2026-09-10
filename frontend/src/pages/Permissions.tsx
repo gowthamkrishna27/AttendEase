@@ -503,118 +503,104 @@ const PermissionGrid = React.memo(({
   const absentCount = useMemo(() => Object.values(combinedAttendance).filter(v => v === 'absent').length, [combinedAttendance]);
 
   return (
-    <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-2xs">
-      {/* Section Header Bar */}
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+      {/* ── Section Header ── */}
       <div
         onClick={onToggleCollapse}
-        className="px-4 py-3 bg-slate-50/80 hover:bg-slate-100/70 transition-colors flex items-center justify-between cursor-pointer border-b border-slate-200/60 select-none"
+        className="px-5 pt-5 pb-4 flex items-start justify-between cursor-pointer select-none"
       >
-        <div className="flex items-center gap-2.5">
-          <span className="font-bold text-[14px] text-slate-900">{sectionKey}</span>
-          <div className="flex items-center gap-1.5 text-[11px] font-bold">
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300/80">
+        <div className="flex-1 min-w-0">
+          {/* Section name + pill */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="font-black text-[22px] text-slate-900 leading-none tracking-tight">{sectionKey}</span>
+            <span className="text-[12px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full">
               {permissionCount} Permission{permissionCount !== 1 ? 's' : ''}
             </span>
             {longPermissionCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300/80 font-bold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
-                <span>{longPermissionCount} Long</span>
-              </span>
-            )}
-            {hasSelectedPeriods && presentCount > 0 && (
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300/80">
-                {presentCount} Present
-              </span>
-            )}
-            {hasSelectedPeriods && absentCount > 0 && (
-              <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300/80">
-                {absentCount} Absent
-              </span>
-            )}
-            {!hasSelectedPeriods && (
-              <span className="text-[10.5px] font-medium text-slate-400 italic hidden sm:inline-block ml-1">
-                (Select period above to view attendance)
+              <span className="text-[12px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1 rounded-full flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block" />
+                {longPermissionCount} Long
               </span>
             )}
           </div>
+          {/* Class Strength */}
+          <p className="text-[13px] text-slate-400 font-medium mt-1">
+            Class Strength: {totalStudents}
+          </p>
         </div>
-        {isCollapsed ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronUp size={16} className="text-slate-400" />}
+        <div className="shrink-0 mt-1 ml-3">
+          {isCollapsed
+            ? <ChevronDown size={18} className="text-slate-400" />
+            : <ChevronUp size={18} className="text-slate-400" />}
+        </div>
       </div>
 
+      {/* ── Expanded Content ── */}
       {!isCollapsed && (
         viewMode === 'grid' ? (
-          <div className="divide-y divide-slate-100">
-            {/* Fixed Legend Bar */}
-            <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-slate-50/60 border-b border-slate-200/50 text-[11px] font-bold text-slate-700 gap-2">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3.5 h-3.5 rounded bg-yellow-200 border border-yellow-400 inline-block shadow-2xs"></span>
-                  <span>Permission ({permissionCount})</span>
-                </div>
-                {longPermissionCount > 0 && (
-                  <div className="flex items-center gap-1.5 text-purple-800 font-bold">
-                    <span className="px-1 py-0.2 rounded text-[8px] font-black bg-purple-600 text-white uppercase">MULTI</span>
-                    <span>Long Permission ({longPermissionCount})</span>
-                  </div>
-                )}
-              </div>
-              {hasSelectedPeriods ? (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3.5 h-3.5 rounded bg-emerald-200 border border-emerald-400 inline-block shadow-2xs"></span>
-                    <span>Present ({presentCount})</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3.5 h-3.5 rounded bg-rose-200 border border-rose-400 inline-block shadow-2xs"></span>
-                    <span>Absent ({absentCount})</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3.5 h-3.5 rounded bg-white border border-slate-300 inline-block shadow-2xs"></span>
-                    <span>Unmarked ({Math.max(0, totalStudents - permissionCount - presentCount - absentCount)})</span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center gap-1.5 text-slate-500 font-normal italic">
-                  <span>Regular Students ({Math.max(0, totalStudents - permissionCount)})</span>
-                </div>
-              )}
-            </div>
+          <div>
+            {/* Divider */}
+            <div className="mx-5 border-t border-slate-100" />
 
-            {/* Quick Mark All Header Bar */}
-            <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-              <span className="font-extrabold text-slate-600 uppercase tracking-wider text-[10px]">
-                Quick Mark (In-Memory Only):
-              </span>
-              <div className="flex items-center gap-2">
+            {/* ── 4-column stat row ── */}
+            {hasSelectedPeriods && (
+              <div className="grid grid-cols-4 divide-x divide-slate-100 px-5 py-4">
+                {[
+                  { dot: 'bg-yellow-400', label: 'Permission', count: permissionCount },
+                  { dot: 'bg-emerald-500', label: 'Present',    count: presentCount },
+                  { dot: 'bg-rose-400',   label: 'Absent',      count: absentCount },
+                  { dot: 'bg-slate-300',  label: 'Unmarked',    count: Math.max(0, totalStudents - permissionCount - presentCount - absentCount) },
+                ].map(({ dot, label, count }) => (
+                  <div key={label} className="flex flex-col items-start px-4 first:pl-0 last:pr-0 gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${dot} inline-block shrink-0`} />
+                      <span className="text-[12px] text-slate-500 font-medium">{label}</span>
+                    </div>
+                    <span className="text-[26px] font-black text-slate-900 leading-none">{count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Quick Mark ── */}
+            <div className="px-5 pb-4">
+              <p className="text-[12px] font-bold text-slate-800 uppercase tracking-wide mb-3">
+                Quick Mark <span className="font-normal normal-case text-slate-400">(In-Memory Only)</span>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => onMarkAll(sectionKey, 'present')}
-                  className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-950 border border-emerald-400 rounded-lg font-bold text-[11px] transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
-                  title="Mark all regular students in this section as Present (preserves yellow permission slips)"
+                  className="h-14 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-2xl font-bold text-[13px] transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-3"
+                  title="Mark all regular students as Present (preserves permission slips)"
                 >
-                  <CheckCircle2 size={13} className="text-emerald-800" />
+                  <span className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={18} className="text-white" />
+                  </span>
                   <span>Mark Everyone Present</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onMarkAll(sectionKey, 'absent')}
-                  className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-950 border border-rose-400 rounded-lg font-bold text-[11px] transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
-                  title="Mark all regular students in this section as Absent (preserves yellow permission slips)"
+                  className="h-14 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-2xl font-bold text-[13px] transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-3"
+                  title="Mark all regular students as Absent (preserves permission slips)"
                 >
-                  <RefreshCw size={12} className="text-rose-800" />
+                  <span className="w-8 h-8 rounded-full border-2 border-rose-500 flex items-center justify-center shrink-0">
+                    <RefreshCw size={16} className="text-rose-600" />
+                  </span>
                   <span>Mark Everyone Absent</span>
                 </button>
               </div>
             </div>
 
-            {/* Non-stretching fixed grid container */}
-            <div className="p-4 sm:p-6 bg-slate-50/20">
+            {/* Roll number grid */}
+            <div className="px-5 pb-5">
               {rollNumbers.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 text-[12px] font-medium">
+                <div className="py-6 text-center text-slate-400 text-[12px] font-medium">
                   No registered students found for this section in the database.
                 </div>
               ) : (
-                <div className="flex flex-wrap justify-center gap-3 sm:gap-3.5 max-w-[680px] mx-auto">
+                <div className="flex flex-wrap justify-center gap-2.5 max-w-[680px] mx-auto">
                   {rollNumbers.map(numStr => {
                     const req = permissionMap.get(numStr);
                     const dbRecord = submissionRecordsMap[numStr];
@@ -635,6 +621,25 @@ const PermissionGrid = React.memo(({
                   })}
                 </div>
               )}
+            </div>
+
+            {/* ── Footer info row ── */}
+            <div className="mx-5 border-t border-slate-100 py-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-slate-400 text-[11.5px]">
+                <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                  <Info size={11} className="text-slate-500" />
+                </span>
+                <span>This will mark attendance for all {totalStudents} students in this section.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onOpenWhatsApp(sectionKey)}
+                className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg font-semibold text-[11px] flex items-center gap-2 transition-all cursor-pointer active:scale-95 shrink-0"
+                title="Format and send attendance report to WhatsApp"
+              >
+                <WhatsappIcon size={14} className="text-emerald-600" />
+                <span>Share to WhatsApp</span>
+              </button>
             </div>
           </div>
         ) : (
@@ -698,25 +703,6 @@ const PermissionGrid = React.memo(({
             )}
           </div>
         )
-      )}
-
-      {/* Attendance Grid Footer (WhatsApp Share Card & Button) */}
-      {!isCollapsed && (
-        <div className="px-4 py-3 bg-emerald-50/60 border-t border-emerald-200/70 flex flex-wrap items-center justify-between gap-3 text-[12px] rounded-b-2xl">
-          <div className="flex items-center gap-2 text-emerald-900 font-medium text-[11px]">
-            <Info size={14} className="text-emerald-600 shrink-0" />
-            <span>Public marked attendance is strictly temporary (in-memory) &amp; not saved to database.</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => onOpenWhatsApp(sectionKey)}
-            className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-950 border border-emerald-400 rounded-xl font-extrabold text-[12px] flex items-center gap-2 transition-all cursor-pointer shadow-2xs hover:scale-[1.02] active:scale-95 shrink-0"
-            title="Format and send attendance report to WhatsApp"
-          >
-            <WhatsappIcon size={17} className="text-emerald-800" />
-            <span>Share {sectionKey} to WhatsApp</span>
-          </button>
-        </div>
       )}
     </div>
   );
@@ -1259,154 +1245,65 @@ export default function PermissionsPage() {
 
         {/* ── On-Screen Page UI (Hidden when printing) ── */}
         <div className="space-y-4 print:hidden">
-          {/* Title Header */}
-          <div className="flex flex-wrap items-center justify-between border-b border-slate-200/80 pb-3 gap-3">
-            <div>
-              <h1 className="text-[20px] font-bold text-slate-900 leading-tight">
-                Approved Permissions &amp; Attendance
-              </h1>
-              <p className="text-[12px] text-slate-500 mt-0.5">
-                {dateMode === 'today'
-                  ? `Today's Grid (${getTodayFormattedDate()})`
-                  : dateMode === 'all'
-                    ? 'All Permission Slips Grid'
-                    : `Selected Date Grid (${customDate})`}
-                {durationFilter === 'long' && ' • Multi-Day / Long Permissions Only'}
-                {durationFilter === 'single' && ' • Single-Day Permissions Only'}
-              </p>
-            </div>
 
-            {/* Controls: View Mode, Duration Pills & Date Filter Pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Duration / Permission Type Pill */}
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setDurationFilter('all')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
-                    durationFilter === 'all'
-                      ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDurationFilter('single')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all ${
-                    durationFilter === 'single'
-                      ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Single-Day
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDurationFilter('long');
-                    if (dateMode === 'today') {
-                      setDateMode('all');
-                    }
-                    showToast('Showing Multi-Day / Long Permissions');
-                  }}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${
-                    durationFilter === 'long'
-                      ? 'bg-purple-600 text-white shadow-2xs font-extrabold'
-                      : 'text-purple-700 hover:text-purple-900'
-                  }`}
-                  title="Filter to show only multi-day and long permissions"
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${durationFilter === 'long' ? 'bg-white' : 'bg-purple-600'}`}></span>
-                  <span>Long Permissions{totalLongCount > 0 ? ` (${totalLongCount})` : ''}</span>
-                </button>
-              </div>
+          {/* ── Page Title ── */}
+          <div className="pb-4 border-b border-slate-100">
+            <h1 className="text-[18px] font-bold text-slate-900 leading-snug tracking-tight">
+              Approved Permissions &amp; Attendance
+            </h1>
+            <p className="text-[12.5px] text-slate-500 mt-1">
+              {dateMode === 'today'
+                ? `Today's Grid (${getTodayFormattedDate()})`
+                : dateMode === 'all'
+                  ? 'All Permission Slips'
+                  : `Grid for ${customDate}`}
+            </p>
 
-              {/* View Mode Toggle */}
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${viewMode === 'grid'
-                    ? 'bg-orange-500 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  title="Grid View (Roll 1-72)"
-                >
-                  <LayoutGrid size={13} />
-                  <span>Grid</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-2.5 py-1 rounded-md cursor-pointer transition-all flex items-center gap-1.5 ${viewMode === 'list'
-                    ? 'bg-orange-500 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  title="List View"
-                >
-                  <List size={13} />
-                  <span>List</span>
-                </button>
-              </div>
-
-              {Object.keys(markedAttendance).length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMarkedAttendance({});
-                    showToast('All in-memory marks reset');
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                  title="Reset all in-memory attendance clicks"
-                >
-                  <RefreshCw size={12} />
-                  <span>Reset Marks ({Object.keys(markedAttendance).length})</span>
-                </button>
-              )}
-
-              {/* Date Scope Controls */}
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-[11px] font-bold">
+            {/* Date control row — compact, clean */}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden text-[12px] font-semibold">
                 <button
                   type="button"
                   onClick={() => {
                     setDateMode('today');
                     showToast(`Showing Today's Permissions (${todayStr})`);
                   }}
-                  className={`px-2.5 py-1 rounded-lg cursor-pointer transition-all ${dateMode === 'today'
-                    ? 'bg-orange-500 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                  className={`flex items-center gap-1.5 px-3 py-2 transition-colors cursor-pointer ${
+                    dateMode === 'today'
+                      ? 'bg-orange-500 text-white'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
                 >
-                  Today ({getTodayFormattedDate()})
+                  <Calendar size={13} className={dateMode === 'today' ? 'text-white' : 'text-orange-500'} />
+                  <span>Today ({getTodayFormattedDate()})</span>
                 </button>
-
+                <div className="w-px h-6 bg-slate-200" />
                 <button
                   type="button"
                   onClick={() => {
                     setDateMode('all');
                     showToast('Showing All Permissions (Including Multi-Day & Long Leaves)');
                   }}
-                  className={`px-2.5 py-1 rounded-lg cursor-pointer transition-all ${dateMode === 'all'
-                    ? 'bg-orange-500 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  title="Show all approved permission slips across all dates"
+                  className={`flex items-center gap-1.5 px-3 py-2 transition-colors cursor-pointer ${
+                    dateMode === 'all'
+                      ? 'bg-orange-500 text-white'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
                 >
-                  All Dates
+                  <span>All Dates</span>
                 </button>
-
-                {/* Calendar Symbol Icon Button with Date Picker Functionality */}
+                <div className="w-px h-6 bg-slate-200" />
+                {/* Hidden calendar date picker */}
                 <div
-                  className={`relative flex items-center justify-center px-2 py-1 rounded-lg cursor-pointer transition-all ${dateMode === 'custom'
-                    ? 'bg-orange-500 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  title={dateMode === 'custom' ? `Selected Date: ${customDate} (Click to change)` : 'Pick a date from calendar'}
+                  className={`relative flex items-center gap-1.5 px-3 py-2 cursor-pointer transition-colors ${
+                    dateMode === 'custom'
+                      ? 'bg-orange-500 text-white'
+                      : 'text-slate-500 hover:bg-slate-50'
+                  }`}
+                  title={dateMode === 'custom' ? `Date: ${customDate} (Click to change)` : 'Pick a custom date'}
                 >
-                  <Calendar size={14} className={dateMode === 'custom' ? 'text-white' : 'text-orange-500'} />
-                  {dateMode === 'custom' && (
-                    <span className="ml-1 text-[11px] font-bold">{customDate}</span>
-                  )}
+                  <Calendar size={13} className={dateMode === 'custom' ? 'text-white' : 'text-orange-500'} />
+                  {dateMode === 'custom' && <span className="text-[11px] font-bold">{customDate}</span>}
                   <input
                     type="date"
                     value={customDate}
@@ -1422,19 +1319,33 @@ export default function PermissionsPage() {
                   />
                 </div>
               </div>
+
+              {/* Reset marks button — only when marks exist */}
+              {Object.keys(markedAttendance).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMarkedAttendance({});
+                    showToast('All in-memory marks reset');
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[12px] font-semibold transition-all cursor-pointer"
+                  title="Reset all in-memory attendance clicks"
+                >
+                  <RefreshCw size={12} />
+                  <span>Reset ({Object.keys(markedAttendance).length})</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* ── Section Selector Bar & Year Quick Selection (Matches Faculty Attendance Page) ── */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 space-y-3.5 shadow-xs">
+          {/* ── Academic Year & Section ── */}
+          <div className="space-y-3">
+            <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">Academic Year &amp; Section</p>
 
-            {/* Top Row: Year Selection (Circle buttons with orange active state) */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1.5 mr-1">
-                <GraduationCap size={15} className="text-orange-500" />
-                YEAR:
-              </span>
-              <div className="flex items-center gap-2">
+            {/* Year — centered buttons */}
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500 mb-1.5">Year</p>
+              <div className="flex items-center justify-center gap-2.5">
                 {[
                   { label: '1', value: '1st Year' },
                   { label: '2', value: '2nd Year' },
@@ -1449,10 +1360,11 @@ export default function PermissionsPage() {
                       setSectionFilter('all');
                     }}
                     title={yr.value}
-                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-heading font-extrabold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer ${selectedYear === yr.value
-                      ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-500/20 scale-105'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
-                      }`}
+                    className={`w-9 h-9 rounded-full font-extrabold text-[13px] flex items-center justify-center transition-all cursor-pointer ${
+                      selectedYear === yr.value
+                        ? 'bg-orange-500 text-white shadow-md shadow-orange-500/30 ring-2 ring-orange-300/40'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
+                    }`}
                   >
                     {yr.label}
                   </button>
@@ -1460,174 +1372,180 @@ export default function PermissionsPage() {
               </div>
             </div>
 
-            {/* Second Row: Full-width Section Dropdown Bar */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsSectionDropdownOpen(!isSectionDropdownOpen)}
-                className="w-full h-[42px] px-3.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl flex items-center justify-between text-[13px] font-bold text-slate-800 transition-all cursor-pointer select-none"
-              >
-                <div className="flex items-center gap-2">
-                  <Building2 size={16} className="text-orange-500" />
-                  <span className="text-slate-400 font-medium">Select Target Section:</span>
-                  <span className="text-slate-900 font-bold">
-                    {!selectedYear
-                      ? 'Select Year First...'
-                      : dbSections.length === 0
-                        ? `No Sections for ${selectedYear}`
-                        : sectionFilter === 'all'
-                          ? 'All Sections'
-                          : sectionFilter === 'none'
-                            ? 'Choose Section...'
-                            : (sectionOptions.find(opt => opt.value === sectionFilter)?.key ||
-                              sectionOptions.find(opt => opt.value === sectionFilter)?.label ||
-                              sectionFilter ||
-                              'Choose Section...')}
-                  </span>
-                </div>
-                <ChevronDown size={16} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {/* Section Dropdown Menu List */}
-              <AnimatePresence>
-                {isSectionDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
-                    className="absolute left-0 right-0 top-[48px] z-30 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1 max-h-64 overflow-y-auto"
-                  >
-                    {!selectedYear ? (
-                      <div className="px-4 py-3 text-center text-slate-400 text-[12px]">
-                        Please select an Academic Year first
-                      </div>
-                    ) : sectionOptions.length === 0 ? (
-                      <div className="px-4 py-3 text-center text-slate-400 text-[12px]">
-                        No sections available for {selectedYear}
-                      </div>
-                    ) : (
-                      sectionOptions.map(sec => (
-                        <button
-                          key={sec.value}
-                          type="button"
-                          onClick={() => {
-                            setSectionFilter(sec.value);
-                            setIsSectionDropdownOpen(false);
-                          }}
-                          className={`w-full px-4 py-2.5 text-left text-[12px] font-bold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
-                            }`}
-                        >
-                          <span>{sec.label}</span>
-                          {sectionFilter === sec.value && <CheckCircle2 size={15} className="text-orange-500" />}
-                        </button>
-                      ))
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* ── 8 Linear Period Selector Boxes Widget (Multi-Select Enabled) ── */}
-            <div className="pt-2.5 border-t border-slate-100 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
-                  <span>Period Filter:</span>
-                  {selectedPeriodFilters.length === 0 ? (
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-300 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                      <span>Select Period (P1 – P8) to View</span>
+            {/* Section dropdown */}
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500 mb-1.5">Section</p>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsSectionDropdownOpen(!isSectionDropdownOpen)}
+                  className="w-full h-11 px-3.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-[13px] font-semibold text-slate-800 transition-all cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <Building2 size={15} className="text-orange-500 shrink-0" />
+                    <span className="text-slate-800 font-semibold">
+                      {!selectedYear
+                        ? 'Select Year first…'
+                        : dbSections.length === 0
+                          ? `No sections for ${selectedYear}`
+                          : sectionFilter === 'all'
+                            ? 'All Sections'
+                            : sectionFilter === 'none'
+                              ? 'Choose section…'
+                              : (sectionOptions.find(opt => opt.value === sectionFilter)?.key ||
+                                sectionOptions.find(opt => opt.value === sectionFilter)?.label ||
+                                sectionFilter ||
+                                'Choose section…')}
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMarkedAttendance({});
-                        setSelectedPeriodFilters([]);
-                        showToast('Reset period selection');
-                      }}
-                      className="px-2 py-0.5 rounded-full bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300 text-[9.5px] font-bold transition-colors cursor-pointer"
-                    >
-                      Clear Filter (P{selectedPeriodFilters.join(', P')}) ✕
-                    </button>
-                  )}
-                </span>
-                <span className="text-[10.5px] font-bold text-slate-400">
-                  {attendanceSubmissions.length} Submission(s) Active
-                </span>
-              </div>
+                  </div>
+                  <ChevronDown size={15} className={`text-slate-400 transition-transform ${isSectionDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-              {/* 8 Linear Square Boxes Row */}
-              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map(pNum => {
-                  const sub = sectionFilter !== 'all'
-                    ? activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum))
-                    : null;
-                  const isSelected = selectedPeriodFilters.includes(pNum);
-                  const isSubmitted = Boolean(sub);
-
-                  return (
-                    <button
-                      key={pNum}
-                      type="button"
-                      onClick={() => handlePeriodToggle(pNum)}
-                      className={`
-                        h-[48px] rounded-xl font-black text-[12px] flex flex-col items-center justify-center
-                        transition-all duration-150 cursor-pointer border select-none relative
-                        ${isSelected
-                          ? 'bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-400'
-                          : isSubmitted
-                            ? 'bg-orange-50 text-orange-900 border-orange-300 hover:bg-orange-100'
-                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                        }
-                      `}
-                      title={
-                        sub
-                          ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
-                          : `Period ${pNum}: Click to toggle period selection`
-                      }
+                <AnimatePresence>
+                  {isSectionDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute left-0 right-0 top-[48px] z-30 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1 max-h-64 overflow-y-auto"
                     >
-                      <span className="text-[13px] leading-none">P{pNum}</span>
-                      {sectionFilter !== 'all' ? (
-                        <span className="text-[8px] font-bold opacity-80 mt-0.5">
-                          {isSubmitted ? (sub?.markedBy?.name ? sub.markedBy.name.split(' ')[0] : 'Done') : 'Pending'}
-                        </span>
+                      {!selectedYear ? (
+                        <div className="px-4 py-3 text-center text-slate-400 text-[12px]">
+                          Please select an Academic Year first
+                        </div>
+                      ) : sectionOptions.length === 0 ? (
+                        <div className="px-4 py-3 text-center text-slate-400 text-[12px]">
+                          No sections available for {selectedYear}
+                        </div>
                       ) : (
-                        <span className="text-[8px] font-bold text-slate-400 mt-0.5">
-                          Period {pNum}
-                        </span>
+                        sectionOptions.map(sec => (
+                          <button
+                            key={sec.value}
+                            type="button"
+                            onClick={() => {
+                              setSectionFilter(sec.value);
+                              setIsSectionDropdownOpen(false);
+                            }}
+                            className={`w-full px-4 py-2.5 text-left text-[12px] font-semibold flex items-center justify-between hover:bg-orange-50 transition-colors cursor-pointer ${
+                              sectionFilter === sec.value ? 'text-orange-600 bg-orange-50/60' : 'text-slate-700'
+                            }`}
+                          >
+                            <span>{sec.label}</span>
+                            {sectionFilter === sec.value && <CheckCircle2 size={14} className="text-orange-500" />}
+                          </button>
+                        ))
                       )}
-                    </button>
-                  );
-                })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Period Filter ── */}
+          <div className="space-y-3">
+            {/* Header: PERIOD FILTER primary, helper text secondary, count quiet right */}
+            <div>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider leading-none">Period Filter</p>
+                  <div className="mt-1">
+                    {selectedPeriodFilters.length === 0 ? (
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block shrink-0" />
+                        Choose a period to view
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMarkedAttendance({});
+                          setSelectedPeriodFilters([]);
+                          showToast('Reset period selection');
+                        }}
+                        className="text-[10px] font-bold text-orange-600 hover:text-orange-800 underline underline-offset-2 cursor-pointer transition-colors"
+                      >
+                        Clear (P{selectedPeriodFilters.join(', P')}) ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <span className="text-[10px] font-medium text-slate-400 shrink-0 pt-0.5">
+                  {attendanceSubmissions.length} Active
+                </span>
               </div>
             </div>
 
-            {/* ── Faculty Attendance Submissions Switcher Bar (Only for specific section view) ── */}
+            {/* 2 × 4 compact grid — always */}
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(pNum => {
+                const sub = sectionFilter !== 'all'
+                  ? activeSectionSubmissions.find(s => parseSubmissionPeriods(s.periods).includes(pNum))
+                  : null;
+                const isSelected = selectedPeriodFilters.includes(pNum);
+                const isSubmitted = Boolean(sub);
+
+                return (
+                  <button
+                    key={pNum}
+                    type="button"
+                    onClick={() => handlePeriodToggle(pNum)}
+                    className={`
+                      h-[44px] rounded-xl font-bold text-[13px] flex flex-col items-center justify-center
+                      transition-all duration-150 cursor-pointer border select-none
+                      ${isSelected
+                        ? 'bg-orange-500 text-white border-orange-500 shadow-sm ring-2 ring-orange-300/50'
+                        : isSubmitted
+                          ? 'bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100'
+                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                      }
+                    `}
+                    title={
+                      sub
+                        ? `Period ${pNum}: Submitted by ${sub.markedBy?.name} (${sub.periodLabel})`
+                        : `Period ${pNum}: Click to toggle`
+                    }
+                  >
+                    <span className="leading-none">P{pNum}</span>
+                    <span className={`text-[9px] font-semibold mt-0.5 ${isSelected ? 'opacity-80' : isSubmitted ? 'text-orange-600' : 'text-slate-400'}`}>
+                      {sectionFilter !== 'all'
+                        ? (isSubmitted ? (sub?.markedBy?.name ? sub.markedBy.name.split(' ')[0] : 'Done') : 'Pending')
+                        : 'Pending'
+                      }
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Faculty Submissions Switcher — only when a specific section is selected */}
             {sectionFilter !== 'all' && activeSectionSubmissions.length > 0 && (
-              <div className="pt-2 border-t border-slate-100 space-y-1">
+              <div className="pt-1 space-y-1.5">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Faculty Attendance Submissions:
+                  Faculty Submissions:
                 </span>
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-[11px]">
                   <button
                     type="button"
                     onClick={() => setSelectedSubmissionId('combined')}
-                    className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer ${selectedSubmissionId === 'combined'
-                      ? 'bg-orange-500 text-white shadow-2xs'
-                      : 'bg-orange-500/10 text-orange-800 hover:bg-orange-500/20 border border-orange-200/60'
-                      }`}
+                    className={`px-2.5 py-1.5 font-semibold rounded-lg shrink-0 transition-all cursor-pointer ${
+                      selectedSubmissionId === 'combined'
+                        ? 'bg-orange-500 text-white'
+                        : 'bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200'
+                    }`}
                   >
-                    Combined Overview
+                    Combined
                   </button>
                   {activeSectionSubmissions.map(sub => (
                     <button
                       key={sub.id}
                       type="button"
                       onClick={() => setSelectedSubmissionId(sub.id)}
-                      className={`px-2.5 py-1 font-bold rounded-md shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${selectedSubmissionId === sub.id
-                        ? 'bg-orange-500 text-white shadow-2xs'
-                        : 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
-                        }`}
+                      className={`px-2.5 py-1.5 font-semibold rounded-lg shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
+                        selectedSubmissionId === sub.id
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-white text-orange-700 border border-orange-200 hover:bg-orange-50'
+                      }`}
                     >
                       <span>{sub.markedBy?.name}:</span>
                       <span className="opacity-90">{sub.periodLabel}</span>
@@ -1636,51 +1554,50 @@ export default function PermissionsPage() {
                 </div>
               </div>
             )}
-
           </div>
 
-          {/* Section Grid Content */}
+          {/* ── Section Grid Content ── */}
           {!selectedYear || sectionFilter === 'none' ? (
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-8 text-center space-y-3 shadow-2xs">
-              <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto shadow-xs">
-                <Building2 size={24} />
+            <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
+              <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-400 flex items-center justify-center mx-auto mb-2.5">
+                <Building2 size={16} />
               </div>
-              <h3 className="font-bold text-slate-800 text-[15px]">
-                {!selectedYear ? "Select Year & Section to View Today's Attendance" : "Select Section to View Today's Attendance"}
+              <h3 className="font-bold text-slate-800 text-[13.5px] mb-1">
+                {!selectedYear ? "Select Year & Section" : "Select a Section"}
               </h3>
-              <p className="text-slate-500 text-[12px] max-w-md mx-auto">
+              <p className="text-slate-400 text-[11.5px] max-w-xs mx-auto leading-snug">
                 {!selectedYear
-                  ? "Please select your Year (1st, 2nd, 3rd, 4th) and target section above to load attendance & approved permission passes."
-                  : `Please select your target section for ${selectedYear} above to load attendance & approved permission passes.`
+                  ? "Choose your year and section above to load attendance and approved permission passes."
+                  : `Choose a section for ${selectedYear} to load attendance.`
                 }
               </p>
             </div>
           ) : selectedPeriodFilters.length === 0 ? (
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-8 sm:p-12 text-center space-y-3 shadow-xs">
-              <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 border border-orange-200/60 flex items-center justify-center mx-auto shadow-xs">
-                <Calendar size={24} />
+            <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
+              <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-400 flex items-center justify-center mx-auto mb-2.5">
+                <Calendar size={16} />
               </div>
-              <div className="space-y-1 max-w-md mx-auto">
-                <h3 className="text-sm sm:text-base font-bold text-slate-900">Select Particular Period(s) to View Permissions Chart</h3>
-                <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                  Student roll numbers and approved permissions will appear here once you select one or more period numbers (P1 – P8) above.
+              <div className="space-y-1 max-w-xs mx-auto">
+                <h3 className="text-[13.5px] font-bold text-slate-900">Select a Period to View Chart</h3>
+                <p className="text-[11.5px] text-slate-400 leading-snug">
+                  Roll numbers and approved permissions appear once you select one or more periods (P1 – P8) above.
                 </p>
               </div>
             </div>
           ) : dbSections.length === 0 ? (
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-8 text-center space-y-3 shadow-2xs">
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto shadow-xs">
-                <Building2 size={24} />
+            <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2.5">
+                <Building2 size={16} />
               </div>
-              <h3 className="font-bold text-slate-800 text-[15px]">No Data Available for {selectedYear}</h3>
-              <p className="text-slate-500 text-[12px] max-w-md mx-auto">
-                There are currently no active students, sections, or attendance records registered for {selectedYear} in the database.
+              <h3 className="font-bold text-slate-800 text-[13.5px] mb-1">No Data for {selectedYear}</h3>
+              <p className="text-slate-400 text-[11.5px] max-w-xs mx-auto leading-snug">
+                No active students, sections, or attendance records are registered for {selectedYear} in the database.
               </p>
             </div>
           ) : isLoading ? (
             <div className="py-12 text-center text-slate-400">
-              <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-orange-500" />
-              <p className="text-[12px]">Loading today's attendance...</p>
+              <RefreshCw size={18} className="animate-spin mx-auto mb-2 text-orange-500" />
+              <p className="text-[12px]">Loading attendance…</p>
             </div>
           ) : (
             <div className="space-y-4">

@@ -12,6 +12,7 @@ import { Avatar } from '../../components/shared/Avatar';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { formatDate } from '../../lib/utils';
 import type { AttendanceRequest } from '../../types';
+import { AnnouncementRenderer } from '../../components/announcements/AnnouncementRenderer';
 
 export default function HODDashboard() {
   const { user } = useAuth();
@@ -21,6 +22,12 @@ export default function HODDashboard() {
     queryKey: ['requests'],
     queryFn: () => api.getRequests(),
     refetchInterval: 5000,
+  });
+
+  const { data: announcements = [] } = useQuery({
+    queryKey: ['announcements'],
+    queryFn: api.getAnnouncements,
+    refetchInterval: 60000,
   });
 
   const pendingCount = requestsList.filter((r: AttendanceRequest) => r.status === 'pending').length;
@@ -38,6 +45,12 @@ export default function HODDashboard() {
   return (
     <PageWrapper role="hod">
       <div className="w-full max-w-[1400px] mx-auto space-y-6 sm:space-y-7 px-2 sm:px-4 pb-20">
+
+        {/* ── Dynamic Opening Animation / Popup Dialog ── */}
+        <AnnouncementRenderer announcements={announcements} placement="POPUP" />
+
+        {/* ── Dynamic Top Announcements / Banners ── */}
+        <AnnouncementRenderer announcements={announcements} placement="HOME_TOP" />
 
         {/* ── HOD Profile Banner ── */}
         <motion.div
@@ -401,6 +414,9 @@ export default function HODDashboard() {
             );
           })}
         </motion.div>
+
+        {/* ── Dynamic Bottom Announcements ── */}
+        <AnnouncementRenderer announcements={announcements} placement="HOME_BOTTOM" />
 
       </div>
     </PageWrapper>

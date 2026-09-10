@@ -7,11 +7,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { UploadArea } from '../../components/forms/UploadArea';
-import { SendButton } from '../../components/ui/SendButton';
 import * as api from '../../lib/api';
 import {
-  ArrowLeft, CalendarDays, FileText, Upload,
-  BookOpen, PenLine, UserCheck, ChevronDown,
+  ArrowLeft, CalendarDays, Clock, FileText, Upload,
+  BookOpen, PenLine, Send, UserCheck, ChevronDown,
   Check, Zap, Calendar, ChevronsUpDown
 } from 'lucide-react';
 import { getFacultyInitials } from '../../lib/utils';
@@ -84,6 +83,7 @@ export default function NewRequest() {
   const [file, setFile] = useState<File | null>(null);
   const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showAllFaculty, setShowAllFaculty] = useState(false);
 
   // New Period Selector & Leave Calendar State
   const [requestType, setRequestType] = useState<'permission' | 'leave'>('permission');
@@ -188,11 +188,9 @@ export default function NewRequest() {
         } : {}),
       });
     },
-    onSuccess: () => {
+    onSuccess: (createdReq: any) => {
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      window.setTimeout(() => {
-        navigate('/student/success');
-      }, 1800);
+      navigate('/student/success', { state: { request: createdReq } });
     },
   });
 
@@ -658,28 +656,43 @@ export default function NewRequest() {
           )}
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, paddingBottom: 8 }}>
+          <div style={{ display: 'flex', gap: 12, paddingBottom: 8 }}>
             <button
               type="button"
               onClick={() => navigate(-1)}
               style={{
-                height: 38, padding: '0 18px', borderRadius: 10,
+                flex: 1, height: 48, borderRadius: 13,
                 background: '#F8FAFC', border: '1.5px solid #E8EDF2',
-                color: '#64748B', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                color: '#64748B', fontSize: 14, fontWeight: 700, cursor: 'pointer',
               }}
             >
               Cancel
             </button>
-            <SendButton
+            <button
               type="submit"
               disabled={isSubmitting}
-              sending={isSubmitting}
-              variant="primary"
-              size="sm"
-              label={isSubmitting ? 'Sending...' : 'Send'}
-              sentLabel="Sent!"
-              style={{ height: 38, width: 104, borderRadius: 10 }}
-            />
+              style={{
+                flex: 2, height: 48, borderRadius: 13,
+                background: isSubmitting ? '#FED7AA' : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+                color: '#fff', fontSize: 14, fontWeight: 700,
+                border: 'none', cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: isSubmitting ? 'none' : '0 4px 14px rgba(249,115,22,0.30)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {isSubmitting ? (
+                <>
+                  <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send size={15} />
+                  Submit Request
+                </>
+              )}
+            </button>
           </div>
         </motion.form>
       </div>

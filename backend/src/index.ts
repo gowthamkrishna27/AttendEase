@@ -18,6 +18,7 @@ import adminRouter from './admin/index.js';
 import chatRoutes from './routes/chat.js';
 import activitiesRoutes from './routes/activities.js';
 import coordinatorRoutes from './routes/coordinators.js';
+import announcementRoutes from './routes/announcements.js';
 import { getCanonicalRosterForYear } from './services/rosterService.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
@@ -97,6 +98,7 @@ app.use('/api/notifications',     notificationRoutes);
 app.use('/api/attendance',        attendanceRoutes);
 app.use('/api/invigilation',       invigilationRoutes);
 app.use('/api/activities',        activitiesRoutes);
+app.use('/api/announcements',       announcementRoutes);
 app.use('/api/admin/coordinators', coordinatorRoutes);
 app.use('/api/admin',             adminRouter);
 app.use('/api/chat',              chatRoutes);
@@ -188,6 +190,25 @@ async function syncDatabaseEnums() {
       await prisma.$executeRawUnsafe(`ALTER TYPE "Role" ADD VALUE IF NOT EXISTS '${val}'`);
     } catch {}
   }
+
+  // Announcement enums
+  try {
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN
+      CREATE TYPE "AnnouncementType" AS ENUM ('WIDGET', 'OPENING_ANIMATION', 'BANNER');
+    EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN
+      CREATE TYPE "AnnouncementState" AS ENUM ('DRAFT', 'ACTIVE', 'INACTIVE');
+    EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN
+      CREATE TYPE "AnnouncementMediaType" AS ENUM ('IFRAME', 'VIDEO', 'IMAGE', 'LOTTIE', 'TEXT');
+    EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN
+      CREATE TYPE "AnnouncementPlacement" AS ENUM ('HOME_TOP', 'HOME_MIDDLE', 'HOME_BOTTOM', 'POPUP');
+    EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+    await prisma.$executeRawUnsafe(`DO $$ BEGIN
+      CREATE TYPE "AnnouncementDisplayMode" AS ENUM ('EVERY_PAGE_LOAD', 'ONCE_PER_SESSION', 'ONCE_PER_DAY', 'ONCE_PER_LOGIN', 'ONCE_PER_USER');
+    EXCEPTION WHEN duplicate_object THEN null; END $$;`);
+  } catch {}
 }
 
 // ── Auto-sync Postgres Tables ─────────────────────────────────────────────────
@@ -215,6 +236,70 @@ async function syncDatabaseTables() {
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "permission_request_share_links_token_idx" ON "permission_request_share_links"("token");`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "permission_request_share_links_createdBy_idx" ON "permission_request_share_links"("createdBy");`);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "permission_request_share_links_isActive_idx" ON "permission_request_share_links"("isActive");`);
+
+    // Ensure announcement_widgets and announcement_views tables exist
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "announcement_widgets" (
+        "id" TEXT NOT NULL,
+        "title" TEXT NOT NULL,
+        "type" "AnnouncementType" NOT NULL,
+        "mediaType" "AnnouncementMediaType" NOT NULL,
+        "state" "AnnouncementState" NOT NULL DEFAULT 'DRAFT',
+        "placement" "AnnouncementPlacement" NOT NULL DEFAULT 'HOME_TOP',
+        "srcUrl" TEXT,
+        "externalUrl" TEXT,
+        "content" TEXT,
+        "buttonText" TEXT,
+        "buttonUrl" TEXT,
+        "openInNewTab" BOOLEAN NOT NULL DEFAULT true,
+        "displayOrder" INTEGER NOT NULL DEFAULT 0,
+        "priority" INTEGER NOT NULL DEFAULT 0,
+        "targetRoles" TEXT[] DEFAULT ARRAY['student']::TEXT[],
+        "targetYears" TEXT[] DEFAULT ARRAY[]::TEXT[],
+        "targetDepartments" TEXT[] DEFAULT ARRAY[]::TEXT[],
+        "targetSections" TEXT[] DEFAULT ARRAY[]::TEXT[],
+        "startsAt" TIMESTAMP(3),
+        "endsAt" TIMESTAMP(3),
+        "displayMode" "AnnouncementDisplayMode" NOT NULL DEFAULT 'ONCE_PER_SESSION',
+        "closable" BOOLEAN NOT NULL DEFAULT true,
+        "showCloseButton" BOOLEAN NOT NULL DEFAULT true,
+        "autoCloseSeconds" INTEGER,
+        "backdropDismiss" BOOLEAN NOT NULL DEFAULT true,
+        "height" INTEGER,
+        "width" INTEGER,
+        "mobileHeight" INTEGER,
+        "desktopHeight" INTEGER,
+        "aspectRatio" TEXT,
+        "fullWidth" BOOLEAN NOT NULL DEFAULT false,
+        "createdById" TEXT,
+        "updatedById" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "announcement_widgets_pkey" PRIMARY KEY ("id")
+      );
+    `);
+
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "announcement_widgets_state_startsAt_endsAt_idx" ON "announcement_widgets"("state", "startsAt", "endsAt");`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "announcement_widgets_state_placement_displayOrder_idx" ON "announcement_widgets"("state", "placement", "displayOrder");`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "announcement_widgets_type_state_idx" ON "announcement_widgets"("type", "state");`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "announcement_widgets_priority_idx" ON "announcement_widgets"("priority");`);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "announcement_views" (
+        "id" TEXT NOT NULL,
+        "announcementId" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+        "viewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "dismissedAt" TIMESTAMP(3),
+        "clickedAt" TIMESTAMP(3),
+        CONSTRAINT "announcement_views_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "announcement_views_announcementId_userId_key" UNIQUE ("announcementId", "userId"),
+        CONSTRAINT "announcement_views_announcementId_fkey" FOREIGN KEY ("announcementId") REFERENCES "announcement_widgets"("id") ON DELETE CASCADE ON UPDATE CASCADE
+      );
+    `);
+
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "announcement_views_userId_idx" ON "announcement_views"("userId");`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "announcement_views_announcementId_idx" ON "announcement_views"("announcementId");`);
   } catch (err) {
     console.warn('⚠️ syncDatabaseTables notice:', err);
   }

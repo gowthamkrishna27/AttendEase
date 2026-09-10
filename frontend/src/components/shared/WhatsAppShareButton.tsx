@@ -23,7 +23,7 @@ interface WhatsAppShareButtonProps {
 }
 
 /** Helper to get or build the dedicated share link URL */
-async function resolveShareUrl(request?: AttendanceRequest | null): Promise<string | null> {
+async function resolveShareUrl(request?: AttendanceRequest | null): Promise<string> {
   const origin = window.location.origin;
 
   if (request?.shareUrl && request.shareUrl.startsWith('/r/')) {
@@ -35,20 +35,40 @@ async function resolveShareUrl(request?: AttendanceRequest | null): Promise<stri
   }
 
   // Fetch/create share token from backend (uses the canonical share-link endpoint)
-  const reqId = request?.publicId || request?.id || request?.requestId;
+  const reqId = request?.publicId || request?.id || (request as any)?.requestId || (request as any)?._id;
   if (reqId) {
     try {
       const linkRes = await api.getRequestShareLink(reqId);
       if (linkRes?.shareToken) {
         return `${origin}/r/${linkRes.shareToken}`;
       }
+      if (linkRes?.shareUrl) {
+        return `${origin}${linkRes.shareUrl.startsWith('/') ? '' : '/'}${linkRes.shareUrl}`;
+      }
     } catch (err) {
       console.warn('Could not fetch share link:', err);
     }
   }
 
-  // No valid share URL available — return null so caller can handle gracefully
-  return null;
+  // Fallback: If no request object passed, fetch student's latest request from API
+  try {
+    const list = await api.getRequests();
+    if (list && list.length > 0) {
+      const first = list[0];
+      if (first.shareUrl) return `${origin}${first.shareUrl}`;
+      if (first.shareToken) return `${origin}/r/${first.shareToken}`;
+      const firstId = first.publicId || first.id;
+      if (firstId) {
+        const linkRes = await api.getRequestShareLink(firstId);
+        if (linkRes?.shareToken) return `${origin}/r/${linkRes.shareToken}`;
+        if (linkRes?.shareUrl) return `${origin}${linkRes.shareUrl.startsWith('/') ? '' : '/'}${linkRes.shareUrl}`;
+      }
+    }
+  } catch (err) {
+    console.warn('Fallback getStudentRequests failed:', err);
+  }
+
+  return `${origin}/permissions`;
 }
 
 export const WhatsAppShareButton: React.FC<WhatsAppShareButtonProps> = ({
@@ -66,16 +86,14 @@ export const WhatsAppShareButton: React.FC<WhatsAppShareButtonProps> = ({
     try {
       const shareUrl = await resolveShareUrl(request);
 
-      if (!shareUrl) {
-        alert('Could not generate share link. Please try again.');
-        return;
-      }
-
       // Strict Section 5 Safe Message Format: NO sensitive personal or request details exposed
       const message = `Attendance Permission Request\n\nPlease review my attendance permission request:\n${shareUrl}`;
 
       const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.warn('Share error:', err);
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(`Attendance Permission Request\n\nPlease review my attendance permission request:\n${window.location.origin}/permissions`)}`, '_blank', 'noopener,noreferrer');
     } finally {
       setLoading(false);
     }
@@ -85,7 +103,6 @@ export const WhatsAppShareButton: React.FC<WhatsAppShareButtonProps> = ({
     e.stopPropagation();
     try {
       const shareUrl = await resolveShareUrl(request);
-      if (!shareUrl) return;
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
@@ -102,9 +119,13 @@ export const WhatsAppShareButton: React.FC<WhatsAppShareButtonProps> = ({
           onClick={handleShare}
           disabled={loading}
           title="Share Request on WhatsApp"
-          className={`w-12 h-12 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white flex items-center justify-center shadow-lg shadow-[#25D366]/30 active:scale-95 transition-all cursor-pointer ${className}`}
+          className={`w-13 h-13 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-lg shadow-orange-500/30 active:scale-95 transition-all cursor-pointer ${className}`}
         >
-          <WhatsAppIcon size={24} />
+          {loading ? (
+            <span className="w-5 h-5 rounded-full border-2 border-white/40 border-t-white inline-block animate-spin" />
+          ) : (
+            <WhatsAppIcon size={24} className="text-white" />
+          )}
         </button>
       </div>
     );

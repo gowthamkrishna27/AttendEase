@@ -88,7 +88,6 @@ export default function StudentLogin() {
             <Link to="/login/hod" className="text-[#F97316] font-semibold hover:underline">HOD Login</Link>
           </div>
         </div>
-
       </form>
     </LoginLayout>
   );

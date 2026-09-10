@@ -817,56 +817,61 @@ router.post('/', async (req: Request, res: Response) => {
     const finalDocName = documentName || (documentUrl ? 'Uploaded_Proof_Document' : undefined);
     const finalDocUrl = documentUrl || (documentName?.startsWith('http') || documentName?.startsWith('data:') ? documentName : undefined);
 
-    // Create request + audit action + notifications in a single transaction
-    const newDoc = await prisma.$transaction(async tx => {
-      const created = await tx.request.create({
-        data: {
-          requestId,
-          publicId,
-          studentId:        studentUser.userId,
-          primaryFacultyId: primaryFaculty?.userId ?? null,
-          reason:           safeReason as any,
-          reasonLabel:      REASON_LABELS[safeReason] ?? String(reason),
-          date,
-          ...(endDate && { endDate }),
-          ...(periods && { periods }),
-          startTime,
-          endTime,
-          description,
-          status:           'pending',
-          submittedAt:      new Date().toISOString(),
-          ...(finalDocName && { documentName: finalDocName }),
-          ...(finalDocUrl && { documentUrl: finalDocUrl }),
-        },
-      });
+    // 1. Create the base request document
+    const created = await prisma.request.create({
+      data: {
+        requestId,
+        publicId,
+        studentId:        studentUser.userId,
+        primaryFacultyId: primaryFaculty?.userId ?? null,
+        reason:           safeReason as any,
+        reasonLabel:      REASON_LABELS[safeReason] ?? String(reason),
+        date,
+        ...(endDate && { endDate }),
+        ...(periods && { periods }),
+        startTime,
+        endTime,
+        description,
+        status:           'pending',
+        submittedAt:      new Date().toISOString(),
+        ...(finalDocName && { documentName: finalDocName }),
+        ...(finalDocUrl && { documentUrl: finalDocUrl }),
+      },
+    });
 
-      if (facultyDocs.length > 0) {
-        await tx.requestFaculty.createMany({
+    // 2. Assign faculty members
+    if (facultyDocs.length > 0) {
+      try {
+        await prisma.requestFaculty.createMany({
           data: facultyDocs.map(f => ({
             requestId: created.id,
             facultyId: f.userId,
           })),
           skipDuplicates: true,
         });
+      } catch (fErr) {
+        console.warn('Could not create request faculty assignments:', fErr);
       }
+    }
 
-      // Generate dedicated secure share token
-      const shareToken = generateShareToken(10);
-      try {
-        await (tx as any).permissionRequestShareLink.create({
-          data: {
-            requestId: created.id,
-            token:     shareToken,
-            createdBy: studentUser.userId,
-            isActive:  true,
-          },
-        });
-      } catch (tokenErr) {
-        console.warn('Could not create share token in transaction:', tokenErr);
-      }
+    // 3. Generate dedicated secure share token
+    const shareToken = generateShareToken(10);
+    try {
+      await (prisma as any).permissionRequestShareLink.create({
+        data: {
+          requestId: created.id,
+          token:     shareToken,
+          createdBy: studentUser.userId,
+          isActive:  true,
+        },
+      });
+    } catch (tokenErr) {
+      console.warn('Could not create share token entry:', tokenErr);
+    }
 
-      // Record audit action
-      await tx.requestAction.create({
+    // 4. Record audit action
+    try {
+      await prisma.requestAction.create({
         data: {
           requestId:     created.id,
           performedById: studentUser.userId,
@@ -874,10 +879,14 @@ router.post('/', async (req: Request, res: Response) => {
           remarks:       'Request submitted by student',
         },
       });
+    } catch (actErr) {
+      console.warn('Could not create request action audit log:', actErr);
+    }
 
-      // Generate notification for assigned faculty
-      if (facultyDocs.length > 0) {
-        await tx.notification.createMany({
+    // 5. Generate notifications for assigned faculty
+    if (facultyDocs.length > 0) {
+      try {
+        await prisma.notification.createMany({
           data: facultyDocs.map(f => ({
             userId:    f.userId,
             requestId: created.id,
@@ -886,23 +895,31 @@ router.post('/', async (req: Request, res: Response) => {
             message:   `${studentUser.name} submitted a new request for ${REASON_LABELS[safeReason] ?? reason}.`,
           })),
         });
+      } catch (notifErr) {
+        console.warn('Could not create notifications:', notifErr);
       }
+    }
 
-      return tx.request.findUnique({
+    // 6. Fetch complete request with all relations
+    let newDoc = null;
+    try {
+      newDoc = await prisma.request.findUnique({
         where:   { id: created.id },
         include: REQUEST_INCLUDE,
       });
-    });
+    } catch (fetchErr) {
+      console.warn('Could not fetch request with relations, using created object:', fetchErr);
+    }
 
-    const mapped = toApi(newDoc!);
-    const shareToken = mapped.shareToken || ((newDoc as any)?.shareLinks?.[0]?.token);
-    const shareUrl = shareToken ? `/r/${shareToken}` : `/share/${mapped.publicId || mapped.id}`;
+    const mapped = toApi(newDoc || created);
+    const finalShareToken = shareToken || mapped.shareToken || ((newDoc as any)?.shareLinks?.[0]?.token);
+    const shareUrl = finalShareToken ? `/r/${finalShareToken}` : `/share/${mapped.publicId || mapped.id}`;
 
     res.status(201).json({
       success: true,
       request: mapped,
       requestId: mapped.id,
-      shareToken,
+      shareToken: finalShareToken,
       shareUrl,
     });
   } catch (err) {

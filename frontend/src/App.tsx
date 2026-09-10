@@ -48,6 +48,7 @@ import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
 import AdminInvigilation from './pages/admin/Invigilation';
 import AdminCounseling from './pages/admin/Counseling';
+import AdminAnnouncements from './pages/admin/Announcements';
 import AdminRequests from './pages/admin/Requests';
 import AdminDatabase from './pages/admin/Database';
 import AdminSettings from './pages/admin/Settings';
@@ -186,6 +187,7 @@ function AppRoutes() {
         <Route path="/admin/users" element={<ProtectedRoute role="admin"><AdminUsers /></ProtectedRoute>} />
         <Route path="/admin/invigilation" element={<ProtectedRoute role="admin"><AdminInvigilation /></ProtectedRoute>} />
         <Route path="/admin/counseling" element={<ProtectedRoute role="admin"><AdminCounseling /></ProtectedRoute>} />
+        <Route path="/admin/announcements" element={<ProtectedRoute role="admin"><AdminAnnouncements /></ProtectedRoute>} />
         <Route path="/admin/requests" element={<ProtectedRoute role="admin"><AdminRequests /></ProtectedRoute>} />
         <Route path="/admin/database" element={<ProtectedRoute role="admin"><AdminDatabase /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />

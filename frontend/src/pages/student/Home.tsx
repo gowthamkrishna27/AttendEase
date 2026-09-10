@@ -9,6 +9,8 @@ import * as api from '../../lib/api';
 import { formatDateShort, formatTimeAgo } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
+import { AnnouncementRenderer } from '../../components/announcements/AnnouncementRenderer';
+import { CsdCricketWidget } from '../../components/widgets/CsdCricketWidget';
 
 const card = (extra: object = {}) => ({
   background: '#ffffff',
@@ -45,6 +47,12 @@ export default function StudentHome() {
     queryFn: api.getRequests,
   });
 
+  const { data: announcements = [] } = useQuery({
+    queryKey: ['announcements'],
+    queryFn: api.getAnnouncements,
+    refetchInterval: 60000,
+  });
+
   const recent = allRequests.slice(0, 3);
 
   const quickActions = [
@@ -77,6 +85,12 @@ export default function StudentHome() {
           .student-id-avatar { width: 84px !important; height: 105px !important; }
         }
       `}</style>
+
+      {/* ── Dynamic Opening Animation / Popup Dialog ── */}
+      <AnnouncementRenderer announcements={announcements} placement="POPUP" />
+
+      {/* ── Dynamic Top Announcements / Banners ── */}
+      <AnnouncementRenderer announcements={announcements} placement="HOME_TOP" />
 
       {/* ── Student ID Card (desktop/mobile top) ── */}
       <motion.div
@@ -190,51 +204,16 @@ export default function StudentHome() {
           </motion.button>
         </motion.div>
 
-        {/* Live Cricket Score (Small Card) */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.05, ease: [0.25, 0.1, 0.25, 1] }}
-          whileHover={{ translateY: -1, boxShadow: '0 6px 20px rgba(0,0,0,0.06)' }}
-          className="live-score-card"
-          style={{
-            ...card({ padding: '12px 14px' }),
-            width: '100%',
-            maxWidth: 412,
-            boxSizing: 'border-box',
-            flex: '0 0 auto',
-            transition: 'box-shadow 0.2s ease, transform 0.2s ease',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #F1F5F9' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#EF4444', display: 'inline-block' }} />
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.01em' }}>
-                HPL Live Score
-              </span>
-            </div>
-            <a
-              href="https://csdcsitcricket.up.railway.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Open Live Scoreboard"
-              style={{ fontSize: 11.5, fontWeight: 600, color: '#EA580C', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3 }}
-            >
-              Full Center ↗
-            </a>
+        {/* Dynamic Widgets or Fallback HPL Score Card */}
+        {announcements.some((a) => a.placement === 'HOME_MIDDLE') ? (
+          <div className="flex-1 min-w-[320px]">
+            <AnnouncementRenderer announcements={announcements} placement="HOME_MIDDLE" />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
-            <iframe
-              src="https://csdcsitcricket.up.railway.app/widget/live"
-              width="380"
-              height="175"
-              frameBorder="0"
-              scrolling="no"
-              style={{ background: 'transparent', border: 'none', overflow: 'hidden', maxWidth: '100%', display: 'block' }}
-              title="House Premier League Cricket Live Score"
-            />
+        ) : (
+          <div className="flex-1 min-w-[320px] max-w-[560px]">
+            <CsdCricketWidget />
           </div>
-        </motion.div>
+        )}
       </div>
 
       {/* ── Recent Requests Table ── */}
@@ -395,6 +374,11 @@ export default function StudentHome() {
           View all requests <ArrowRight size={13} />
         </button>
       </motion.div>
+
+      {/* ── Dynamic Bottom Announcements ── */}
+      <div style={{ marginTop: 24 }}>
+        <AnnouncementRenderer announcements={announcements} placement="HOME_BOTTOM" />
+      </div>
 
     </PageWrapper>
   );

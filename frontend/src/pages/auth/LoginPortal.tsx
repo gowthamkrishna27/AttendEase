@@ -3,12 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, BookOpen, ShieldCheck,
-  Eye, EyeOff, Fingerprint, Shield, MessageSquare,
+  Eye, EyeOff, Fingerprint, Shield, MessageSquare, Phone
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../context/AuthContext';
 import logo from '../../assets/logo.png';
 import { RegisterPasskeyModal } from '../../components/auth/RegisterPasskeyModal';
+import { HelplineModal } from '../../components/shared/HelplineModal';
 import * as api from '../../lib/api';
 
 type Tab = 'student' | 'faculty' | 'hod';
@@ -82,6 +83,7 @@ export default function LoginPortal() {
   const [rememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isHelplineOpen, setIsHelplineOpen] = useState(false);
 
   const [dynamicFaculty, setDynamicFaculty] = useState<api.PublicFacultyMember[]>([]);
 
@@ -622,25 +624,34 @@ export default function LoginPortal() {
             <span>View Approved Permissions</span>
           </button>
 
-          {/* Bottom Forgot PIN / Password link */}
-          <div className="text-center mt-1">
+          {/* Bottom Forgot PIN / Password link & Helpline button */}
+          <div className="flex items-center justify-between mt-1 text-[12px]">
             {activeTab === 'faculty' || activeTab === 'hod' ? (
               <button
                 type="button"
-                onClick={() => alert('Please contact the college administration to reset your PIN.')}
-                className="text-[12px] font-medium text-slate-500 hover:text-orange-600 transition-colors cursor-pointer"
+                onClick={() => setIsHelplineOpen(true)}
+                className="font-medium text-slate-500 hover:text-orange-600 transition-colors cursor-pointer"
               >
                 Forgot PIN?
               </button>
             ) : (
               <button
                 type="button"
-                onClick={() => alert('Please contact the administration office or your counselor to reset your password.')}
-                className="text-[12px] font-medium text-slate-500 hover:text-orange-600 transition-colors cursor-pointer"
+                onClick={() => setIsHelplineOpen(true)}
+                className="font-medium text-slate-500 hover:text-orange-600 transition-colors cursor-pointer"
               >
                 Forgot Password?
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setIsHelplineOpen(true)}
+              className="inline-flex items-center gap-1 font-bold text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
+            >
+              <Phone size={12} />
+              <span>Helpline &amp; Contacts</span>
+            </button>
           </div>
         </form>
       </motion.div>
@@ -649,6 +660,14 @@ export default function LoginPortal() {
       <p className="text-xs text-slate-400 mt-5 text-center transition-colors">
         © 2026 Attend<span className="text-orange-600 font-semibold">Ease</span> · SRKREC. All rights reserved.
       </p>
+
+      {/* Developer Helpline Support Modal */}
+      <HelplineModal
+        isOpen={isHelplineOpen}
+        onClose={() => setIsHelplineOpen(false)}
+        title="Technical Support & Helpline"
+        subtitle="Need password reset, login assistance, or facing any technical issue? Reach our developer team directly."
+      />
 
       {/* Post-PIN Login Passkey Registration Modal */}
       <RegisterPasskeyModal

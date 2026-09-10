@@ -1369,6 +1369,217 @@ export async function revokeCoordinator(id: string): Promise<{ success: boolean;
   });
 }
 
+// ─── Dynamic Announcements, Widgets & Opening Animations ──────────────────────
+
+export type AnnouncementType = 'WIDGET' | 'OPENING_ANIMATION' | 'BANNER';
+export type AnnouncementState = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+export type AnnouncementMediaType = 'IFRAME' | 'VIDEO' | 'IMAGE' | 'LOTTIE' | 'TEXT';
+export type AnnouncementPlacement = 'HOME_TOP' | 'HOME_MIDDLE' | 'HOME_BOTTOM' | 'POPUP';
+export type AnnouncementDisplayMode =
+  | 'EVERY_PAGE_LOAD'
+  | 'ONCE_PER_SESSION'
+  | 'ONCE_PER_DAY'
+  | 'ONCE_PER_LOGIN'
+  | 'ONCE_PER_USER';
+
+export type ComputedAnnouncementStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'SCHEDULED' | 'EXPIRED';
+
+export interface AnnouncementItem {
+  id: string;
+  title: string;
+  type: AnnouncementType;
+  mediaType: AnnouncementMediaType;
+  placement: AnnouncementPlacement;
+  srcUrl: string | null;
+  externalUrl: string | null;
+  content: string | null;
+  buttonText: string | null;
+  buttonUrl: string | null;
+  openInNewTab: boolean;
+  displayOrder: number;
+  priority: number;
+  displayMode: AnnouncementDisplayMode;
+  closable: boolean;
+  showCloseButton: boolean;
+  autoCloseSeconds: number | null;
+  backdropDismiss: boolean;
+  height: number | null;
+  width: number | null;
+  mobileHeight: number | null;
+  desktopHeight: number | null;
+  aspectRatio: string | null;
+  fullWidth: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnnouncementAnalytics {
+  viewsCount: number;
+  dismissalsCount: number;
+  clicksCount: number;
+  ctr: number;
+}
+
+export interface AnnouncementAdminItem extends AnnouncementItem {
+  state: AnnouncementState;
+  computedStatus: ComputedAnnouncementStatus;
+  targetRoles: string[];
+  targetYears: string[];
+  targetDepartments: string[];
+  targetSections: string[];
+  startsAt: string | null;
+  endsAt: string | null;
+  createdById: string | null;
+  updatedById: string | null;
+  analytics?: AnnouncementAnalytics;
+}
+
+export interface CreateAnnouncementInput {
+  title: string;
+  type: AnnouncementType;
+  mediaType: AnnouncementMediaType;
+  state?: AnnouncementState;
+  placement?: AnnouncementPlacement;
+  srcUrl?: string | null;
+  externalUrl?: string | null;
+  content?: string | null;
+  buttonText?: string | null;
+  buttonUrl?: string | null;
+  openInNewTab?: boolean;
+  displayOrder?: number;
+  priority?: number;
+  targetRoles?: string[];
+  targetYears?: string[];
+  targetDepartments?: string[];
+  targetSections?: string[];
+  startsAt?: string | null;
+  endsAt?: string | null;
+  displayMode?: AnnouncementDisplayMode;
+  closable?: boolean;
+  showCloseButton?: boolean;
+  autoCloseSeconds?: number | null;
+  backdropDismiss?: boolean;
+  height?: number | null;
+  width?: number | null;
+  mobileHeight?: number | null;
+  desktopHeight?: number | null;
+  aspectRatio?: string | null;
+  fullWidth?: boolean;
+}
+
+export interface UpdateAnnouncementInput extends Partial<CreateAnnouncementInput> {}
+
+/**
+ * Fetch eligible active announcements for the current student/user.
+ */
+export async function getAnnouncements(): Promise<AnnouncementItem[]> {
+  try {
+    const res = await apiFetch<{ announcements: AnnouncementItem[] }>('/api/announcements');
+    return res.announcements || [];
+  } catch (err) {
+    console.error('getAnnouncements fetch error:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetch all announcements for admin management.
+ */
+export async function getAdminAnnouncements(params?: {
+  type?: string;
+  state?: string;
+  placement?: string;
+  search?: string;
+}): Promise<AnnouncementAdminItem[]> {
+  const query = new URLSearchParams();
+  if (params?.type && params.type !== 'ALL') query.set('type', params.type);
+  if (params?.state && params.state !== 'ALL') query.set('state', params.state);
+  if (params?.placement && params.placement !== 'ALL') query.set('placement', params.placement);
+  if (params?.search) query.set('search', params.search);
+
+  const qs = query.toString() ? `?${query.toString()}` : '';
+  const res = await apiFetch<{ announcements: AnnouncementAdminItem[]; total: number }>(`/api/admin/announcements${qs}`);
+  return res.announcements || [];
+}
+
+/**
+ * Fetch a single announcement by ID for admin editing.
+ */
+export async function getAdminAnnouncement(id: string): Promise<AnnouncementAdminItem> {
+  const res = await apiFetch<{ announcement: AnnouncementAdminItem }>(`/api/admin/announcements/${encodeURIComponent(id)}`);
+  return res.announcement;
+}
+
+/**
+ * Create a new announcement.
+ */
+export async function createAnnouncement(data: CreateAnnouncementInput): Promise<AnnouncementAdminItem> {
+  const res = await apiFetch<{ announcement: AnnouncementAdminItem }>('/api/admin/announcements', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.announcement;
+}
+
+/**
+ * Update an existing announcement.
+ */
+export async function updateAnnouncement(id: string, data: UpdateAnnouncementInput): Promise<AnnouncementAdminItem> {
+  const res = await apiFetch<{ announcement: AnnouncementAdminItem }>(`/api/admin/announcements/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res.announcement;
+}
+
+/**
+ * Toggle announcement active/inactive state.
+ */
+export async function toggleAnnouncementState(id: string, state: AnnouncementState): Promise<AnnouncementAdminItem> {
+  const res = await apiFetch<{ announcement: AnnouncementAdminItem }>(`/api/admin/announcements/${encodeURIComponent(id)}/state`, {
+    method: 'PATCH',
+    body: JSON.stringify({ state }),
+  });
+  return res.announcement;
+}
+
+/**
+ * Delete an announcement.
+ */
+export async function deleteAnnouncement(id: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`/api/admin/announcements/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Mark announcement as viewed (impression tracking).
+ */
+export async function markAnnouncementViewed(id: string): Promise<void> {
+  try {
+    await apiFetch(`/api/announcements/${encodeURIComponent(id)}/view`, { method: 'POST' });
+  } catch {}
+}
+
+/**
+ * Mark announcement as dismissed.
+ */
+export async function dismissAnnouncement(id: string): Promise<void> {
+  try {
+    await apiFetch(`/api/announcements/${encodeURIComponent(id)}/dismiss`, { method: 'POST' });
+  } catch {}
+}
+
+/**
+ * Track announcement CTA click.
+ */
+export async function trackAnnouncementClick(id: string): Promise<void> {
+  try {
+    await apiFetch(`/api/announcements/${encodeURIComponent(id)}/click`, { method: 'POST' });
+  } catch {}
+}
+
+
 
 
 

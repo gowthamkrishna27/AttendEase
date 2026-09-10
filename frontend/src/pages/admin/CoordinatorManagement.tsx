@@ -64,14 +64,14 @@ export default function CoordinatorManagement() {
     queryFn: () => api.getCoordinators(),
   });
 
-  const { data: facultyMembers = [] } = useQuery({
+  const { data: facultyMembers = [], isLoading: isLoadingFaculty } = useQuery({
     queryKey: ['faculty-roster'],
     queryFn: async () => {
       try {
-        const users = await api.getUsers('faculty');
-        const hods = await api.getUsers('hod');
-        const combined = [...users, ...hods];
-        return combined.filter((u: any) => u.role === 'faculty' || u.role === 'hod');
+        const users = await api.getUsers();
+        return users
+          .filter((u: any) => (u.role === 'faculty' || u.role === 'hod') && u.isActive !== false)
+          .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
       } catch {
         return [];
       }
@@ -80,14 +80,16 @@ export default function CoordinatorManagement() {
   });
 
   const filteredFaculty = useMemo(() => {
-    const onlyFaculty = facultyMembers.filter((f: any) => f.role === 'faculty' || f.role === 'hod');
-    if (!facultySearch.trim()) return onlyFaculty.slice(0, 10);
+    const onlyFaculty = facultyMembers.filter((f: any) => (f.role === 'faculty' || f.role === 'hod') && f.isActive !== false);
+    if (!facultySearch.trim()) return onlyFaculty;
     const q = facultySearch.toLowerCase().trim();
     return onlyFaculty.filter((f: any) =>
       (f.name || '').toLowerCase().includes(q) ||
       (f.email || '').toLowerCase().includes(q) ||
-      (f.department || '').toLowerCase().includes(q)
-    ).slice(0, 15);
+      (f.department || '').toLowerCase().includes(q) ||
+      (f.designation || '').toLowerCase().includes(q) ||
+      (f.userId || '').toLowerCase().includes(q)
+    );
   }, [facultyMembers, facultySearch]);
 
   const filteredCoordinators = useMemo(() => {
@@ -272,6 +274,9 @@ export default function CoordinatorManagement() {
                 {filteredCoordinators.map((c: CoordinatorAccess) => {
                   const catConfig = CATEGORY_LABELS[c.category] || CATEGORY_LABELS.internship;
                   const CatIcon = catConfig.icon;
+                  const isRegeneratingThis = regenerateMutation.isPending && (regenerateMutation.variables as any) === c.id;
+                  const isTogglingThis = toggleMutation.isPending && (toggleMutation.variables as any)?.id === c.id;
+                  const isRevokingThis = revokeMutation.isPending && (revokeMutation.variables as any) === c.id;
                   return (
                     <tr key={c.id} className="hover:bg-slate-50/80 transition">
                       {/* Faculty Info */}
@@ -325,21 +330,22 @@ export default function CoordinatorManagement() {
                             onClick={() => regenerateMutation.mutate(c.id)}
                             title="Regenerate Authorization Code (Invalidates old code)"
                             disabled={regenerateMutation.isPending}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 border border-transparent hover:border-orange-200 transition"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 border border-transparent hover:border-orange-200 transition disabled:opacity-50"
                           >
-                            <RefreshCw size={14} className={regenerateMutation.isPending ? 'animate-spin' : ''} />
+                            <RefreshCw size={14} className={isRegeneratingThis ? 'animate-spin text-orange-600' : ''} />
                           </button>
 
                           <button
                             onClick={() => toggleMutation.mutate({ id: c.id, isActive: !c.isActive })}
                             title={c.isActive ? 'Disable Access' : 'Enable Access'}
-                            className={`p-1.5 rounded-lg transition border border-transparent ${
+                            disabled={toggleMutation.isPending}
+                            className={`p-1.5 rounded-lg transition border border-transparent disabled:opacity-50 ${
                               c.isActive
                                 ? 'text-slate-500 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-200'
                                 : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200'
                             }`}
                           >
-                            <Power size={14} />
+                            <Power size={14} className={isTogglingThis ? 'animate-pulse text-amber-600' : ''} />
                           </button>
 
                           <button
@@ -349,9 +355,10 @@ export default function CoordinatorManagement() {
                               }
                             }}
                             title="Revoke Coordinator Access"
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition"
+                            disabled={revokeMutation.isPending}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition disabled:opacity-50"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={14} className={isRevokingThis ? 'animate-pulse text-rose-600' : ''} />
                           </button>
                         </div>
                       </td>
@@ -388,12 +395,23 @@ export default function CoordinatorManagement() {
 
               {/* Select Faculty Member */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Select Faculty Member</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Select Faculty Member
+                  </label>
+                  {!selectedFaculty && facultyMembers.length > 0 && (
+                    <span className="text-[11px] font-semibold text-slate-400">
+                      {filteredFaculty.length} of {facultyMembers.length} available
+                    </span>
+                  )}
+                </div>
                 {selectedFaculty ? (
                   <div className="p-3 bg-orange-50/60 rounded-xl border border-orange-200 flex items-center justify-between">
                     <div>
                       <p className="font-black text-slate-900 text-xs">{selectedFaculty.name}</p>
-                      <p className="text-[11px] text-slate-500">{selectedFaculty.department} • {selectedFaculty.email}</p>
+                      <p className="text-[11px] text-slate-500">
+                        {selectedFaculty.department || 'Faculty'}{selectedFaculty.designation ? ` • ${selectedFaculty.designation}` : ''} • {selectedFaculty.email}
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -411,27 +429,43 @@ export default function CoordinatorManagement() {
                         type="text"
                         value={facultySearch}
                         onChange={e => setFacultySearch(e.target.value)}
-                        placeholder="Search faculty by name or department..."
-                        className="w-full pl-9 pr-3 py-2 text-xs font-semibold rounded-xl bg-slate-50 border border-slate-200"
+                        placeholder="Search faculty by name, email, department..."
+                        className="w-full pl-9 pr-3 py-2 text-xs font-semibold rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
                       />
                     </div>
 
-                    <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white">
-                      {filteredFaculty.map((f: any) => (
-                        <button
-                          key={f.id || f.userId}
-                          type="button"
-                          onClick={() => setSelectedFaculty(f)}
-                          className="w-full text-left p-2.5 hover:bg-orange-50 flex items-center justify-between text-xs transition"
-                        >
-                          <div>
-                            <span className="font-bold text-slate-900">{f.name}</span>
-                            <span className="text-[11px] text-slate-500 ml-2">({f.department})</span>
-                          </div>
-                          <span className="text-[10.5px] font-bold text-orange-600">Select</span>
-                        </button>
-                      ))}
-                    </div>
+                    {isLoadingFaculty ? (
+                      <div className="p-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                        <span>Loading faculty roster...</span>
+                      </div>
+                    ) : filteredFaculty.length === 0 ? (
+                      <div className="p-5 text-center text-xs text-slate-400 bg-slate-50/50 rounded-xl border border-slate-200">
+                        No faculty found matching &quot;{facultySearch}&quot;
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white shadow-inner">
+                        {filteredFaculty.map((f: any) => (
+                          <button
+                            key={f.id || f.userId}
+                            type="button"
+                            onClick={() => setSelectedFaculty(f)}
+                            className="w-full text-left p-2.5 hover:bg-orange-50 flex items-center justify-between text-xs transition"
+                          >
+                            <div className="pr-2">
+                              <span className="font-bold text-slate-900">{f.name}</span>
+                              <span className="text-[11px] text-slate-500 ml-2">
+                                ({f.department || 'Faculty'}{f.designation ? ` - ${f.designation}` : ''})
+                              </span>
+                              <p className="text-[10.5px] text-slate-400">{f.email}</p>
+                            </div>
+                            <span className="text-[10.5px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-200 shrink-0">
+                              Select
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

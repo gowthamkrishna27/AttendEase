@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -7,11 +7,13 @@ import {
   Home, Clock, User, LogOut, LogIn,
   Bell, Plus,
   ClipboardList, Users, Settings, Shield,
-  CheckSquare, UserCheck, Database, CalendarCheck, Award
+  CheckSquare, UserCheck, Database, CalendarCheck, Award,
+  Phone
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import attendEaseLogo from '../../assets/logo.png';
 import { MeniscusNavigation } from '../navigation/MeniscusNavigation';
+import { HelplineModal } from '../shared/HelplineModal';
 const srkrLogo = '/srkr-emblem.png';
 
 interface PageWrapperProps {
@@ -106,11 +108,14 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const { user, logout } = useAuth();
+  const [isHelplineOpen, setIsHelplineOpen] = useState(false);
 
   useEffect(() => {
     localStorage.removeItem('attendease_theme');
     document.documentElement.classList.remove('dark');
   }, []);
+
+  const unreadCount = 0;
 
   const userPortalLink = user
     ? (user.role === 'admin' ? '/admin' : user.role === 'hod' ? '/hod' : user.role === 'faculty' ? '/faculty' : '/student')
@@ -144,9 +149,9 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
       to: item.to || '',
       label: item.label || '',
       icon: item.icon || Home,
-      hasBadge: item.hasBadge,
+      hasBadge: Boolean(item.hasBadge && unreadCount > 0),
     }));
-  }, [role]);
+  }, [role, unreadCount]);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#F3F6FB', fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
@@ -182,6 +187,32 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
         </Link>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Helpline / Developer Contacts Button */}
+          <button
+            type="button"
+            onClick={() => setIsHelplineOpen(true)}
+            title="Helpline & Developer Contact Details"
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '6px 12px', fontSize: 12.5, fontWeight: 600,
+              color: '#0F172A', background: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              borderRadius: 8, textDecoration: 'none', cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#F1F5F9';
+              e.currentTarget.style.borderColor = '#CBD5E1';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#F8FAFC';
+              e.currentTarget.style.borderColor = '#E2E8F0';
+            }}
+          >
+            <Phone size={13} className="text-orange-500" />
+            <span>Helpline</span>
+          </button>
+
           {/* View Permissions Button in top navbar */}
           {routerLocation.pathname === '/permissions' ? (
             user && (
@@ -325,8 +356,24 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           </div>
         </Link>
 
-        {/* Center/Right: View Permissions + Settings / Login (mobile) */}
+        {/* Center/Right: View Permissions + Settings / Login + Helpline (mobile) */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Mobile Helpline Button */}
+          <button
+            type="button"
+            onClick={() => setIsHelplineOpen(true)}
+            title="Helpline & Developer Contact Details"
+            style={{
+              width: 32, height: 32, borderRadius: 7,
+              background: '#F8FAFC', border: '1px solid #E2E8F0',
+              color: '#EA580C', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <Phone size={14} />
+          </button>
+
           {routerLocation.pathname !== '/permissions' ? (
             <Link
               to="/permissions"
@@ -515,10 +562,32 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           {children}
 
           <div className="footer-line print:hidden" style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #EEF2F7', textAlign: 'center', fontSize: 12, color: '#94A3B8' }}>
-            © 2026 AttendEase • SRKR Engineering College, Bhimavaram. All rights reserved.
+            <span>© 2026 AttendEase • SRKR Engineering College, Bhimavaram. All rights reserved. </span>
+            <button
+              type="button"
+              onClick={() => setIsHelplineOpen(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#EA580C',
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: '0 4px',
+                textDecoration: 'underline',
+                fontSize: 12,
+              }}
+            >
+              Helpline &amp; Contacts
+            </button>
           </div>
         </motion.main>
       </div>
+
+      {/* ── Helpline Modal Popup ── */}
+      <HelplineModal
+        isOpen={isHelplineOpen}
+        onClose={() => setIsHelplineOpen(false)}
+      />
 
       {/* ═══════════════════════════════════════
           MENISCUS LIQUID NAVIGATION (Hidden in Viewer Mode)
@@ -565,3 +634,5 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
     </div>
   );
 }
+
+export default PageWrapper;
