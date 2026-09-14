@@ -617,8 +617,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           .desktop-topbar   { display: flex !important; }
           .desktop-sidebar  { display: flex !important; }
           .mobile-topbar    { display: none !important; }
-          .mobile-bottom-nav{ display: ${role === 'viewer' ? 'none' : 'flex'} !important; }
-          .main-content     { padding: 24px 32px 92px !important; }
+          .mobile-bottom-nav, .meniscus-wrapper { display: none !important; }
+          .main-content     { padding: 24px 32px 48px !important; }
         }
         /* ── Print ── */
         @media print {
