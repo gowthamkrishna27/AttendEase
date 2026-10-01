@@ -74,7 +74,9 @@ app.use(cors({
     const isAllowed =
       explicitAllowedOrigins.includes(origin) ||
       /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin) ||
-      /^http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin);
+      /^http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin) ||
+      /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:[0-9]+)?$/.test(origin) ||
+      /^https:\/\/[a-zA-Z0-9-.]+\.(devtunnels\.ms|github\.dev|loca\.lt|ngrok-free\.app|ngrok\.io|trycloudflare\.com)$/.test(origin);
 
     if (isAllowed) {
       callback(null, true);
