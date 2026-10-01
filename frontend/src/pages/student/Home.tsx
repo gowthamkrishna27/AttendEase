@@ -350,7 +350,7 @@ export default function StudentHome() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: '#000000', margin: '0 0 2px' }}>{req.reasonLabel}</p>
                 <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>
-                  {formatDateShort(req.date)} · {req.reasonLabel}
+                  {formatDateShort(req.date)}
                 </p>
               </div>
               {/* Status + arrow */}
