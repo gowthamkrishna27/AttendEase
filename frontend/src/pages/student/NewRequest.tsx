@@ -453,16 +453,16 @@ export default function NewRequest() {
           </div>
 
           {/* Section 2 — Date, Duration & Period Selection */}
-          <div style={{ ...card({ padding: '22px 24px' }) }}>
+          <div style={{ ...card({ padding: '22px 24px', overflow: 'hidden' }) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
               <div style={glassIconStyle}>
                 <CalendarDays size={15} style={{ color: '#EA580C' }} />
               </div>
-              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Request Type & Duration</h2>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>Request Type &amp; Duration</h2>
             </div>
 
             {/* Request Type Selector Tabs */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 18, background: '#F8FAFC', padding: 4, borderRadius: 12, border: '1px solid #E8EDF2' }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: '#F8FAFC', padding: 3, borderRadius: 10, border: '1px solid #E2E8F0' }}>
               <button
                 type="button"
                 onClick={() => {
@@ -470,16 +470,16 @@ export default function NewRequest() {
                   if (selectedPeriods.length === 0) setSelectedPeriods([1, 2]);
                 }}
                 style={{
-                  flex: 1, padding: '9px 12px', fontSize: 13, fontWeight: 700, borderRadius: 9,
+                  flex: 1, padding: '7px 10px', fontSize: 12, fontWeight: 600, borderRadius: 8,
                   border: 'none', cursor: 'pointer', transition: 'all 0.15s ease',
                   background: requestType === 'permission' ? '#ffffff' : 'transparent',
                   color: requestType === 'permission' ? '#EA580C' : '#64748B',
-                  boxShadow: requestType === 'permission' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                  boxShadow: requestType === 'permission' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}
               >
-                <Zap size={14} />
-                <span>Short Permission (Hours/Periods)</span>
+                <Zap size={16} strokeWidth={2.2} style={{ color: requestType === 'permission' ? '#EA580C' : '#94A3B8' }} />
+                <span>Short</span>
               </button>
               <button
                 type="button"
@@ -488,16 +488,16 @@ export default function NewRequest() {
                   setEndDate(startDate);
                 }}
                 style={{
-                  flex: 1, padding: '9px 12px', fontSize: 13, fontWeight: 700, borderRadius: 9,
+                  flex: 1, padding: '7px 10px', fontSize: 12, fontWeight: 600, borderRadius: 8,
                   border: 'none', cursor: 'pointer', transition: 'all 0.15s ease',
                   background: requestType === 'leave' ? '#ffffff' : 'transparent',
                   color: requestType === 'leave' ? '#EA580C' : '#64748B',
-                  boxShadow: requestType === 'leave' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                  boxShadow: requestType === 'leave' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}
               >
-                <Calendar size={14} />
-                <span>Full-Day / Multi-Day Leave</span>
+                <Calendar size={16} strokeWidth={2.2} style={{ color: requestType === 'leave' ? '#EA580C' : '#94A3B8' }} />
+                <span>Long</span>
               </button>
             </div>
 
@@ -522,25 +522,25 @@ export default function NewRequest() {
 
                 {/* 8 Linear Period Selector Boxes */}
                 <div style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <label style={{ ...labelStyle, margin: 0 }}>
-                      Select Permission Period(s) <span style={{ fontSize: 11, color: '#EA580C', fontWeight: 700 }}>(Select 1 or more hours)</span>
+                      Select Periods
                     </label>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', background: '#F1F5F9', padding: '2px 8px', borderRadius: 6 }}>
-                      {computedTimeRange.start} — {computedTimeRange.end}
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#EA580C', background: '#FFF7ED', border: '1px solid #FFEDD5', padding: '3px 10px', borderRadius: 8, whiteSpace: 'nowrap' }}>
+                      {computedTimeRange.start} – {computedTimeRange.end}
                     </span>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                     {[
-                      { id: 1, label: 'P1', time: '09:00 - 09:45' },
-                      { id: 2, label: 'P2', time: '09:45 - 10:30' },
-                      { id: 3, label: 'P3', time: '10:30 - 11:15' },
-                      { id: 4, label: 'P4', time: '11:15 - 12:00' },
-                      { id: 5, label: 'P5', time: '01:30 - 02:15' },
-                      { id: 6, label: 'P6', time: '02:15 - 03:00' },
-                      { id: 7, label: 'P7', time: '03:00 - 03:45' },
-                      { id: 8, label: 'P8', time: '03:45 - 04:30' },
+                      { id: 1, label: 'P1', time: '9:00 – 9:45' },
+                      { id: 2, label: 'P2', time: '9:45 – 10:30' },
+                      { id: 3, label: 'P3', time: '10:30 – 11:15' },
+                      { id: 4, label: 'P4', time: '11:15 – 12:00' },
+                      { id: 5, label: 'P5', time: '1:30 – 2:15' },
+                      { id: 6, label: 'P6', time: '2:15 – 3:00' },
+                      { id: 7, label: 'P7', time: '3:00 – 3:45' },
+                      { id: 8, label: 'P8', time: '3:45 – 4:30' },
                     ].map(p => {
                       const isSel = selectedPeriods.includes(p.id);
                       return (
@@ -549,32 +549,32 @@ export default function NewRequest() {
                           type="button"
                           onClick={() => togglePeriod(p.id)}
                           style={{
-                            padding: '10px 8px', borderRadius: 12, border: isSel ? '2px solid #F97316' : '1.5px solid #E8EDF2',
+                            padding: '9px 4px', borderRadius: 12, border: isSel ? '2px solid #F97316' : '1.5px solid #E8EDF2',
                             background: isSel ? '#FFF7ED' : '#F8FAFC',
                             color: isSel ? '#EA580C' : '#334155',
-                            cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                            cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
                             boxShadow: isSel ? '0 2px 8px rgba(249,115,22,0.15)' : 'none',
                             transition: 'all 0.15s ease',
                           }}
                         >
                           <span style={{ fontSize: 13, fontWeight: 800 }}>{p.label}</span>
-                          <span style={{ fontSize: 9, fontWeight: 600, opacity: isSel ? 0.9 : 0.6 }}>{p.time}</span>
+                          <span style={{ fontSize: 8.5, fontWeight: 600, opacity: isSel ? 0.95 : 0.6, whiteSpace: 'nowrap', letterSpacing: '-0.02em' }}>{p.time}</span>
                         </button>
                       );
                     })}
                   </div>
                   {selectedPeriods.length === 0 && (
-                    <p style={{ fontSize: 12, color: '#DC2626', margin: '6px 0 0' }}>Please select at least one period box</p>
+                    <p style={{ fontSize: 12, color: '#DC2626', margin: '6px 0 0' }}>Please select at least one period</p>
                   )}
                 </div>
               </>
             ) : (
               /* Multi-Day Leave Scroll Calendar Input */
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-                <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 14, width: '100%', boxSizing: 'border-box' }}>
+                <div style={{ minWidth: 0 }}>
                   <label style={labelStyle}>Start Date</label>
-                  <div style={{ position: 'relative' }}>
-                    <CalendarDays size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <CalendarDays size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
                     <input
                       type="date"
                       value={startDate}
@@ -585,14 +585,14 @@ export default function NewRequest() {
                       min={new Date().toISOString().split('T')[0]}
                       onFocus={focusStyle as any}
                       onBlur={blurStyle as any}
-                      style={inputStyle}
+                      style={{ ...inputStyle, padding: '0 8px 0 32px', fontSize: 13, minWidth: 0, width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={labelStyle}>End Date</label>
-                  <div style={{ position: 'relative' }}>
-                    <CalendarDays size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <CalendarDays size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', pointerEvents: 'none' }} />
                     <input
                       type="date"
                       value={endDate}
@@ -600,7 +600,7 @@ export default function NewRequest() {
                       min={startDate}
                       onFocus={focusStyle as any}
                       onBlur={blurStyle as any}
-                      style={inputStyle}
+                      style={{ ...inputStyle, padding: '0 8px 0 32px', fontSize: 13, minWidth: 0, width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
