@@ -9,6 +9,7 @@ import {
 import './landing.css';
 import logoImg from '../assets/logo.png';
 import { sendChatMessage } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -35,6 +36,11 @@ const FAQS = [
 ];
 
 export default function LandingPage() {
+  const { user, isAuthenticated } = useAuth();
+  const dashboardPath = user
+    ? (user.role === 'admin' ? '/admin' : user.role === 'hod' ? '/hod' : user.role === 'faculty' ? '/faculty' : '/student')
+    : '/student';
+
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -92,7 +98,7 @@ export default function LandingPage() {
         {/* ── Top Navigation Bar ── */}
         <nav className={`landing-nav ${isChatOpen ? 'lg:rounded-t-3xl' : ''}`}>
           <div className="landing-container landing-nav-inner">
-            <Link to="/" className="landing-nav-logo">
+            <Link to={isAuthenticated && user ? dashboardPath : "/"} className="landing-nav-logo">
               <img
                 src={logoImg}
                 alt="AttendEase Logo"
@@ -104,9 +110,15 @@ export default function LandingPage() {
               <Link to="/permissions" className="landing-btn landing-btn-secondary">
                 View Attendance
               </Link>
-              <Link to="/login" className="landing-btn landing-btn-primary">
-                Login
-              </Link>
+              {isAuthenticated && user ? (
+                <Link to={dashboardPath} className="landing-btn landing-btn-primary">
+                  Dashboard
+                </Link>
+              ) : (
+                <Link to="/login" className="landing-btn landing-btn-primary">
+                  Login
+                </Link>
+              )}
             </div>
           </div>
         </nav>
@@ -129,10 +141,17 @@ export default function LandingPage() {
             A modern attendance &amp; permission management system built for SRKR Engineering College. Track, manage, and export attendance effortlessly.
           </p>
           <div className="landing-hero-ctas">
-            <Link to="/login" className="landing-btn landing-btn-primary">
-              <span>Sign In to Portal</span>
-              <ArrowRight size={16} />
-            </Link>
+            {isAuthenticated && user ? (
+              <Link to={dashboardPath} className="landing-btn landing-btn-primary">
+                <span>Go to Dashboard</span>
+                <ArrowRight size={16} />
+              </Link>
+            ) : (
+              <Link to="/login" className="landing-btn landing-btn-primary">
+                <span>Sign In to Portal</span>
+                <ArrowRight size={16} />
+              </Link>
+            )}
             <Link to="/permissions" className="landing-btn landing-btn-secondary">
               <span>View Public Permissions</span>
             </Link>
@@ -272,8 +291,8 @@ export default function LandingPage() {
               <Link to="/permissions" className="hover:text-slate-900 transition-colors">
                 Public Attendance
               </Link>
-              <Link to="/login" className="hover:text-slate-900 transition-colors">
-                Portal Login
+              <Link to={isAuthenticated && user ? dashboardPath : "/login"} className="hover:text-slate-900 transition-colors">
+                {isAuthenticated && user ? 'Dashboard' : 'Portal Login'}
               </Link>
               <a
                 href="https://github.com/gowthamkrishna27/AttendEase"

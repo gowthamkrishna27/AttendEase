@@ -10,7 +10,6 @@ import { formatDateShort, formatTimeAgo } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
 import { AnnouncementRenderer } from '../../components/announcements/AnnouncementRenderer';
-import { CsdCricketWidget } from '../../components/widgets/CsdCricketWidget';
 
 const card = (extra: object = {}) => ({
   background: '#ffffff',
@@ -204,14 +203,10 @@ export default function StudentHome() {
           </motion.button>
         </motion.div>
 
-        {/* Dynamic Widgets or Fallback HPL Score Card */}
-        {announcements.some((a) => a.placement === 'HOME_MIDDLE') ? (
+        {/* Dynamic Announcements if available */}
+        {announcements.some((a) => a.placement === 'HOME_MIDDLE') && (
           <div className="flex-1 min-w-[320px]">
             <AnnouncementRenderer announcements={announcements} placement="HOME_MIDDLE" />
-          </div>
-        ) : (
-          <div className="flex-1 min-w-[320px] max-w-[560px]">
-            <CsdCricketWidget />
           </div>
         )}
       </div>

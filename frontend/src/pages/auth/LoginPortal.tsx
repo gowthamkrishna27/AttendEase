@@ -52,7 +52,7 @@ const FACULTY_PHOTO_MAP: Record<string, { name: string; dept: string; photo: str
 export default function LoginPortal() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setUser } = useAuth();
+  const { setUser, user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const fromPath = location.state?.from?.pathname || (typeof location.state?.from === 'string' ? location.state.from : null);
   // Also support ?redirect= query param (used by share links)
@@ -308,6 +308,21 @@ export default function LoginPortal() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      navigate(getPostLoginTarget(user.role), { replace: true });
+    }
+  }, [authLoading, isAuthenticated, user, navigate]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen min-h-[100dvh] bg-white flex flex-col items-center justify-center p-4">
+        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mb-3" />
+        <span className="text-xs font-semibold text-slate-500">Checking session...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen min-h-[100dvh] w-full bg-white flex flex-col items-center justify-center p-4 sm:p-6 text-slate-900 selection:bg-orange-100 selection:text-orange-900 box-border">
