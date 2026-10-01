@@ -30,14 +30,25 @@ async function migrate() {
       );
     `);
 
+    // Drop old 3-column unique index if it exists
     await prisma.$executeRawUnsafe(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "AttendanceSubmission_date_section_periods_key" 
-      ON "AttendanceSubmission"("date", "section", "periods");
+      DROP INDEX IF EXISTS "AttendanceSubmission_date_section_periods_key";
+    `);
+
+    // Create 4-column composite unique index including year
+    await prisma.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "AttendanceSubmission_date_section_year_periods_key" 
+      ON "AttendanceSubmission"("date", "section", "year", "periods");
     `);
 
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "AttendanceSubmission_date_section_idx" 
       ON "AttendanceSubmission"("date", "section");
+    `);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "AttendanceSubmission_date_section_year_idx" 
+      ON "AttendanceSubmission"("date", "section", "year");
     `);
 
     await prisma.$executeRawUnsafe(`

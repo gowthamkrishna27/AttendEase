@@ -39,11 +39,16 @@ import HODFaculty from './pages/hod/Faculty';
 import HODReports from './pages/hod/Reports';
 import HODSettings from './pages/hod/Settings';
 
+// Shared Student Activities Page
+import StudentActivitiesPage from './pages/shared/StudentActivitiesPage';
+import AnimationShowcasePage from './pages/shared/AnimationShowcasePage';
+
 // Pages — admin
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
-import AdminCounseling from './pages/admin/Counseling';
 import AdminInvigilation from './pages/admin/Invigilation';
+import AdminCounseling from './pages/admin/Counseling';
+import AdminAnnouncements from './pages/admin/Announcements';
 import AdminRequests from './pages/admin/Requests';
 import AdminDatabase from './pages/admin/Database';
 import AdminSettings from './pages/admin/Settings';
@@ -72,8 +77,14 @@ function ProtectedRoute({
 }) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
-  // Wait for token rehydration — don't redirect prematurely
-  if (isLoading) return null;
+  // Wait for token rehydration — show minimal spinner instead of blank screen (important on mobile)
+  if (isLoading) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-slate-50">
+        <div className="w-7 h-7 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -97,6 +108,7 @@ function ProtectedRoute({
 }
 
 
+
 function AppRoutes() {
   const location = useLocation();
 
@@ -115,6 +127,8 @@ function AppRoutes() {
         <Route path="/pavan" element={<Navigate to="/developers" replace />} />
         <Route path="/manasa" element={<Navigate to="/developers" replace />} />
         <Route path="/login" element={<LoginPortal />} />
+        <Route path="/animation" element={<AnimationShowcasePage />} />
+        <Route path="/send-demo" element={<AnimationShowcasePage />} />
         <Route path="/r/:shareToken" element={<ShareResolvePage />} />
         <Route path="/share/:publicId" element={<ShareRedirectPage />} />
 
@@ -134,6 +148,10 @@ function AppRoutes() {
 
         {/* Student (protected) */}
         <Route path="/student" element={<ProtectedRoute role="student"><StudentHome /></ProtectedRoute>} />
+        <Route path="/student/event" element={<Navigate to="/student" replace />} />
+        <Route path="/student/events" element={<Navigate to="/student" replace />} />
+        <Route path="/event" element={<Navigate to="/student" replace />} />
+        <Route path="/cricket" element={<Navigate to="/student" replace />} />
         <Route path="/student/new-request" element={<ProtectedRoute role="student"><NewRequest /></ProtectedRoute>} />
         <Route path="/student/success" element={<ProtectedRoute role="student"><RequestSuccess /></ProtectedRoute>} />
         <Route path="/student/history" element={<ProtectedRoute role="student"><History /></ProtectedRoute>} />
@@ -149,6 +167,7 @@ function AppRoutes() {
         <Route path="/faculty/request/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
         <Route path="/faculty/review/:id" element={<ProtectedRoute role="faculty"><FacultyRequestDetails /></ProtectedRoute>} />
         <Route path="/faculty/students" element={<ProtectedRoute role="faculty"><FacultyStudents /></ProtectedRoute>} />
+        <Route path="/faculty/student-activities" element={<ProtectedRoute role="faculty"><StudentActivitiesPage role="faculty" /></ProtectedRoute>} />
         <Route path="/faculty/reports" element={<ProtectedRoute role="faculty"><FacultyReports /></ProtectedRoute>} />
         <Route path="/faculty/settings" element={<ProtectedRoute role="faculty"><FacultySettings /></ProtectedRoute>} />
 
@@ -158,6 +177,7 @@ function AppRoutes() {
         <Route path="/hod/review/:id" element={<ProtectedRoute role="hod"><HODRequestDetails /></ProtectedRoute>} />
         <Route path="/hod/requests" element={<ProtectedRoute role="hod"><HODAllRequests /></ProtectedRoute>} />
         <Route path="/hod/faculty" element={<ProtectedRoute role="hod"><HODFaculty /></ProtectedRoute>} />
+        <Route path="/hod/student-activities" element={<ProtectedRoute role="hod"><StudentActivitiesPage role="hod" /></ProtectedRoute>} />
         <Route path="/hod/reports" element={<ProtectedRoute role="hod"><HODReports /></ProtectedRoute>} />
         <Route path="/hod/settings" element={<ProtectedRoute role="hod"><HODSettings /></ProtectedRoute>} />
 
@@ -165,8 +185,9 @@ function AppRoutes() {
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute role="admin"><AdminUsers /></ProtectedRoute>} />
-        <Route path="/admin/counseling" element={<ProtectedRoute role="admin"><AdminCounseling /></ProtectedRoute>} />
         <Route path="/admin/invigilation" element={<ProtectedRoute role="admin"><AdminInvigilation /></ProtectedRoute>} />
+        <Route path="/admin/counseling" element={<ProtectedRoute role="admin"><AdminCounseling /></ProtectedRoute>} />
+        <Route path="/admin/announcements" element={<ProtectedRoute role="admin"><AdminAnnouncements /></ProtectedRoute>} />
         <Route path="/admin/requests" element={<ProtectedRoute role="admin"><AdminRequests /></ProtectedRoute>} />
         <Route path="/admin/database" element={<ProtectedRoute role="admin"><AdminDatabase /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />

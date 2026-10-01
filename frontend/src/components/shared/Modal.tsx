@@ -36,19 +36,19 @@ export function Modal({ open, isOpen, onClose, title, description, children, siz
             style={{
               position: 'fixed',
               top: 0, left: 0, right: 0, bottom: 0,
-              background: 'rgba(15, 23, 42, 0.45)',
-              backdropFilter: 'blur(3px)',
+              background: 'rgba(15, 23, 42, 0.40)',
+              backdropFilter: 'blur(2px)',
             }}
             onClick={onClose}
           />
 
-          {/* Centered Modal Card Widget */}
+          {/* Modal card */}
           <motion.div
             key="modal"
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            initial={{ opacity: 0, scale: 0.97, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 12 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
+            exit={{ opacity: 0, scale: 0.97, y: 10 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
             style={{
               position: 'relative',
               zIndex: 101,
@@ -58,32 +58,37 @@ export function Modal({ open, isOpen, onClose, title, description, children, siz
               overflowY: 'auto',
               background: '#ffffff',
               border: '1px solid #E2E8F0',
-              borderRadius: 20,
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08)',
-              padding: 24,
+              borderRadius: 16,
+              boxShadow: '0 16px 40px -8px rgba(0, 0, 0, 0.14), 0 4px 12px -4px rgba(0, 0, 0, 0.08)',
+              padding: '20px 24px 24px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 12 }}>
               <div>
-                <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0F172A', margin: 0 }}>{title}</h2>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: '1.3' }}>{title}</h2>
                 {description && (
-                  <p style={{ fontSize: 13, color: '#64748B', marginTop: 4, margin: 0 }}>{description}</p>
+                  <p style={{ fontSize: 12.5, color: '#94A3B8', marginTop: 3, lineHeight: '1.4' }}>{description}</p>
                 )}
               </div>
               <button
                 type="button"
                 onClick={onClose}
                 style={{
-                  width: 32, height: 32, borderRadius: 8, border: 'none',
-                  background: '#F1F5F9', color: '#64748B', display: 'flex',
+                  flexShrink: 0,
+                  width: 28, height: 28, borderRadius: 6, border: '1px solid #E2E8F0',
+                  background: '#F8FAFC', color: '#94A3B8', display: 'flex',
                   alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                  transition: 'background 0.15s',
+                  transition: 'all 0.12s',
+                  marginTop: 1,
                 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F1F5F9'; (e.currentTarget as HTMLButtonElement).style.color = '#475569'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F8FAFC'; (e.currentTarget as HTMLButtonElement).style.color = '#94A3B8'; }}
               >
-                <X size={18} />
+                <X size={14} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto pr-1">
+            <div>
               {children}
             </div>
           </motion.div>

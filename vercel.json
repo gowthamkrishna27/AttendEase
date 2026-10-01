@@ -14,7 +14,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.vercel.app https://iattendease.vercel.app https://getpermission.vercel.app https://ui-avatars.com https://srkrexams.in https://*.srkrec.ac.in https://res.cloudinary.com https://github.com https://*.githubusercontent.com; connect-src 'self' http://localhost:* http://127.0.0.1:* https://attendease-apuw.onrender.com https://*.onrender.com https://*.vercel.app https://iattendease.vercel.app https://getpermission.vercel.app https://*.supabase.co; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.vercel.app https://iattendease.vercel.app https://getpermission.vercel.app https://ui-avatars.com https://srkrexams.in https://*.srkrec.ac.in https://res.cloudinary.com https://github.com https://*.githubusercontent.com; connect-src 'self' http://localhost:* http://127.0.0.1:* https://attendease-apuw.onrender.com https://*.onrender.com https://*.vercel.app https://iattendease.vercel.app https://getpermission.vercel.app https://*.supabase.co; frame-src 'self' https://csdcsitcricket.up.railway.app https://*.railway.app; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
         },
         {
           "key": "X-Content-Type-Options",

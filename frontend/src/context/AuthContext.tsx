@@ -58,12 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSavedUser(null);
             setUserState(null);
           }
+          // On any network error (mobile offline, slow connection, timeout) still resolve loading
+          // so ShareRedirectPage doesn't spin forever
         })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
   }, []);
+
 
   const login = async (identifier: string, password: string, role: UserRole, rememberMe: boolean = true) => {
     queryClient.clear();

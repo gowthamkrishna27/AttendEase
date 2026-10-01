@@ -6,6 +6,7 @@
  */
 import * as userRepo from '../repositories/prisma/user.repository.prisma.js';
 import { hashPassword, verifyPassword } from './password.service.js';
+import { toCanonicalSection } from '../../constants/canonicalSections.js';
 import type {
   CreateUserBody,
   UpdateUserBody,
@@ -43,6 +44,13 @@ export class InvalidCurrentPasswordError extends Error {
   }
 }
 
+export class InvalidSectionError extends Error {
+  constructor(sec: string) {
+    super(`Invalid section "${sec}". Allowed canonical sections are CSD, CSIT-A, CSIT-B.`);
+    this.name = 'InvalidSectionError';
+  }
+}
+
 // ── Internal helper ───────────────────────────────────────────────────────────
 
 function toResponse(doc: Record<string, unknown>): UserResponse {
@@ -63,8 +71,8 @@ function toResponse(doc: Record<string, unknown>): UserResponse {
 
 // ── Service functions ─────────────────────────────────────────────────────────
 
-export async function listUsers(): Promise<UserListResponse> {
-  const docs = await userRepo.listAllUsers();
+export async function listUsers(role?: string): Promise<UserListResponse> {
+  const docs = await userRepo.listAllUsers(role);
   return { users: docs.map((d) => toResponse(d as unknown as Record<string, unknown>)) };
 }
 
@@ -84,6 +92,15 @@ export async function createUser(body: CreateUserBody): Promise<UserResponse> {
         payload.semester = (digit * 2) - 1;
       }
     }
+  }
+
+  // Canonical Section Normalization
+  if (payload.section) {
+    const canonical = toCanonicalSection(payload.department, payload.section);
+    if (!canonical) {
+      throw new InvalidSectionError(payload.section);
+    }
+    payload.section = canonical;
   }
 
   // Store raw password directly for auth login matching
@@ -108,6 +125,24 @@ export async function updateUser(userId: string, patch: UpdateUserBody): Promise
       if (!payload.semester || Math.ceil(payload.semester / 2) !== digit) {
         payload.semester = (digit * 2) - 1;
       }
+    }
+  }
+
+  // Canonical Section Normalization
+  if (payload.section !== undefined) {
+    if (payload.section) {
+      let dept = payload.department;
+      if (!dept) {
+        const existingUser = await userRepo.findUserByUserId(userId);
+        dept = (existingUser as any)?.department;
+      }
+      const canonical = toCanonicalSection(dept, payload.section);
+      if (!canonical) {
+        throw new InvalidSectionError(payload.section);
+      }
+      payload.section = canonical;
+    } else {
+      payload.section = null as any;
     }
   }
 

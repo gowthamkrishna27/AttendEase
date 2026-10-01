@@ -1,666 +1,871 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search,
-  Plus,
-  Trash2,
-  Loader2,
-  AlertCircle,
-  X,
-  CalendarDays,
-  Clock,
-  FileText,
+  CalendarCheck, Plus, Search, Trash2, Edit3, Clock,
+  X, Check, AlertCircle, Loader2,
+  Calendar, Info
 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
-import { Avatar } from '../../components/shared/Avatar';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/shared/Modal';
 import { EmptyState } from '../../components/shared/EmptyState';
-import {
-  INVIGILATION_BRANCHES,
-  INVIGILATION_TYPES,
-  createInvigilationAssignment,
-  deleteInvigilationAssignment,
-  formatDate,
-  listInvigilationAssignments,
-  listInvigilationFaculty,
-  todayIso,
-  type AssignmentInput,
-  type InvigilationAssignment,
-  type InvigilationBranch,
-  type InvigilationFaculty,
-  type InvigilationType,
-} from '../../lib/invigilationApi';
+import * as api from '../../lib/api';
+import { DEPARTMENTS, getFacultyInitials } from '../../lib/utils';
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function todayIST(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function formatDisplayDate(date: string): string {
+  // date is YYYY-MM-DD
+  try {
+    const [year, month, day] = date.split('-').map(Number);
+    const d = new Date(Date.UTC(year!, month! - 1, day!));
+    return d.toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  } catch {
+    return date;
+  }
+}
+
+function ExamTypeBadge({ type }: { type: api.ExamType }) {
+  const styles: Record<api.ExamType, { label: string; bg: string; text: string; border: string }> = {
+    MID:           { label: 'MID EXAM',       bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
+    SEM:           { label: 'SEMESTER',        bg: 'bg-emerald-50',text: 'text-emerald-700',border: 'border-emerald-200' },
+    LAB:           { label: 'LAB EXAM',        bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+    SUPPLEMENTARY: { label: 'SUPPLEMENTARY',   bg: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200' },
+  };
+  const style = styles[type] || { label: type, bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold tracking-wide uppercase border ${style.bg} ${style.text} ${style.border}`}>
+      {style.label}
+    </span>
+  );
+}
+
+function SessionBadge({ session }: { session: api.SessionType }) {
+  const styles: Record<api.SessionType, { label: string; bg: string; text: string; border: string }> = {
+    MORNING:   { label: 'Morning',   bg: 'bg-amber-50/80',  text: 'text-amber-800',  border: 'border-amber-200/80' },
+    AFTERNOON: { label: 'Afternoon', bg: 'bg-orange-50/80', text: 'text-orange-800', border: 'border-orange-200/80' },
+  };
+  const style = styles[session] || { label: session, bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${style.bg} ${style.text} ${style.border}`}>
+      {style.label}
+    </span>
+  );
+}
+
+// ── Form State ─────────────────────────────────────────────────────────────────
+
+interface DutyFormState {
+  id?: string;
+  examType: api.ExamType;
+  date: string;
+  session: api.SessionType;
+  startTime: string;   // HH:mm or ''
+  endTime: string;     // HH:mm or ''
+  assignedFaculty: string[];  // array of User.id (cuid)
+}
+
+const DEFAULT_FORM: DutyFormState = {
+  examType: 'MID',
+  date: '',
+  session: 'MORNING',
+  startTime: '',
+  endTime: '',
+  assignedFaculty: [],
+};
+
+// ── Component ──────────────────────────────────────────────────────────────────
 
 export default function AdminInvigilation() {
-  const [assignments, setAssignments] = useState<InvigilationAssignment[]>([]);
-  const [faculty, setFaculty] = useState<InvigilationFaculty[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const [search, setSearch] = useState('');
-  const [filterBranch, setFilterBranch] = useState<'all' | InvigilationBranch>('all');
-  const [filterType, setFilterType] = useState<'all' | InvigilationType>('all');
+  // ── Filters ──────────────────────────────────────────────────────────────────
+  const [search, setSearch]               = useState('');
+  const [filterExamType, setFilterExamType] = useState<string>('all');
+  const [filterSession, setFilterSession]   = useState<string>('all');
+  const [filterFacultyId, setFilterFacultyId] = useState<string>('all');
+  const [filterDate, setFilterDate]         = useState<string>('');
 
+  // ── Modal State ───────────────────────────────────────────────────────────────
   const [showFormModal, setShowFormModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState<{ open: boolean; target: InvigilationAssignment | null }>({ open: false, target: null });
-  const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [formState, setFormState]         = useState<DutyFormState>(DEFAULT_FORM);
+  const [isEditing, setIsEditing]         = useState(false);
+  const [formError, setFormError]         = useState<string | null>(null);
 
-  // Form state
-  const [formFacultyId, setFormFacultyId] = useState<string>('');
-  const [formBranch, setFormBranch] = useState<InvigilationBranch>('CSD');
-  const [formType, setFormType] = useState<InvigilationType>('MID');
-  const [formOtherDuty, setFormOtherDuty] = useState('');
-  const [formDate, setFormDate] = useState<string>(todayIso());
-  const [formStartTime, setFormStartTime] = useState('09:00');
-  const [formEndTime, setFormEndTime] = useState('12:00');
-  const [formRoomNo, setFormRoomNo] = useState('');
-  const [formBlock, setFormBlock] = useState('');
+  const [facultySearch, setFacultySearch]   = useState('');
+  const [facultyPickerDept, setFacultyPickerDept] = useState('all');
 
-  // ── Initial fetch ─────────────────────────────────────────────────────────
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [list, facultyList] = await Promise.all([
-        listInvigilationAssignments(),
-        listInvigilationFaculty(),
-      ]);
-      setAssignments(list);
-      setFaculty(facultyList);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load invigilation records.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [viewingDuty, setViewingDuty]   = useState<api.InvigilationDuty | null>(null);
+  const [dutyToDelete, setDutyToDelete] = useState<api.InvigilationDuty | null>(null);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // ── Faculty lookup helpers ────────────────────────────────────────────────
-  const facultyById = useMemo(() => {
-    const map = new Map<string, InvigilationFaculty>();
-    faculty.forEach(f => map.set(f.id, f));
-    return map;
-  }, [faculty]);
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToastMsg({ type, text });
+    setTimeout(() => setToastMsg(null), 4000);
+  };
 
-  // ── Filtering + sorting ───────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return assignments
-      .filter(a => {
-        if (filterBranch !== 'all' && a.branch !== filterBranch) return false;
-        if (filterType !== 'all' && a.type !== filterType) return false;
-        if (!q) return true;
-        const meta = facultyById.get(a.facultyId);
-        return (
-          a.facultyName.toLowerCase().includes(q) ||
-          a.branch.toLowerCase().includes(q) ||
-          a.type.toLowerCase().includes(q) ||
-          (a.otherDutyDescription || '').toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => `${b.date} ${b.startTime}`.localeCompare(`${a.date} ${a.startTime}`));
-  }, [assignments, search, filterBranch, filterType, facultyById]);
+  // ── Data ──────────────────────────────────────────────────────────────────────
+  const { data: usersList = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.getUsers(),
+  });
 
-  // ── Form helpers ──────────────────────────────────────────────────────────
-  function resetForm() {
-    setFormFacultyId('');
-    setFormBranch('CSD');
-    setFormType('MID');
-    setFormOtherDuty('');
-    setFormDate(todayIso());
-    setFormStartTime('09:00');
-    setFormEndTime('12:00');
-    setFormRoomNo('');
-    setFormBlock('');
+  const facultyUsers = useMemo(() => {
+    return usersList.filter((u) => u.role === 'faculty');
+  }, [usersList]);
+
+  const queryParams = useMemo<api.InvigilationFilterParams>(() => {
+    const params: api.InvigilationFilterParams = {};
+    if (filterExamType !== 'all') params.examType = filterExamType as api.ExamType;
+    if (filterSession !== 'all') params.session = filterSession as api.SessionType;
+    if (filterFacultyId !== 'all') params.facultyId = filterFacultyId;
+    if (filterDate) params.date = filterDate;
+    return params;
+  }, [filterExamType, filterSession, filterFacultyId, filterDate]);
+
+  const {
+    data: dutiesData,
+    isLoading: isDutiesLoading,
+    isError: isDutiesError,
+    error: dutiesFetchError,
+    refetch: refetchDuties,
+  } = useQuery({
+    queryKey: ['admin-invigilation-duties', queryParams],
+    queryFn: () => api.getInvigilationDuties(queryParams),
+  });
+
+  const dutiesList = dutiesData?.duties || [];
+
+  const filteredDuties = useMemo(() => {
+    if (!search.trim()) return dutiesList;
+    const q = search.toLowerCase().trim();
+    return dutiesList.filter((duty) => {
+      const matchType = duty.examType.toLowerCase().includes(q);
+      const matchDate = duty.date.includes(q);
+      const matchSession = duty.session.toLowerCase().includes(q);
+      const matchFaculty = duty.assignedFaculty.some(
+        (f) => f.name.toLowerCase().includes(q) || f.userId.toLowerCase().includes(q) || f.department.toLowerCase().includes(q)
+      );
+      return matchType || matchDate || matchSession || matchFaculty;
+    });
+  }, [dutiesList, search]);
+
+  // ── Mutations ─────────────────────────────────────────────────────────────────
+  const createMutation = useMutation({
+    mutationFn: (payload: api.CreateDutyPayload) => api.createInvigilationDuty(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-invigilation-duties'] });
+      setShowFormModal(false);
+      resetForm();
+      showToast('Invigilation duty created successfully.');
+    },
+    onError: (err: any) => {
+      setFormError(err.message || 'Failed to create invigilation duty.');
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: api.UpdateDutyPayload }) =>
+      api.updateInvigilationDuty(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-invigilation-duties'] });
+      setShowFormModal(false);
+      resetForm();
+      showToast('Invigilation duty updated successfully.');
+    },
+    onError: (err: any) => {
+      setFormError(err.message || 'Failed to update invigilation duty.');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteInvigilationDuty(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-invigilation-duties'] });
+      setDutyToDelete(null);
+      showToast('Invigilation duty deleted.');
+    },
+    onError: (err: any) => {
+      showToast(err.message || 'Failed to delete invigilation duty.', 'error');
+    },
+  });
+
+  // ── Form Helpers ──────────────────────────────────────────────────────────────
+  const resetForm = () => {
+    setFormState(DEFAULT_FORM);
+    setIsEditing(false);
     setFormError(null);
-  }
+    setFacultySearch('');
+    setFacultyPickerDept('all');
+  };
 
-  function openAddModal() {
+  const handleOpenCreate = () => {
     resetForm();
+    setFormState({ ...DEFAULT_FORM, date: todayIST() });
     setShowFormModal(true);
-  }
+  };
 
-  function closeAddModal() {
-    if (submitting) return;
-    setShowFormModal(false);
-    setFormError(null);
-  }
+  const handleOpenEdit = (duty: api.InvigilationDuty) => {
+    resetForm();
+    setFormState({
+      id: duty.id,
+      examType: duty.examType,
+      date: duty.date,
+      session: duty.session,
+      startTime: duty.startTime ?? '',
+      endTime: duty.endTime ?? '',
+      assignedFaculty: duty.assignedFaculty.map((f) => f.facultyId),
+    });
+    setIsEditing(true);
+    setShowFormModal(true);
+  };
 
-  // Filter the faculty list shown in the dropdown by the selected branch
-  const availableFaculty = useMemo(
-    () => faculty.filter(f => !f.branch || f.branch === formBranch),
-    [faculty, formBranch]
-  );
+  const handleToggleFaculty = (facultyId: string) => {
+    setFormState((prev) => {
+      const exists = prev.assignedFaculty.includes(facultyId);
+      return {
+        ...prev,
+        assignedFaculty: exists
+          ? prev.assignedFaculty.filter((id) => id !== facultyId)
+          : [...prev.assignedFaculty, facultyId],
+      };
+    });
+  };
 
-  async function handleAssign(e: React.FormEvent) {
+  const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return;
+    setFormError(null);
 
-    // Frontend validation
-    if (!formFacultyId) {
-      setFormError('Please choose a faculty member.');
+    if (!formState.date.trim()) {
+      setFormError('Please select a date.');
       return;
     }
-    if (!formDate) {
-      setFormError('Date is required.');
+    if (!formState.session) {
+      setFormError('Please select a session (Morning or Afternoon).');
       return;
     }
-    if (!formStartTime || !formEndTime) {
-      setFormError('Start and end times are required.');
+    if (formState.assignedFaculty.length === 0) {
+      setFormError('Please assign at least one faculty member.');
       return;
     }
-    if (formEndTime <= formStartTime) {
+
+    // Validate time range if both provided
+    if (formState.startTime && formState.endTime && formState.endTime <= formState.startTime) {
       setFormError('End time must be after start time.');
       return;
     }
-    if (formType === 'Other Duties' && !formOtherDuty.trim()) {
-      setFormError('Please describe the other duty.');
-      return;
-    }
 
-    const facultyMember = facultyById.get(formFacultyId);
-    if (!facultyMember) {
-      setFormError('Selected faculty member could not be resolved.');
-      return;
-    }
-
-    setSubmitting(true);
-    setFormError(null);
-
-    const input: AssignmentInput = {
-      facultyId: facultyMember.id,
-      branch: formBranch,
-      type: formType,
-      otherDutyDescription: formType === 'Other Duties' ? formOtherDuty.trim() : undefined,
-      date: formDate,
-      startTime: formStartTime,
-      endTime: formEndTime,
-      roomNo: formRoomNo.trim() || undefined,
-      block: formBlock.trim() || undefined,
+    const payload: api.CreateDutyPayload = {
+      examType: formState.examType,
+      date: formState.date,
+      session: formState.session,
+      startTime: formState.startTime || null,
+      endTime: formState.endTime || null,
+      assignedFaculty: formState.assignedFaculty.map((id) => ({ facultyId: id })),
     };
 
-    try {
-      const created = await createInvigilationAssignment(input);
-      // Prepend immediately so the user sees the row without a refetch
-      setAssignments(prev => [created, ...prev]);
-      setShowFormModal(false);
-      resetForm();
-    } catch (err: any) {
-      setFormError(err?.message || 'Failed to assign invigilation.');
-    } finally {
-      setSubmitting(false);
+    if (isEditing && formState.id) {
+      updateMutation.mutate({ id: formState.id, payload });
+    } else {
+      createMutation.mutate(payload);
     }
-  }
+  };
 
-  async function handleDelete() {
-    const target = showDeleteModal.target;
-    if (!target || deleting) return;
-    setDeleting(true);
-    try {
-      const ok = await deleteInvigilationAssignment(target.id);
-      if (ok) {
-        setAssignments(prev => prev.filter(a => a.id !== target.id));
-      }
-      setShowDeleteModal({ open: false, target: null });
-    } catch (err: any) {
-      setFormError(err?.message || 'Failed to delete invigilation.');
-    } finally {
-      setDeleting(false);
+  const pickerFacultyList = useMemo(() => {
+    let list = facultyUsers;
+    if (facultyPickerDept !== 'all') {
+      list = list.filter((f) => f.department?.toLowerCase() === facultyPickerDept.toLowerCase());
     }
-  }
+    if (facultySearch.trim()) {
+      const q = facultySearch.toLowerCase().trim();
+      list = list.filter(
+        (f) =>
+          f.name?.toLowerCase().includes(q) ||
+          f.userId?.toLowerCase().includes(q) ||
+          f.department?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [facultyUsers, facultyPickerDept, facultySearch]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const isMutating = createMutation.isPending || updateMutation.isPending;
+
+  const resetAllFilters = () => {
+    setSearch('');
+    setFilterExamType('all');
+    setFilterSession('all');
+    setFilterFacultyId('all');
+    setFilterDate('');
+  };
+
+  const activeFiltersCount =
+    (filterExamType !== 'all' ? 1 : 0) +
+    (filterSession !== 'all' ? 1 : 0) +
+    (filterFacultyId !== 'all' ? 1 : 0) +
+    (filterDate ? 1 : 0);
+
   return (
     <PageWrapper role="admin">
-      <div className="max-w-6xl mx-auto space-y-4">
+      <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Header — same neutral style as Manage Accounts & Students */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+        {/* ── Toast ── */}
+        <AnimatePresence>
+          {toastMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className={`p-3.5 rounded-lg border text-sm flex items-center justify-between shadow-xs ${
+                toastMsg.type === 'error'
+                  ? 'bg-red-50 text-red-800 border-red-200'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {toastMsg.type === 'error' ? <AlertCircle size={16} /> : <Check size={16} />}
+                <span>{toastMsg.text}</span>
+              </div>
+              <button type="button" onClick={() => setToastMsg(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X size={15} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <div>
-            <span className="text-[11px] font-semibold text-[#18181b] bg-[#edf0f2] px-2 py-0.5 rounded-[5px]">
-              ADMIN CONTROL
-            </span>
-            <h1 className="text-[22px] font-bold text-[#18181b] tracking-tight mt-1">Invigilation Hours</h1>
-            <p className="text-[13px] text-[#6b7280]">Assign and manage faculty invigilation duties for upcoming examinations</p>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-semibold text-[#18181b] bg-[#edf0f2] px-2 py-0.5 rounded-[5px]">
+                ADMINISTRATION
+              </span>
+              <span className="text-[12px] text-[#6b7280]">SRKR Engineering College</span>
+            </div>
+            <h1 className="text-[22px] font-bold text-[#18181b] tracking-tight flex items-center gap-2.5">
+              <CalendarCheck size={22} className="text-[#EA580C]" />
+              <span>Invigilation Management</span>
+            </h1>
+            <p className="text-[13px] text-[#6b7280] mt-0.5">
+              Schedule and manage faculty exam invigilation duties.
+            </p>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-            <button
-              type="button"
-              onClick={openAddModal}
-              className="px-3.5 py-2 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[12.5px] font-medium rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <Plus size={14} />
-              <span>Add Invigilation</span>
-            </button>
+          <button
+            onClick={handleOpenCreate}
+            className="h-[38px] px-4 bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] text-white text-[13px] font-medium rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+          >
+            <Plus size={16} />
+            <span>Add Invigilation Duty</span>
+          </button>
+        </div>
+
+        {/* ── Summary Cards ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+          <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <p className="text-[11.5px] text-[#6b7280] font-medium uppercase tracking-wider">Total Duties</p>
+            <p className="text-[24px] font-bold text-[#18181b] tracking-tight mt-0.5">{dutiesList.length}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <p className="text-[11.5px] text-blue-700 font-medium uppercase tracking-wider">MID Exams</p>
+            <p className="text-[24px] font-bold text-[#18181b] tracking-tight mt-0.5">
+              {dutiesList.filter((d) => d.examType === 'MID').length}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <p className="text-[11.5px] text-emerald-700 font-medium uppercase tracking-wider">SEM Exams</p>
+            <p className="text-[24px] font-bold text-[#18181b] tracking-tight mt-0.5">
+              {dutiesList.filter((d) => d.examType === 'SEM').length}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <p className="text-[11.5px] text-[#6b7280] font-medium uppercase tracking-wider">Faculty Available</p>
+            <p className="text-[24px] font-bold text-[#18181b] tracking-tight mt-0.5">{facultyUsers.length}</p>
           </div>
         </div>
 
-        {/* Toolbar — search + simple filters */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-3 flex flex-col sm:flex-row sm:items-center gap-2.5">
-          <div className="relative flex-1 min-w-0">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <Input
-              placeholder="Search by faculty, branch, or duty…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-8 h-[38px] text-[13px] bg-slate-50 border-slate-200"
-            />
-          </div>
-          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-            <select
-              value={filterBranch}
-              onChange={e => setFilterBranch(e.target.value as 'all' | InvigilationBranch)}
-              className="h-[38px] px-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-slate-400 text-[12.5px] font-medium text-slate-700 cursor-pointer"
-            >
-              <option value="all">All Branches</option>
-              {INVIGILATION_BRANCHES.map(b => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
-            <select
-              value={filterType}
-              onChange={e => setFilterType(e.target.value as 'all' | InvigilationType)}
-              className="h-[38px] px-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-slate-400 text-[12.5px] font-medium text-slate-700 cursor-pointer"
-            >
-              <option value="all">All Types</option>
-              {INVIGILATION_TYPES.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+        {/* ── Filters ── */}
+        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-3.5">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[240px]">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by exam type, session, date, or faculty name..."
+                className="w-full h-9 pl-9 pr-3 text-[13px] bg-slate-50/70 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-800 focus:bg-white transition-all placeholder:text-slate-400"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Filter row */}
+            <div className="flex flex-wrap gap-2">
+              {/* Exam Type */}
+              <select
+                value={filterExamType}
+                onChange={(e) => setFilterExamType(e.target.value)}
+                className="h-9 px-2.5 text-[12.5px] bg-slate-50/70 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 text-slate-700"
+              >
+                <option value="all">All Exam Types</option>
+                <option value="MID">MID</option>
+                <option value="SEM">SEM</option>
+                <option value="LAB">LAB</option>
+                <option value="SUPPLEMENTARY">SUPPLEMENTARY</option>
+              </select>
+
+              {/* Session */}
+              <select
+                value={filterSession}
+                onChange={(e) => setFilterSession(e.target.value)}
+                className="h-9 px-2.5 text-[12.5px] bg-slate-50/70 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 text-slate-700"
+              >
+                <option value="all">All Sessions</option>
+                <option value="MORNING">Morning</option>
+                <option value="AFTERNOON">Afternoon</option>
+              </select>
+
+              {/* Faculty Filter */}
+              <select
+                value={filterFacultyId}
+                onChange={(e) => setFilterFacultyId(e.target.value)}
+                className="h-9 px-2.5 text-[12.5px] bg-slate-50/70 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 text-slate-700"
+              >
+                <option value="all">All Faculty</option>
+                {facultyUsers.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+
+              {/* Date Filter */}
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="h-9 px-2.5 text-[12.5px] bg-slate-50/70 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 text-slate-700"
+              />
+
+              {activeFiltersCount > 0 && (
+                <button
+                  onClick={resetAllFilters}
+                  className="h-9 px-3 text-[12px] text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg bg-slate-50 hover:bg-slate-100 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <X size={12} />
+                  Clear ({activeFiltersCount})
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Table state */}
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-3">
-            <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid rgba(24,24,27,0.15)', borderTopColor: '#18181b', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
-            <p className="text-[13px] font-medium">Loading invigilation records…</p>
+        {/* ── List ── */}
+        {isDutiesLoading ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3 bg-white rounded-xl border border-slate-200/80">
+            <Loader2 size={24} className="animate-spin text-[#EA580C]" />
+            <span className="text-[13px] text-slate-500">Loading invigilation duties...</span>
           </div>
-        ) : error ? (
-          <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
-            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-              <AlertCircle size={18} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[14px] font-bold text-rose-900">Couldn't load invigilation records</p>
-              <p className="text-[12.5px] text-rose-700 mt-0.5">{error}</p>
+        ) : isDutiesError ? (
+          <div className="py-8 flex flex-col items-center justify-center gap-3 bg-white rounded-xl border border-slate-200/80 text-center">
+            <AlertCircle size={20} className="text-red-500" />
+            <div>
+              <p className="text-[13.5px] font-medium text-red-700">Failed to load invigilation duties.</p>
+              <p className="text-[12px] text-slate-500 mt-0.5">
+                {dutiesFetchError instanceof Error ? dutiesFetchError.message : 'Unknown error'}
+              </p>
             </div>
             <button
-              type="button"
-              onClick={() => void refresh()}
-              className="px-3 py-1.5 text-[12px] font-bold text-rose-700 bg-white border border-rose-200 rounded-lg hover:bg-rose-50 cursor-pointer flex items-center gap-1.5 shrink-0"
+              onClick={() => refetchDuties()}
+              className="mt-1 px-4 py-1.5 text-[12.5px] bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-medium transition-all cursor-pointer"
             >
               Retry
             </button>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filteredDuties.length === 0 ? (
           <EmptyState
-            title="No invigilation assignments yet"
-            description={assignments.length === 0
-              ? 'Click "Add Invigilation" to assign a faculty member to a duty slot.'
-              : 'No records match the current search or filters.'}
-            action={
-              assignments.length === 0 ? (
-                <Button variant="primary" onClick={openAddModal}>
-                  <Plus size={13} className="inline mr-1 -mt-0.5" /> Add First Invigilation
-                </Button>
-              ) : (
-                <Button variant="secondary" onClick={() => { setSearch(''); setFilterBranch('all'); setFilterType('all'); }}>
-                  Reset Filters
-                </Button>
-              )
+            title="No invigilation duties found"
+            description={
+              search || activeFiltersCount > 0
+                ? 'Try clearing your filters or search.'
+                : 'Click "Add Invigilation Duty" to create the first one.'
             }
           />
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            {/* Table stats bar — matches Users.tsx */}
-            <div className="px-4 py-2.5 bg-[#f8f9fa] border-b border-slate-200 flex items-center justify-between text-[12px] text-[#6b7280]">
-              <span>
-                Showing <strong className="text-[#18181b]">{filtered.length}</strong>{' '}
-                {filtered.length === 1 ? 'assignment' : 'assignments'}
-              </span>
-              <span className="text-[11px] text-[#88929e]">Scroll horizontally if needed</span>
+          <div className="space-y-3">
+            <AnimatePresence>
+              {filteredDuties.map((duty) => (
+                <motion.div
+                  key={duty.id}
+                  layout
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.18 }}
+                  className="bg-white rounded-xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 hover:border-slate-300 transition-all"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    {/* Left: Exam type, date, session, times */}
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ExamTypeBadge type={duty.examType} />
+                        <SessionBadge session={duty.session} />
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-[13.5px] font-semibold text-slate-900">
+                        <Calendar size={14} className="text-slate-400 shrink-0" />
+                        <span>{formatDisplayDate(duty.date)}</span>
+                      </div>
+
+                      {(duty.startTime || duty.endTime) && (
+                        <div className="flex items-center gap-1.5 text-[12.5px] text-slate-600">
+                          <Clock size={13} className="text-slate-400 shrink-0" />
+                          <span>
+                            {duty.startTime && duty.endTime
+                              ? `${duty.startTime} – ${duty.endTime}`
+                              : duty.startTime
+                              ? `From ${duty.startTime}`
+                              : `Until ${duty.endTime}`}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Faculty roster preview */}
+                      {duty.assignedFaculty.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {duty.assignedFaculty.slice(0, 4).map((f) => (
+                            <span
+                              key={f.facultyId}
+                              title={`${f.name} (${f.department})`}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 text-slate-700 text-[11.5px] rounded font-medium border border-slate-200"
+                            >
+                              <span className="w-5 h-5 rounded-full bg-[#EA580C]/10 text-[#EA580C] text-[10px] font-bold flex items-center justify-center shrink-0">
+                                {getFacultyInitials(f.name)}
+                              </span>
+                              <span>{f.name}</span>
+                              <span className="text-slate-400">·</span>
+                              <span className="text-slate-500 text-[10.5px]">{f.department}</span>
+                            </span>
+                          ))}
+                          {duty.assignedFaculty.length > 4 && (
+                            <button
+                              onClick={() => setViewingDuty(duty)}
+                              className="inline-flex items-center px-2 py-0.5 bg-slate-50 text-slate-600 text-[11.5px] rounded border border-slate-200 hover:bg-slate-100 cursor-pointer"
+                            >
+                              +{duty.assignedFaculty.length - 4} more
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: Actions */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {duty.assignedFaculty.length > 4 && (
+                        <button
+                          onClick={() => setViewingDuty(duty)}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition-all cursor-pointer"
+                          title="View full faculty roster"
+                        >
+                          <Info size={14} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleOpenEdit(duty)}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition-all cursor-pointer"
+                        title="Edit duty"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      <button
+                        onClick={() => setDutyToDelete(duty)}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg border border-red-100 bg-red-50 hover:bg-red-100 text-red-600 transition-all cursor-pointer"
+                        title="Delete duty"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+
+      {/* ── Create / Edit Modal ── */}
+      <Modal
+        isOpen={showFormModal}
+        onClose={() => { setShowFormModal(false); resetForm(); }}
+        title={isEditing ? 'Edit Invigilation Duty' : 'Add New Invigilation Duty'}
+        description={isEditing ? 'Update the exam session details and faculty assignment.' : 'Configure the exam session and assign faculty.'}
+      >
+        <form onSubmit={handleSubmitForm}>
+
+          {/* ── Exam Type + Session ── */}
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <div>
+              <label className="block text-[11.5px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+                Exam Type <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={formState.examType}
+                onChange={(e) => setFormState((p) => ({ ...p, examType: e.target.value as api.ExamType }))}
+                className="w-full h-[38px] px-3 text-[13px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 text-slate-800 transition-all"
+              >
+                <option value="MID">MID</option>
+                <option value="SEM">SEM</option>
+                <option value="LAB">LAB</option>
+                <option value="SUPPLEMENTARY">SUPPLEMENTARY</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11.5px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+                Session <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={formState.session}
+                onChange={(e) => setFormState((p) => ({ ...p, session: e.target.value as api.SessionType }))}
+                className="w-full h-[38px] px-3 text-[13px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 text-slate-800 transition-all"
+              >
+                <option value="MORNING">Morning</option>
+                <option value="AFTERNOON">Afternoon</option>
+              </select>
+            </div>
+          </div>
+
+          {/* ── Date ── */}
+          <div className="mb-5">
+            <label className="block text-[11.5px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+              Date <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="date"
+              value={formState.date}
+              onChange={(e) => setFormState((p) => ({ ...p, date: e.target.value }))}
+              required
+              className="w-full h-[38px] px-3 text-[13px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 text-slate-800 transition-all"
+            />
+          </div>
+
+          {/* ── Start Time + End Time ── */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className="block text-[11.5px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+                Start Time{' '}
+                <span className="normal-case font-normal tracking-normal text-slate-400">optional</span>
+              </label>
+              <input
+                type="time"
+                value={formState.startTime}
+                onChange={(e) => setFormState((p) => ({ ...p, startTime: e.target.value }))}
+                className="w-full h-[38px] px-3 text-[13px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 text-slate-700 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[11.5px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+                End Time{' '}
+                <span className="normal-case font-normal tracking-normal text-slate-400">optional</span>
+              </label>
+              <input
+                type="time"
+                value={formState.endTime}
+                onChange={(e) => setFormState((p) => ({ ...p, endTime: e.target.value }))}
+                className="w-full h-[38px] px-3 text-[13px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 text-slate-700 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* ── Faculty Picker ── */}
+          <div className="mb-5">
+            {/* Section header */}
+            <div className="flex items-baseline justify-between mb-2">
+              <label className="block text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">
+                Assigned Faculty <span className="text-red-400">*</span>
+              </label>
+              {formState.assignedFaculty.length > 0 && (
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {formState.assignedFaculty.length} selected
+                </span>
+              )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px]">
-                <thead>
-                  <tr className="bg-[#edf0f2] text-[#374151] border-b border-slate-200">
-                    <th className="px-2.5 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 w-10">#</th>
-                    <th className="px-2 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 w-14">Photo</th>
-                    <th className="px-3.5 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Faculty</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Branch</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Invigilation Type</th>
-                    <th className="px-3 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Other Duty</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Date</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Start Time</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">End Time</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Room No</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-[11.5px] uppercase tracking-wider border-r border-slate-200 whitespace-nowrap">Block</th>
-                    <th className="px-3.5 py-2.5 font-semibold text-[11.5px] uppercase tracking-wider text-center whitespace-nowrap w-20">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((a, index) => {
-                    const meta = facultyById.get(a.facultyId);
-                    return (
-                      <tr
-                        key={a.id}
-                        className={`border-b border-slate-200 hover:bg-[#f0f4f8] transition-colors ${
-                          index % 2 === 0 ? 'bg-white' : 'bg-[#fafbfc]'
-                        }`}
-                      >
-                        <td className="px-2.5 py-2 text-center text-[#88929e] font-mono text-[12px] border-r border-slate-200 w-10">
-                          {index + 1}
-                        </td>
-                        <td className="px-2 py-2 text-center border-r border-slate-200 w-14">
-                          <div className="flex items-center justify-center">
-                            <Avatar
-                              name={a.facultyName}
-                              src={meta?.avatarUrl}
-                              size="sm"
-                              role="faculty"
-                              className="rounded-full shadow-2xs border border-slate-200/80"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-3.5 py-2 font-semibold text-[#18181b] border-r border-slate-200 whitespace-nowrap">
-                          {a.facultyName}
-                        </td>
-                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151]">
-                          {a.branch}
-                        </td>
-                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151]">
-                          {a.type}
-                        </td>
-                        <td className="px-3 py-2 border-r border-slate-200 text-[12.5px] text-[#6b7280]">
-                          {a.type === 'Other Duties' ? (a.otherDutyDescription || '—') : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151]">
-                          {formatDate(a.date)}
-                        </td>
-                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151]">
-                          {a.startTime}
-                        </td>
-                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151]">
-                          {a.endTime}
-                        </td>
-                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151]">
-                          {a.roomNo || '—'}
-                        </td>
-                        <td className="px-3 py-2 text-center border-r border-slate-200 whitespace-nowrap text-[12.5px] font-medium text-[#374151]">
-                          {a.block || '—'}
-                        </td>
-                        <td className="px-3.5 py-2 text-center whitespace-nowrap w-20">
-                          <button
-                            type="button"
-                            onClick={() => setShowDeleteModal({ open: true, target: a })}
-                            className="px-2 py-1 text-[11px] font-semibold text-rose-600 bg-white border border-rose-200 rounded-md hover:bg-rose-50 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                            title="Delete assignment"
-                          >
-                            <Trash2 size={11} />
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            {/* Search + Dept filter */}
+            <div className="flex gap-2 mb-2">
+              <div className="relative flex-1">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={facultySearch}
+                  onChange={(e) => setFacultySearch(e.target.value)}
+                  placeholder="Search faculty..."
+                  className="w-full h-[34px] pl-8 pr-3 text-[12.5px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 placeholder:text-slate-400 transition-all"
+                />
+              </div>
+              <select
+                value={facultyPickerDept}
+                onChange={(e) => setFacultyPickerDept(e.target.value)}
+                className="h-[34px] px-2.5 text-[12px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400 text-slate-700 shrink-0"
+              >
+                <option value="all">All Departments</option>
+                {DEPARTMENTS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Faculty list */}
+            <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100/80 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+              {pickerFacultyList.length === 0 ? (
+                <div className="py-6 text-center text-[12.5px] text-slate-400">No faculty found.</div>
+              ) : (
+                pickerFacultyList.map((f) => {
+                  const isSelected = formState.assignedFaculty.includes(f.id);
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => handleToggleFaculty(f.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-slate-50/80 border-l-2 border-l-[#EA580C]'
+                          : 'hover:bg-slate-50/60 border-l-2 border-l-transparent'
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <div className={`w-[16px] h-[16px] rounded-[4px] border flex items-center justify-center shrink-0 transition-all ${
+                        isSelected
+                          ? 'bg-[#EA580C] border-[#EA580C]'
+                          : 'border-slate-300 bg-white'
+                      }`}>
+                        {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
+                      </div>
+                      {/* Faculty info */}
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-[13px] font-medium truncate leading-tight ${
+                          isSelected ? 'text-slate-900' : 'text-slate-800'
+                        }`}>
+                          {f.name}
+                        </p>
+                        <p className="text-[11px] text-slate-400 leading-tight mt-0.5">{f.department}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* ── Error ── */}
+          {formError && (
+            <div className="mb-4 px-3 py-2.5 bg-red-50 border border-red-200/80 rounded-lg flex items-center gap-2 text-[12.5px] text-red-700">
+              <AlertCircle size={14} className="text-red-400 shrink-0" />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          {/* ── Footer ── */}
+          <div className="flex justify-end items-center gap-2.5 pt-1 border-t border-slate-100 mt-1">
+            <button
+              type="button"
+              onClick={() => { setShowFormModal(false); resetForm(); }}
+              className="h-[36px] px-4 text-[13px] font-medium text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isMutating}
+              className="h-[36px] px-5 text-[13px] font-medium text-white bg-[#18181b] hover:bg-[#27272a] rounded-lg transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+              {isMutating && <Loader2 size={13} className="animate-spin" />}
+              {isEditing ? 'Save Changes' : 'Create Duty'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── View Full Faculty Roster Modal ── */}
+      <Modal
+        isOpen={!!viewingDuty}
+        onClose={() => setViewingDuty(null)}
+        title="Assigned Faculty Roster"
+      >
+        {viewingDuty && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <ExamTypeBadge type={viewingDuty.examType} />
+              <SessionBadge session={viewingDuty.session} />
+              <span className="text-[13px] font-semibold text-slate-700">{formatDisplayDate(viewingDuty.date)}</span>
+            </div>
+            <div className="space-y-2">
+              {viewingDuty.assignedFaculty.map((f, idx) => (
+                <div key={f.facultyId} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-400 w-5 text-center">{idx + 1}.</span>
+                  <div className="w-8 h-8 rounded-full bg-[#EA580C]/10 text-[#EA580C] text-[12px] font-bold flex items-center justify-center shrink-0">
+                    {getFacultyInitials(f.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-slate-800">{f.name}</p>
+                    <p className="text-[11.5px] text-slate-500">{f.department} · {f.userId}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
+      </Modal>
 
-      </div>
-
-      {/* ── Add Invigilation Modal ─────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showFormModal && (
-          <Modal
-            open={showFormModal}
-            onClose={closeAddModal}
-            title="Add Invigilation"
-            description="Assign a faculty member to a duty slot. Required fields are marked with *"
-          >
-            <form onSubmit={handleAssign} className="flex flex-col gap-3.5 mt-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Branch <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={formBranch}
-                    onChange={e => {
-                      const next = e.target.value as InvigilationBranch;
-                      setFormBranch(next);
-                      // Clear faculty if they don't belong to the new branch
-                      const current = facultyById.get(formFacultyId);
-                      if (current && current.branch && current.branch !== next) {
-                        setFormFacultyId('');
-                      }
-                    }}
-                    className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 font-bold text-slate-800 text-[13px] shadow-2xs cursor-pointer"
-                  >
-                    {INVIGILATION_BRANCHES.map(b => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Faculty <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={formFacultyId}
-                    onChange={e => setFormFacultyId(e.target.value)}
-                    className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 font-bold text-slate-800 text-[13px] shadow-2xs cursor-pointer"
-                  >
-                    <option value="">Select faculty…</option>
-                    {availableFaculty.length === 0 ? (
-                      <option value="" disabled>No faculty available for {formBranch}</option>
-                    ) : (
-                      availableFaculty.map(f => (
-                        <option key={f.id} value={f.id}>
-                          {f.name}{f.designation ? ` — ${f.designation}` : ''}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Invigilation Type <span className="text-rose-500">*</span>
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {INVIGILATION_TYPES.map(t => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setFormType(t)}
-                      className={`h-[42px] px-3 rounded-xl text-[12.5px] font-bold transition-all cursor-pointer border ${
-                        formType === t
-                          ? 'bg-[#18181b] text-white border-[#18181b]'
-                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {formType === 'Other Duties' && (
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Other Duty Description <span className="text-rose-500">*</span>
-                  </label>
-                  <Input
-                    placeholder="e.g. PhD entrance exam, Workshop supervision, …"
-                    value={formOtherDuty}
-                    onChange={e => setFormOtherDuty(e.target.value)}
-                    className="bg-slate-50 font-medium"
-                  />
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    <CalendarDays size={11} className="inline mr-1 -mt-0.5" /> Date <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={e => setFormDate(e.target.value)}
-                    className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 font-bold text-slate-800 text-[13px] shadow-2xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    <Clock size={11} className="inline mr-1 -mt-0.5" /> Start Time <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="time"
-                    value={formStartTime}
-                    onChange={e => setFormStartTime(e.target.value)}
-                    className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 font-bold text-slate-800 text-[13px] shadow-2xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    <Clock size={11} className="inline mr-1 -mt-0.5" /> End Time <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="time"
-                    value={formEndTime}
-                    onChange={e => setFormEndTime(e.target.value)}
-                    className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 font-bold text-slate-800 text-[13px] shadow-2xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Room No
-                  </label>
-                  <input
-                    type="text"
-                    value={formRoomNo}
-                    onChange={e => setFormRoomNo(e.target.value)}
-                    placeholder="e.g. A-204"
-                    className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 font-bold text-slate-800 text-[13px] shadow-2xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Block
-                  </label>
-                  <input
-                    type="text"
-                    value={formBlock}
-                    onChange={e => setFormBlock(e.target.value)}
-                    placeholder="e.g. Block A"
-                    className="w-full h-[42px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 font-bold text-slate-800 text-[13px] shadow-2xs"
-                  />
-                </div>
-              </div>
-
-              {formError && (
-                <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl">
-                  <AlertCircle size={14} className="text-rose-600 shrink-0 mt-0.5" />
-                  <p className="text-[12.5px] font-medium text-rose-800">{formError}</p>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={closeAddModal}
-                  disabled={submitting}
-                  className="px-4 py-2 text-[12.5px] font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <X size={13} className="inline mr-1 -mt-0.5" /> Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 text-[12.5px] font-bold text-white bg-[#18181b] hover:bg-[#27272a] active:bg-[#09090b] rounded-xl transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-1.5 shadow-xs"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 size={13} className="animate-spin" />
-                      Assigning…
-                    </>
-                  ) : (
-                    <>
-                      <FileText size={13} />
-                      Assign Invigilation
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </Modal>
-        )}
-      </AnimatePresence>
-
-      {/* ── Delete confirmation ─────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showDeleteModal.open && showDeleteModal.target && (
-          <Modal
-            open
-            onClose={() => { if (!deleting) setShowDeleteModal({ open: false, target: null }); }}
-            title="Delete this invigilation?"
-            size="sm"
-          >
-            <p className="text-[13px] text-slate-700 leading-relaxed">
-              You're about to remove the{' '}
-              <strong className="text-[#18181b]">{showDeleteModal.target.type}</strong> invigilation for{' '}
-              <strong className="text-[#18181b]">{showDeleteModal.target.facultyName}</strong> (
-              {showDeleteModal.target.branch}) on{' '}
-              <strong className="text-[#18181b]">{formatDate(showDeleteModal.target.date)}</strong> at{' '}
-              <strong className="text-[#18181b]">{showDeleteModal.target.startTime}–{showDeleteModal.target.endTime}</strong>.
-              This cannot be undone.
+      {/* ── Delete Confirmation Modal ── */}
+      <Modal
+        isOpen={!!dutyToDelete}
+        onClose={() => setDutyToDelete(null)}
+        title="Delete Invigilation Duty"
+      >
+        {dutyToDelete && (
+          <div className="space-y-4">
+            <p className="text-[13.5px] text-slate-600">
+              Are you sure you want to delete this{' '}
+              <span className="font-semibold text-slate-800">{dutyToDelete.examType}</span> invigilation duty
+              on <span className="font-semibold text-slate-800">{formatDisplayDate(dutyToDelete.date)}</span> ({dutyToDelete.session.toLowerCase()})?
+              This action cannot be undone.
             </p>
-            <div className="flex items-center justify-end gap-2 mt-4">
+            <div className="flex justify-end gap-2.5">
               <button
-                type="button"
-                onClick={() => setShowDeleteModal({ open: false, target: null })}
-                disabled={deleting}
-                className="px-4 py-2 text-[12.5px] font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+                onClick={() => setDutyToDelete(null)}
+                className="h-9 px-4 text-[13px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-4 py-2 text-[12.5px] font-bold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-xl transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-1.5 shadow-xs"
+                onClick={() => deleteMutation.mutate(dutyToDelete.id)}
+                disabled={deleteMutation.isPending}
+                className="h-9 px-5 text-[13px] font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all flex items-center gap-2 disabled:opacity-60 cursor-pointer"
               >
-                {deleting ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    Deleting…
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={13} />
-                    Delete
-                  </>
-                )}
+                {deleteMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+                Delete
               </button>
             </div>
-          </Modal>
+          </div>
         )}
-      </AnimatePresence>
+      </Modal>
     </PageWrapper>
   );
 }

@@ -14,6 +14,7 @@ import {
 } from '../services/requestAuth.js';
 import { sendRequestDecisionEmail } from '../services/emailService.js';
 import { sendWhatsAppDecisionNotification } from '../services/whatsappService.js';
+import { getCanonicalRosterForYear } from '../services/rosterService.js';
 
 const router = Router();
 
@@ -70,209 +71,23 @@ function sortRolls(rolls: string[]): string[] {
   });
 }
 
-// Public endpoint for sections list and section-wise student rosters from database
-router.get('/public-sections', async (req: Request, res: Response) => {
+// Public endpoint for canonical sections and section-wise student rosters from database
+const handlePublicSections = async (req: Request, res: Response) => {
   try {
     const { year } = req.query;
-    const targetYear = (typeof year === 'string' && year.trim() && year !== 'all')
-      ? year.trim().toLowerCase()
-      : '3rd year';
-
-    const targetDigitMatch = targetYear.match(/([1-4])/);
-    const targetDigit = targetDigitMatch ? targetDigitMatch[1] : '3';
-    const yearLabel = `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`;
-
-    // Fetch all student users from DB
-    const students = (await prisma.user.findMany({
-      where: {
-        role: 'student',
-        isActive: true,
-      },
-      select: {
-        userId: true,
-        name: true,
-        rollNumber: true,
-        department: true,
-        year: true,
-        section: true,
-        semester: true,
-      } as any,
-      orderBy: { rollNumber: 'asc' },
-    })) as unknown as Array<{
-      userId: string;
-      name: string;
-      rollNumber: string | null;
-      department: string;
-      year?: string | null;
-      section?: string | null;
-      semester: number | null;
-    }>;
-
-    // Filter students by academic year (prioritizing explicit DB year record)
-    const yearStudents = students.filter(s => {
-      const studentYear = (s as any).year as string | undefined;
-      if (studentYear) {
-        const digitMatch = studentYear.match(/([1-4])/);
-        if (digitMatch) return digitMatch[1] === targetDigit;
-      }
-      const sem = s.semester;
-      if (sem && typeof sem === 'number') {
-        const derivedYearNum = String(Math.ceil(sem / 2));
-        return derivedYearNum === targetDigit;
-      }
-      const roll = (s.rollNumber || '').toUpperCase();
-      const isLateralEntry = roll.includes('95A') || roll.includes('LE') || /LE\d+$/i.test(roll);
-
-      if (targetDigit === '3') {
-        return roll.startsWith('24B') || (roll.startsWith('25B') && isLateralEntry);
-      }
-      if (targetDigit === '2') {
-        return roll.startsWith('25B') && !isLateralEntry;
-      }
-      if (targetDigit === '1') {
-        return roll.startsWith('26B') && !isLateralEntry;
-      }
-      if (targetDigit === '4') {
-        return roll.startsWith('23B') || (roll.startsWith('24B') && isLateralEntry);
-      }
-      return targetDigit === '3';
+    const rosterData = await getCanonicalRosterForYear(typeof year === 'string' ? year : undefined);
+    res.json({
+      year: rosterData.year,
+      sections: rosterData.sections,
     });
-
-    // Map of sectionKey -> Section metadata
-    const sectionMap = new Map<string, {
-      key: string;
-      department: string;
-      section: string;
-      year: string;
-      label: string;
-      value: string;
-      rollNumbers: Set<string>;
-      studentCount: number;
-    }>();
-
-    // Default base sections for standard years
-    sectionMap.set('CSD — Section A', {
-      key: 'CSD — Section A',
-      department: 'CSD',
-      section: 'A',
-      year: yearLabel,
-      label: 'CSD - Sec A',
-      value: 'CSD-A',
-      rollNumbers: new Set<string>(),
-      studentCount: 0,
-    });
-    sectionMap.set('CSIT — Section A', {
-      key: 'CSIT — Section A',
-      department: 'CSIT',
-      section: 'A',
-      year: yearLabel,
-      label: 'CSIT - Sec A',
-      value: 'CSIT-A',
-      rollNumbers: new Set<string>(),
-      studentCount: 0,
-    });
-    sectionMap.set('CSIT — Section B', {
-      key: 'CSIT — Section B',
-      department: 'CSIT',
-      section: 'B',
-      year: yearLabel,
-      label: 'CSIT - Sec B',
-      value: 'CSIT-B',
-      rollNumbers: new Set<string>(),
-      studentCount: 0,
-    });
-
-    yearStudents.forEach(s => {
-      const dept = (s.department || 'CSIT').toUpperCase().trim();
-      const rawRoll = (s.rollNumber || s.userId || '').toUpperCase().trim();
-      const suffix = extractRollSuffixBackend(rawRoll);
-
-      let secKey = '';
-      let secValue = '';
-      let secLabel = '';
-      let secLetter = 'A';
-
-      const rawSec = ((s as any).section || '') as string;
-      const explicitSec = rawSec.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
-      if (explicitSec === 'A' || explicitSec === 'B' || explicitSec === 'C' || explicitSec === 'D') {
-        secLetter = explicitSec;
-        secKey = `${dept} — Section ${explicitSec}`;
-        secValue = `${dept}-${explicitSec}`;
-        secLabel = `${dept} - Sec ${explicitSec}`;
-      } else if (dept === 'CSD' || rawRoll.includes('62') || rawRoll.startsWith('24B91A05') || rawRoll.startsWith('24B91A03')) {
-        secKey = 'CSD — Section A';
-        secValue = 'CSD-A';
-        secLabel = 'CSD - Sec A';
-        secLetter = 'A';
-      } else if (dept === 'CSIT' || rawRoll.includes('07')) {
-        let isSecB = false;
-        if (/^\d+$/.test(suffix)) {
-          const num = parseInt(suffix, 10);
-          isSecB = num >= 73;
-        } else {
-          isSecB = true;
-        }
-        if (isSecB) {
-          secKey = 'CSIT — Section B';
-          secValue = 'CSIT-B';
-          secLabel = 'CSIT - Sec B';
-          secLetter = 'B';
-        } else {
-          secKey = 'CSIT — Section A';
-          secValue = 'CSIT-A';
-          secLabel = 'CSIT - Sec A';
-          secLetter = 'A';
-        }
-      } else {
-        secKey = `${dept} — Section A`;
-        secValue = `${dept}-A`;
-        secLabel = `${dept} - Sec A`;
-        secLetter = 'A';
-      }
-
-      if (!sectionMap.has(secKey)) {
-        sectionMap.set(secKey, {
-          key: secKey,
-          department: dept,
-          section: secLetter,
-          year: `${targetDigit}${targetDigit === '1' ? 'st' : targetDigit === '2' ? 'nd' : targetDigit === '3' ? 'rd' : 'th'} Year`,
-          label: secLabel,
-          value: secValue,
-          rollNumbers: new Set<string>(),
-          studentCount: 0,
-        });
-      }
-
-      const secObj = sectionMap.get(secKey)!;
-      if (suffix) {
-        secObj.rollNumbers.add(suffix);
-      }
-      secObj.studentCount += 1;
-    });
-
-    // Return only the sections and real student rolls from DB (no dummy fallback data)
-    const result = Array.from(sectionMap.values())
-      .filter(sec => sec.studentCount > 0 || sec.rollNumbers.size > 0)
-      .map(sec => {
-        const rolls = Array.from(sec.rollNumbers);
-        return {
-          key: sec.key,
-          department: sec.department,
-          section: sec.section,
-          year: sec.year,
-          label: sec.label,
-          value: sec.value,
-          rollNumbers: sortRolls(rolls),
-          studentCount: sec.studentCount,
-        };
-      });
-
-    res.json({ sections: result });
   } catch (error) {
     console.error('Error fetching public sections:', error);
     res.status(500).json({ error: 'Internal error' });
   }
-});
+};
+
+router.get('/public-sections', handlePublicSections);
+router.get('/students/roster', handlePublicSections);
 
 // Public endpoint for permissions page viewer & attendance pre-highlighting
 router.get('/public-approved', async (req: Request, res: Response) => {
@@ -661,30 +476,41 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    const user = req.user!;
+    const tokenUser = req.user!;
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { userId: { equals: tokenUser.id, mode: 'insensitive' } },
+          { id:     { equals: tokenUser.id, mode: 'insensitive' } },
+          { email:  { equals: tokenUser.email, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    const activeUser = dbUser || tokenUser;
 
     // 1. Student access guard — students can only view their own requests
-    if (user.role === 'student') {
-      if (!isStudentOwnerOfRequest(doc, user as any)) {
+    if (activeUser.role === 'student') {
+      if (!isStudentOwnerOfRequest(doc, activeUser as any)) {
         res.status(403).json({ error: 'Forbidden' });
         return;
       }
     }
 
-    // 2. Faculty read access — any authenticated faculty can read request details
-    //    (assignment enforcement is on the review/action endpoint, not here)
+    // 2. Faculty read access — authenticated faculty can read request details
+    // (assignment enforcement is on the review/action endpoint)
 
-    // 3. HOD access guard — scoped to their department
-    if (user.role === 'hod') {
-      if (!isHodAuthorizedForRequest(doc, user as any)) {
+    // 3. HOD access guard
+    if (activeUser.role === 'hod') {
+      if (!isHodAuthorizedForRequest(doc, activeUser as any)) {
         res.status(403).json({ error: 'Forbidden' });
         return;
       }
     }
 
     // 4. Admin access guard
-    if (user.role === 'admin') {
-      if (!isAdminAuthorizedForRequest(doc, user as any)) {
+    if (activeUser.role === 'admin') {
+      if (!isAdminAuthorizedForRequest(doc, activeUser as any)) {
         res.status(403).json({ error: 'Forbidden' });
         return;
       }
@@ -703,8 +529,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  */
 router.post('/hod-direct-grant', async (req: Request, res: Response) => {
   const user = req.user!;
-  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod';
+  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin';
 
   if (!isHodOrAdmin) {
     res.status(403).json({ error: 'Only HOD or Admin can issue direct classwork exemptions' });
@@ -992,56 +817,61 @@ router.post('/', async (req: Request, res: Response) => {
     const finalDocName = documentName || (documentUrl ? 'Uploaded_Proof_Document' : undefined);
     const finalDocUrl = documentUrl || (documentName?.startsWith('http') || documentName?.startsWith('data:') ? documentName : undefined);
 
-    // Create request + audit action + notifications in a single transaction
-    const newDoc = await prisma.$transaction(async tx => {
-      const created = await tx.request.create({
-        data: {
-          requestId,
-          publicId,
-          studentId:        studentUser.userId,
-          primaryFacultyId: primaryFaculty?.userId ?? null,
-          reason:           safeReason as any,
-          reasonLabel:      REASON_LABELS[safeReason] ?? String(reason),
-          date,
-          ...(endDate && { endDate }),
-          ...(periods && { periods }),
-          startTime,
-          endTime,
-          description,
-          status:           'pending',
-          submittedAt:      new Date().toISOString(),
-          ...(finalDocName && { documentName: finalDocName }),
-          ...(finalDocUrl && { documentUrl: finalDocUrl }),
-        },
-      });
+    // 1. Create the base request document
+    const created = await prisma.request.create({
+      data: {
+        requestId,
+        publicId,
+        studentId:        studentUser.userId,
+        primaryFacultyId: primaryFaculty?.userId ?? null,
+        reason:           safeReason as any,
+        reasonLabel:      REASON_LABELS[safeReason] ?? String(reason),
+        date,
+        ...(endDate && { endDate }),
+        ...(periods && { periods }),
+        startTime,
+        endTime,
+        description,
+        status:           'pending',
+        submittedAt:      new Date().toISOString(),
+        ...(finalDocName && { documentName: finalDocName }),
+        ...(finalDocUrl && { documentUrl: finalDocUrl }),
+      },
+    });
 
-      if (facultyDocs.length > 0) {
-        await tx.requestFaculty.createMany({
+    // 2. Assign faculty members
+    if (facultyDocs.length > 0) {
+      try {
+        await prisma.requestFaculty.createMany({
           data: facultyDocs.map(f => ({
             requestId: created.id,
             facultyId: f.userId,
           })),
           skipDuplicates: true,
         });
+      } catch (fErr) {
+        console.warn('Could not create request faculty assignments:', fErr);
       }
+    }
 
-      // Generate dedicated secure share token
-      const shareToken = generateShareToken(10);
-      try {
-        await (tx as any).permissionRequestShareLink.create({
-          data: {
-            requestId: created.id,
-            token:     shareToken,
-            createdBy: studentUser.userId,
-            isActive:  true,
-          },
-        });
-      } catch (tokenErr) {
-        console.warn('Could not create share token in transaction:', tokenErr);
-      }
+    // 3. Generate dedicated secure share token
+    const shareToken = generateShareToken(10);
+    try {
+      await (prisma as any).permissionRequestShareLink.create({
+        data: {
+          requestId: created.id,
+          token:     shareToken,
+          createdBy: studentUser.userId,
+          isActive:  true,
+        },
+      });
+    } catch (tokenErr) {
+      console.warn('Could not create share token entry:', tokenErr);
+    }
 
-      // Record audit action
-      await tx.requestAction.create({
+    // 4. Record audit action
+    try {
+      await prisma.requestAction.create({
         data: {
           requestId:     created.id,
           performedById: studentUser.userId,
@@ -1049,10 +879,14 @@ router.post('/', async (req: Request, res: Response) => {
           remarks:       'Request submitted by student',
         },
       });
+    } catch (actErr) {
+      console.warn('Could not create request action audit log:', actErr);
+    }
 
-      // Generate notification for assigned faculty
-      if (facultyDocs.length > 0) {
-        await tx.notification.createMany({
+    // 5. Generate notifications for assigned faculty
+    if (facultyDocs.length > 0) {
+      try {
+        await prisma.notification.createMany({
           data: facultyDocs.map(f => ({
             userId:    f.userId,
             requestId: created.id,
@@ -1061,23 +895,31 @@ router.post('/', async (req: Request, res: Response) => {
             message:   `${studentUser.name} submitted a new request for ${REASON_LABELS[safeReason] ?? reason}.`,
           })),
         });
+      } catch (notifErr) {
+        console.warn('Could not create notifications:', notifErr);
       }
+    }
 
-      return tx.request.findUnique({
+    // 6. Fetch complete request with all relations
+    let newDoc = null;
+    try {
+      newDoc = await prisma.request.findUnique({
         where:   { id: created.id },
         include: REQUEST_INCLUDE,
       });
-    });
+    } catch (fetchErr) {
+      console.warn('Could not fetch request with relations, using created object:', fetchErr);
+    }
 
-    const mapped = toApi(newDoc!);
-    const shareToken = mapped.shareToken || ((newDoc as any)?.shareLinks?.[0]?.token);
-    const shareUrl = shareToken ? `/r/${shareToken}` : `/share/${mapped.publicId || mapped.id}`;
+    const mapped = toApi(newDoc || created);
+    const finalShareToken = shareToken || mapped.shareToken || ((newDoc as any)?.shareLinks?.[0]?.token);
+    const shareUrl = finalShareToken ? `/r/${finalShareToken}` : `/share/${mapped.publicId || mapped.id}`;
 
     res.status(201).json({
       success: true,
       request: mapped,
       requestId: mapped.id,
-      shareToken,
+      shareToken: finalShareToken,
       shareUrl,
     });
   } catch (err) {
@@ -1184,14 +1026,7 @@ router.all('/:id/share-link', async (req: Request, res: Response) => {
  * Allows Faculty / HOD to accept or reject multiple requests simultaneously.
  */
 router.post('/bulk-review', async (req: Request, res: Response) => {
-  let user = req.user!;
-
-  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod' || (user.role as string) === 'viewer';
-
-  if (isHodOrAdmin) {
-    user = { ...user, role: 'hod' };
-  }
+  const user = req.user!;
 
   if (user.role === 'student') {
     res.status(403).json({ error: 'Students cannot review requests' });
@@ -1459,15 +1294,7 @@ router.put('/:id', async (req: Request, res: Response) => {
  * Body: { action: 'approve' | 'reject', rejectionReason?: string, remarks?: string }
  */
 router.patch('/:id', async (req: Request, res: Response) => {
-  let user = req.user!;
-
-  // Role override from HOD executive control panel
-  const roleOverride = req.headers['x-role-override'] || (req.body as any)?.roleOverride;
-  const isHodOrAdmin = user.role === 'hod' || user.role === 'admin' || roleOverride === 'hod' || (user.role as string) === 'viewer';
-
-  if (isHodOrAdmin) {
-    user = { ...user, role: 'hod' };
-  }
+  const user = req.user!;
 
   if (user.role === 'student') {
     res.status(403).json({ error: 'Students cannot review requests' });
@@ -1508,21 +1335,35 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
 
     // ── Faculty & HOD authorization check ─────────────────────────────────────────
+    const tokenUser = req.user!;
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { userId: { equals: tokenUser.id, mode: 'insensitive' } },
+          { id:     { equals: tokenUser.id, mode: 'insensitive' } },
+          { email:  { equals: tokenUser.email, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    const activeUser = dbUser || tokenUser;
+
     if (user.role === 'faculty') {
-      const isAuthorized = isFacultyAuthorizedForRequest(existing, user as any);
-      if (!isAuthorized && !isHodOrAdmin) {
+      const isAuthorized = isFacultyAuthorizedForRequest(existing, activeUser as any);
+      if (!isAuthorized) {
         res.status(403).json({ error: 'This request is not assigned to you' });
         return;
       }
     } else if (user.role === 'hod') {
-      const isAuthorized = isHodAuthorizedForRequest(existing, user as any) || isFacultyAuthorizedForRequest(existing, user as any) || isHodOrAdmin;
+      const isAuthorized = isHodAuthorizedForRequest(existing, activeUser as any) || isFacultyAuthorizedForRequest(existing, activeUser as any);
       if (!isAuthorized) {
         res.status(403).json({ error: 'You are not authorized to review requests for this department' });
         return;
       }
+    } else if (user.role !== 'admin') {
+      res.status(403).json({ error: 'Forbidden: unauthorized to review requests' });
+      return;
     }
-
-    // Admin has full executive authority
 
 
     // ── Determine Action Name & Status ────────────────────────────────────────
@@ -1542,7 +1383,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    const decisionRole = user.role === 'hod' ? 'HOD' : 'Faculty';
+    const decisionRole = user.role === 'admin' ? 'Admin' : (user.role === 'hod' ? 'HOD' : 'Faculty');
 
     const performingUserId = (user as any).userId || user.id;
 
@@ -1819,8 +1660,17 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    // Verify ownership
-    if (user.role === 'student' && existing.studentId !== user.id) {
+    // Verify ownership and deletion authorization:
+    // Student can delete ONLY their own request.
+    // Admin retains administrative deletion capability.
+    // Faculty and HOD cannot delete student requests.
+    const isStudentOwner = user.role === 'student' && (
+      existing.studentId.toLowerCase() === user.id.toLowerCase() ||
+      (user.rollNumber ? existing.studentId.toLowerCase() === user.rollNumber.toLowerCase() : false)
+    );
+    const isAdmin = user.role === 'admin';
+
+    if (!isStudentOwner && !isAdmin) {
       res.status(403).json({ error: 'You are not authorized to delete this request' });
       return;
     }

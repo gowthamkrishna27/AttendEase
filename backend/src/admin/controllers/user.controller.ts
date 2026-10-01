@@ -12,12 +12,13 @@ import {
 import * as userService from '../services/user.service.js';
 
 export async function getUsers(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
   try {
-    const result = await userService.listUsers();
+    const { role } = req.query;
+    const result = await userService.listUsers(typeof role === 'string' ? role : undefined);
     res.json(result);
   } catch (err) {
     next(err);

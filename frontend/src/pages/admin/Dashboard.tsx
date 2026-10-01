@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Users, Settings, ArrowRight, UserCheck, Database, ClipboardList, ClipboardCheck } from 'lucide-react';
+import { Users, Settings, ArrowRight, UserCheck, Database, ClipboardList, CalendarCheck, Megaphone } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import logo from '../../assets/logo.png';
@@ -30,18 +30,25 @@ export default function AdminDashboard() {
       tag: `${totalUsers} Accounts`
     },
     {
+      label: 'Invigilation Duties & Hours',
+      description: 'Schedule exams, assign faculty, and review invigilation duties and hours',
+      icon: CalendarCheck,
+      to: '/admin/invigilation',
+      tag: 'Invigilation'
+    },
+    {
+      label: 'Announcements & Widgets',
+      description: 'Manage banners, opening animations, and live iframe widgets with targeting',
+      icon: Megaphone,
+      to: '/admin/announcements',
+      tag: 'Announcements'
+    },
+    {
       label: 'Counseling Assignment',
       description: 'Map students to faculty counselors for guidance & approval flow',
       icon: UserCheck,
       to: '/admin/counseling',
       tag: 'Counseling'
-    },
-    {
-      label: 'Invigilation Hours',
-      description: 'View faculty invigilation duty assignments, hours and exam schedules',
-      icon: ClipboardCheck,
-      to: '/admin/invigilation',
-      tag: 'Invigilation'
     },
     {
       label: 'Student Request Logs',

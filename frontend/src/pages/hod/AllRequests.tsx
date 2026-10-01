@@ -40,7 +40,7 @@ export default function HODAllRequests() {
   const reviewMutation = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: 'approve' | 'reject' }) => {
       try {
-        return await api.reviewRequest(id, action);
+        return await api.reviewRequest(id, action, undefined, true);
       } catch (err) {
         console.warn('API reviewRequest error, applying local optimistic override:', err);
         queryClient.setQueryData(['requests'], (old: any[] | undefined) =>

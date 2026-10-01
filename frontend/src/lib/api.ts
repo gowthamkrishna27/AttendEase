@@ -5,18 +5,21 @@
  */
 
 export const getApiBase = (): string => {
-  // If running in browser on localhost / 127.0.0.1, always target local backend
+  // VITE_API_URL always takes priority (covers localhost dev with custom port)
+  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
+  if (envUrl) return envUrl.replace(/\/+$/, '');
+
+  // If running in browser on localhost / 127.0.0.1 with no env override, target local backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return 'http://localhost:3000';
   }
 
-  // Otherwise (on Vercel production deployment), use VITE_API_URL or fallback to Render
-  const envUrl = (import.meta.env['VITE_API_URL'] || '').trim();
-  if (envUrl) return envUrl.replace(/\/+$/, '');
-
+  // Production fallback (Render)
   return 'https://attendease-apuw.onrender.com';
 };
 
+// NOTE: Always call getApiBase() dynamically in fetch calls rather than using this constant
+// so that the URL is resolved at request time, not frozen at module-load time.
 export const BASE = getApiBase();
 
 const TOKEN_KEY = 'attendease_token';
@@ -185,14 +188,17 @@ async function apiFetch<T>(
   }
 
   const reqInit = { ...options, headers };
+  // Always call getApiBase() dynamically — never use the frozen BASE constant
+  // This ensures mobile devices and different environments always get the correct URL
+  const currentBase = getApiBase();
   let res: Response | null = null;
   try {
-    res = await fetch(`${BASE}${path}`, reqInit);
+    res = await fetch(`${currentBase}${path}`, reqInit);
   } catch {
     const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const fallbackBases = isLocal
-      ? ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== BASE)
-      : ['https://attendease-apuw.onrender.com'].filter(b => b !== BASE);
+      ? ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'].filter(b => b !== currentBase)
+      : ['https://attendease-apuw.onrender.com'].filter(b => b !== currentBase);
     for (const fb of fallbackBases) {
       try {
         const fbRes = await fetch(`${fb}${path}`, reqInit);
@@ -209,7 +215,7 @@ async function apiFetch<T>(
   }
 
   if (!res.ok) {
-    if (res.status === 401 && auth && !path.includes('/auth/login')) {
+    if (res.status === 401 && auth && !path.includes('/auth/login') && !path.includes('/api/activities') && !path.includes('/api/admin/coordinators')) {
       clearStoredToken();
     }
     const body = await res.json().catch(() => ({ error: res.statusText || 'API error' }));
@@ -434,13 +440,20 @@ export async function reviewRequest(
   id: string,
   action: 'approve' | 'reject',
   rejectionReason?: string,
-  periods?: string,
+  asHodOrPeriods?: boolean | string,
+  periodsParam?: string,
 ): Promise<AttendanceRequest> {
+  const periods = typeof asHodOrPeriods === 'string' ? asHodOrPeriods : periodsParam;
+
   const res = await apiFetch<{ request: AttendanceRequest }>(
     `/api/requests/${id}`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ action, rejectionReason, periods }),
+      body: JSON.stringify({
+        action,
+        rejectionReason,
+        ...(periods ? { periods } : {}),
+      }),
     },
   );
   return res.request;
@@ -537,9 +550,22 @@ export interface CreateUserPayload {
   counselorId?: string;
 }
 
-export async function getUsers(): Promise<AuthUser[]> {
-  const res = await apiFetch<{ users: AuthUser[] }>('/api/admin/users');
-  return res.users ?? [];
+export async function getUsers(role?: string): Promise<AuthUser[]> {
+  if (role === 'student') {
+    try {
+      const res = await apiFetch<{ students: AuthUser[] }>('/api/users/students');
+      return res.students || [];
+    } catch {
+      return [];
+    }
+  }
+  const url = role ? `/api/admin/users?role=${encodeURIComponent(role)}` : '/api/admin/users';
+  const res = await apiFetch<{ users: AuthUser[] }>(url);
+  const list = res.users ?? [];
+  if (role) {
+    return list.filter(u => u.role === role);
+  }
+  return list;
 }
 
 export async function createUser(data: CreateUserPayload): Promise<AuthUser> {
@@ -641,9 +667,7 @@ export async function importStudentsFile(file: File): Promise<ImportReport> {
   formData.append('file', file);
 
   const token = getStoredToken();
-  const headers: Record<string, string> = {
-    'x-role-override': 'admin',
-  };
+  const headers: Record<string, string> = {};
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -719,14 +743,24 @@ export interface SubmitAttendancePayload {
 }
 
 export interface PublicSectionItem {
+  id?: string;
   key: string;
   department: string;
   section: string;
   year: string;
   label: string;
   value: string;
+  displayName?: string;
   rollNumbers: string[];
   studentCount: number;
+  students?: Array<{
+    userId: string;
+    name: string;
+    rollNumber: string;
+    displayRoll?: string;
+    suffix: string;
+    isColliding?: boolean;
+  }>;
 }
 
 export async function getPublicSections(year?: string): Promise<PublicSectionItem[]> {
@@ -734,6 +768,15 @@ export async function getPublicSections(year?: string): Promise<PublicSectionIte
   if (year) params.append('year', year);
   const queryString = params.toString();
   const url = `/api/requests/public-sections${queryString ? `?${queryString}` : ''}`;
+  const res = await apiFetch<{ sections: PublicSectionItem[] }>(url, {}, false);
+  return res.sections ?? [];
+}
+
+export async function getStudentsRoster(year?: string): Promise<PublicSectionItem[]> {
+  const params = new URLSearchParams();
+  if (year) params.append('year', year);
+  const queryString = params.toString();
+  const url = `/api/students/roster${queryString ? `?${queryString}` : ''}`;
   const res = await apiFetch<{ sections: PublicSectionItem[] }>(url, {}, false);
   return res.sections ?? [];
 }
@@ -976,5 +1019,567 @@ export async function revokeShareToken(shareToken: string): Promise<{ success: b
     method: 'POST',
   });
 }
+
+// ─── Invigilation Management (Admin) ──────────────────────────────────────────
+
+export type ExamType = 'MID' | 'SEM' | 'LAB' | 'SUPPLEMENTARY';
+export type SessionType = 'MORNING' | 'AFTERNOON';
+
+export interface AssignedFacultyInfo {
+  assignmentId: string;
+  facultyId: string;   // User.id (cuid)
+  userId: string;      // User.userId (e.g. "fac-001")
+  name: string;
+  email: string;
+  department: string;
+  designation?: string | null;
+}
+
+export interface InvigilationDuty {
+  id: string;
+  examType: ExamType;
+  date: string;        // YYYY-MM-DD in Asia/Kolkata
+  session: SessionType;
+  startTime: string | null;  // HH:mm or null
+  endTime: string | null;    // HH:mm or null
+  createdAt: string;
+  updatedAt: string;
+  assignedFaculty: AssignedFacultyInfo[];
+}
+
+export interface InvigilationDutyListResponse {
+  duties: InvigilationDuty[];
+  total: number;
+}
+
+export interface FacultyAssignmentInput {
+  facultyId: string;  // User.id or User.userId — backend resolves both
+}
+
+export interface CreateDutyPayload {
+  examType: ExamType;
+  date: string;        // YYYY-MM-DD
+  session: SessionType;
+  startTime?: string | null;  // HH:mm, optional
+  endTime?: string | null;    // HH:mm, optional
+  assignedFaculty: FacultyAssignmentInput[];
+}
+
+export interface UpdateDutyPayload {
+  examType?: ExamType;
+  date?: string;
+  session?: SessionType;
+  startTime?: string | null;
+  endTime?: string | null;
+  assignedFaculty?: FacultyAssignmentInput[];
+}
+
+export interface InvigilationFilterParams {
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+  examType?: ExamType;
+  session?: SessionType;
+  facultyId?: string;
+  department?: string;
+}
+
+export async function getInvigilationDuties(params?: InvigilationFilterParams): Promise<InvigilationDutyListResponse> {
+  const query = new URLSearchParams();
+  if (params) {
+    if (params.date) query.append('date', params.date);
+    if (params.startDate) query.append('startDate', params.startDate);
+    if (params.endDate) query.append('endDate', params.endDate);
+    if (params.examType) query.append('examType', params.examType);
+    if (params.session) query.append('session', params.session);
+    if (params.facultyId) query.append('facultyId', params.facultyId);
+    if (params.department) query.append('department', params.department);
+  }
+  const queryString = query.toString();
+  const endpoint = `/api/admin/invigilation${queryString ? `?${queryString}` : ''}`;
+  return apiFetch<InvigilationDutyListResponse>(endpoint);
+}
+
+export async function getInvigilationDuty(id: string): Promise<InvigilationDuty> {
+  const res = await apiFetch<{ duty: InvigilationDuty }>(`/api/admin/invigilation/${encodeURIComponent(id)}`);
+  return res.duty;
+}
+
+export async function createInvigilationDuty(data: CreateDutyPayload): Promise<InvigilationDuty> {
+  const res = await apiFetch<{ duty: InvigilationDuty }>('/api/admin/invigilation', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.duty;
+}
+
+export async function updateInvigilationDuty(id: string, data: UpdateDutyPayload): Promise<InvigilationDuty> {
+  const res = await apiFetch<{ duty: InvigilationDuty }>(`/api/admin/invigilation/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res.duty;
+}
+
+export async function deleteInvigilationDuty(id: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`/api/admin/invigilation/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+// ─── Faculty Invigilation Duties ──────────────────────────────────────────────
+
+export interface FacultyInvigilationDuty {
+  id: string;
+  examType: ExamType;
+  date: string;        // YYYY-MM-DD in Asia/Kolkata
+  session: SessionType;
+  startTime: string | null;  // HH:mm or null
+  endTime: string | null;    // HH:mm or null
+  status: 'UPCOMING';
+}
+
+export interface FacultyInvigilationListResponse {
+  duties: FacultyInvigilationDuty[];
+  total: number;
+}
+
+export async function getMyInvigilationDuties(): Promise<FacultyInvigilationListResponse> {
+  return apiFetch<FacultyInvigilationListResponse>('/api/invigilation/my-duties');
+}
+
+// ─── Student Activities & Coordinator Management API ──────────────────────────
+
+export type ActivityCategory = 'internship' | 'startup' | 'project_work' | 'sports' | 'house_events';
+
+export interface StudentActivity {
+  id: string;
+  studentId: string;
+  category: ActivityCategory;
+  titleOrCompany: string;
+  roleOrPosition?: string;
+  mentorOrAchievement?: string;
+  startDate?: string;
+  endDate?: string;
+  status: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  student?: {
+    id: string;
+    userId: string;
+    name: string;
+    email: string;
+    rollNumber?: string;
+    department?: string;
+    year?: string;
+    section?: string;
+    semester?: number;
+    avatarUrl?: string;
+  };
+}
+
+export interface CoordinatorAccess {
+  id: string;
+  facultyId: string;
+  category: ActivityCategory;
+  codeMasked: string;
+  isActive: boolean;
+  assignedById: string;
+  createdAt: string;
+  updatedAt: string;
+  faculty?: {
+    id: string;
+    userId: string;
+    name: string;
+    email: string;
+    department?: string;
+    designation?: string;
+    phone?: string;
+    avatarUrl?: string;
+    isActive: boolean;
+  };
+  assignedBy?: {
+    userId: string;
+    name: string;
+  };
+}
+
+export interface ActivityAuditLog {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  category: string;
+  studentId?: string;
+  studentName?: string;
+  details?: string;
+  timestamp: string;
+}
+
+export async function getStudentActivities(params?: { category?: string; search?: string; status?: string }): Promise<StudentActivity[]> {
+  const query = new URLSearchParams();
+  if (params?.category && params.category !== 'all') query.set('category', params.category);
+  if (params?.search) query.set('search', params.search);
+  if (params?.status && params.status !== 'all') query.set('status', params.status);
+  
+  const queryString = query.toString();
+  const url = `/api/activities${queryString ? `?${queryString}` : ''}`;
+  const res = await apiFetch<{ activities: StudentActivity[] }>(url);
+  return res.activities || [];
+}
+
+export async function verifyCoordinatorCode(category: string, code: string): Promise<{ success: boolean; authorized: boolean; category: string; facultyName?: string }> {
+  return apiFetch<{ success: boolean; authorized: boolean; category: string; facultyName?: string }>('/api/activities/verify-code', {
+    method: 'POST',
+    body: JSON.stringify({ category, code }),
+  });
+}
+
+export async function addStudentActivity(data: {
+  studentId: string;
+  category: string;
+  titleOrCompany: string;
+  roleOrPosition?: string;
+  mentorOrAchievement?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  coordinatorCode?: string;
+}): Promise<StudentActivity> {
+  const headers: Record<string, string> = {};
+  if (data.coordinatorCode) {
+    headers['X-Coordinator-Code'] = data.coordinatorCode;
+  }
+  const res = await apiFetch<{ activity: StudentActivity }>('/api/activities', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(data),
+  });
+  return res.activity;
+}
+
+export async function updateStudentActivity(id: string, data: {
+  titleOrCompany?: string;
+  roleOrPosition?: string;
+  mentorOrAchievement?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  coordinatorCode?: string;
+}): Promise<StudentActivity> {
+  const headers: Record<string, string> = {};
+  if (data.coordinatorCode) {
+    headers['X-Coordinator-Code'] = data.coordinatorCode;
+  }
+  const res = await apiFetch<{ activity: StudentActivity }>(`/api/activities/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(data),
+  });
+  return res.activity;
+}
+
+export async function removeStudentActivity(id: string, coordinatorCode?: string): Promise<{ success: boolean; message: string }> {
+  const headers: Record<string, string> = {};
+  if (coordinatorCode) {
+    headers['X-Coordinator-Code'] = coordinatorCode;
+  }
+  return apiFetch<{ success: boolean; message: string }>(`/api/activities/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers,
+    body: JSON.stringify({ coordinatorCode }),
+  });
+}
+
+export async function bulkAddStudentActivities(data: {
+  studentIds: string[];
+  category: string;
+  titleOrCompany: string;
+  roleOrPosition?: string;
+  mentorOrAchievement?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  coordinatorCode?: string;
+}): Promise<{ success: boolean; addedCount: number; skippedCount: number; message: string }> {
+  const headers: Record<string, string> = {};
+  if (data.coordinatorCode) {
+    headers['X-Coordinator-Code'] = data.coordinatorCode;
+  }
+  return apiFetch<{ success: boolean; addedCount: number; skippedCount: number; message: string }>('/api/activities/bulk-add', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(data),
+  });
+}
+
+export async function bulkRemoveStudentActivities(activityIds: string[], coordinatorCode?: string): Promise<{ success: boolean; removedCount: number; message: string }> {
+  const headers: Record<string, string> = {};
+  if (coordinatorCode) {
+    headers['X-Coordinator-Code'] = coordinatorCode;
+  }
+  return apiFetch<{ success: boolean; removedCount: number; message: string }>('/api/activities/bulk-remove', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ activityIds, coordinatorCode }),
+  });
+}
+
+export async function getActivityAuditLogs(category?: string): Promise<ActivityAuditLog[]> {
+  const url = category && category !== 'all' ? `/api/activities/audit-logs?category=${encodeURIComponent(category)}` : '/api/activities/audit-logs';
+  const res = await apiFetch<{ logs: ActivityAuditLog[] }>(url);
+  return res.logs || [];
+}
+
+export async function getMyCoordinatorAssignments(): Promise<{ success: boolean; isAdmin: boolean; categories: string[] }> {
+  return apiFetch<{ success: boolean; isAdmin: boolean; categories: string[] }>('/api/activities/my-assignments');
+}
+
+export async function getCoordinators(): Promise<CoordinatorAccess[]> {
+  const res = await apiFetch<{ coordinators: CoordinatorAccess[] }>('/api/admin/coordinators');
+  return res.coordinators || [];
+}
+
+export async function assignCoordinator(facultyId: string, category: string, customCode?: string): Promise<{ success: boolean; generatedCode: string; coordinator: CoordinatorAccess }> {
+  return apiFetch<{ success: boolean; generatedCode: string; coordinator: CoordinatorAccess }>('/api/admin/coordinators', {
+    method: 'POST',
+    body: JSON.stringify({ facultyId, category, customCode }),
+  });
+}
+
+export async function regenerateCoordinatorCode(id: string, customCode?: string): Promise<{ success: boolean; generatedCode: string; coordinator: CoordinatorAccess }> {
+  return apiFetch<{ success: boolean; generatedCode: string; coordinator: CoordinatorAccess }>(`/api/admin/coordinators/${encodeURIComponent(id)}/regenerate`, {
+    method: 'POST',
+    body: JSON.stringify({ customCode }),
+  });
+}
+
+export async function toggleCoordinatorStatus(id: string, isActive: boolean): Promise<{ success: boolean; coordinator: CoordinatorAccess }> {
+  return apiFetch<{ success: boolean; coordinator: CoordinatorAccess }>(`/api/admin/coordinators/${encodeURIComponent(id)}/toggle`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isActive }),
+  });
+}
+
+export async function revokeCoordinator(id: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`/api/admin/coordinators/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+// ─── Dynamic Announcements, Widgets & Opening Animations ──────────────────────
+
+export type AnnouncementType = 'WIDGET' | 'OPENING_ANIMATION' | 'BANNER';
+export type AnnouncementState = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+export type AnnouncementMediaType = 'IFRAME' | 'VIDEO' | 'IMAGE' | 'LOTTIE' | 'TEXT';
+export type AnnouncementPlacement = 'HOME_TOP' | 'HOME_MIDDLE' | 'HOME_BOTTOM' | 'POPUP';
+export type AnnouncementDisplayMode =
+  | 'EVERY_PAGE_LOAD'
+  | 'ONCE_PER_SESSION'
+  | 'ONCE_PER_DAY'
+  | 'ONCE_PER_LOGIN'
+  | 'ONCE_PER_USER';
+
+export type ComputedAnnouncementStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'SCHEDULED' | 'EXPIRED';
+
+export interface AnnouncementItem {
+  id: string;
+  title: string;
+  type: AnnouncementType;
+  mediaType: AnnouncementMediaType;
+  placement: AnnouncementPlacement;
+  srcUrl: string | null;
+  externalUrl: string | null;
+  content: string | null;
+  buttonText: string | null;
+  buttonUrl: string | null;
+  openInNewTab: boolean;
+  displayOrder: number;
+  priority: number;
+  displayMode: AnnouncementDisplayMode;
+  closable: boolean;
+  showCloseButton: boolean;
+  autoCloseSeconds: number | null;
+  backdropDismiss: boolean;
+  height: number | null;
+  width: number | null;
+  mobileHeight: number | null;
+  desktopHeight: number | null;
+  aspectRatio: string | null;
+  fullWidth: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnnouncementAnalytics {
+  viewsCount: number;
+  dismissalsCount: number;
+  clicksCount: number;
+  ctr: number;
+}
+
+export interface AnnouncementAdminItem extends AnnouncementItem {
+  state: AnnouncementState;
+  computedStatus: ComputedAnnouncementStatus;
+  targetRoles: string[];
+  targetYears: string[];
+  targetDepartments: string[];
+  targetSections: string[];
+  startsAt: string | null;
+  endsAt: string | null;
+  createdById: string | null;
+  updatedById: string | null;
+  analytics?: AnnouncementAnalytics;
+}
+
+export interface CreateAnnouncementInput {
+  title: string;
+  type: AnnouncementType;
+  mediaType: AnnouncementMediaType;
+  state?: AnnouncementState;
+  placement?: AnnouncementPlacement;
+  srcUrl?: string | null;
+  externalUrl?: string | null;
+  content?: string | null;
+  buttonText?: string | null;
+  buttonUrl?: string | null;
+  openInNewTab?: boolean;
+  displayOrder?: number;
+  priority?: number;
+  targetRoles?: string[];
+  targetYears?: string[];
+  targetDepartments?: string[];
+  targetSections?: string[];
+  startsAt?: string | null;
+  endsAt?: string | null;
+  displayMode?: AnnouncementDisplayMode;
+  closable?: boolean;
+  showCloseButton?: boolean;
+  autoCloseSeconds?: number | null;
+  backdropDismiss?: boolean;
+  height?: number | null;
+  width?: number | null;
+  mobileHeight?: number | null;
+  desktopHeight?: number | null;
+  aspectRatio?: string | null;
+  fullWidth?: boolean;
+}
+
+export interface UpdateAnnouncementInput extends Partial<CreateAnnouncementInput> {}
+
+/**
+ * Fetch eligible active announcements for the current student/user.
+ */
+export async function getAnnouncements(): Promise<AnnouncementItem[]> {
+  try {
+    const res = await apiFetch<{ announcements: AnnouncementItem[] }>('/api/announcements');
+    return res.announcements || [];
+  } catch (err) {
+    console.error('getAnnouncements fetch error:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetch all announcements for admin management.
+ */
+export async function getAdminAnnouncements(params?: {
+  type?: string;
+  state?: string;
+  placement?: string;
+  search?: string;
+}): Promise<AnnouncementAdminItem[]> {
+  const query = new URLSearchParams();
+  if (params?.type && params.type !== 'ALL') query.set('type', params.type);
+  if (params?.state && params.state !== 'ALL') query.set('state', params.state);
+  if (params?.placement && params.placement !== 'ALL') query.set('placement', params.placement);
+  if (params?.search) query.set('search', params.search);
+
+  const qs = query.toString() ? `?${query.toString()}` : '';
+  const res = await apiFetch<{ announcements: AnnouncementAdminItem[]; total: number }>(`/api/admin/announcements${qs}`);
+  return res.announcements || [];
+}
+
+/**
+ * Fetch a single announcement by ID for admin editing.
+ */
+export async function getAdminAnnouncement(id: string): Promise<AnnouncementAdminItem> {
+  const res = await apiFetch<{ announcement: AnnouncementAdminItem }>(`/api/admin/announcements/${encodeURIComponent(id)}`);
+  return res.announcement;
+}
+
+/**
+ * Create a new announcement.
+ */
+export async function createAnnouncement(data: CreateAnnouncementInput): Promise<AnnouncementAdminItem> {
+  const res = await apiFetch<{ announcement: AnnouncementAdminItem }>('/api/admin/announcements', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.announcement;
+}
+
+/**
+ * Update an existing announcement.
+ */
+export async function updateAnnouncement(id: string, data: UpdateAnnouncementInput): Promise<AnnouncementAdminItem> {
+  const res = await apiFetch<{ announcement: AnnouncementAdminItem }>(`/api/admin/announcements/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res.announcement;
+}
+
+/**
+ * Toggle announcement active/inactive state.
+ */
+export async function toggleAnnouncementState(id: string, state: AnnouncementState): Promise<AnnouncementAdminItem> {
+  const res = await apiFetch<{ announcement: AnnouncementAdminItem }>(`/api/admin/announcements/${encodeURIComponent(id)}/state`, {
+    method: 'PATCH',
+    body: JSON.stringify({ state }),
+  });
+  return res.announcement;
+}
+
+/**
+ * Delete an announcement.
+ */
+export async function deleteAnnouncement(id: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`/api/admin/announcements/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Mark announcement as viewed (impression tracking).
+ */
+export async function markAnnouncementViewed(id: string): Promise<void> {
+  try {
+    await apiFetch(`/api/announcements/${encodeURIComponent(id)}/view`, { method: 'POST' });
+  } catch {}
+}
+
+/**
+ * Mark announcement as dismissed.
+ */
+export async function dismissAnnouncement(id: string): Promise<void> {
+  try {
+    await apiFetch(`/api/announcements/${encodeURIComponent(id)}/dismiss`, { method: 'POST' });
+  } catch {}
+}
+
+/**
+ * Track announcement CTA click.
+ */
+export async function trackAnnouncementClick(id: string): Promise<void> {
+  try {
+    await apiFetch(`/api/announcements/${encodeURIComponent(id)}/click`, { method: 'POST' });
+  } catch {}
+}
+
+
+
 
 

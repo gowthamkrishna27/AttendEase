@@ -1,0 +1,218 @@
+/* ==========================================================================
+   Meniscus Liquid Navigation — AttendEase Design System
+   Simple, Clean Current Tab Indication (Light Theme)
+   ========================================================================== */
+
+.meniscus-wrapper {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  pointer-events: none;
+  padding-bottom: env(safe-area-inset-bottom, 8px);
+  padding-left: 12px;
+  padding-right: 12px;
+  touch-action: none;
+}
+
+.meniscus-dock {
+  /* Simple Clean Light Palette */
+  --bar: #ffffff;
+  --rim: #e2e8f0;
+  --acc: #ea580c;
+  --icon-off: #64748b;
+  --icon-on: #ffffff;
+  --label-color: #ea580c;
+  
+  /* Parametric geometry written dynamically by physics solver */
+  --dock-r: 20px;
+  --bead-d: 44px;
+  --bead-cy: 2px;
+  --rise: 31px;
+
+  position: relative;
+  width: min(500px, 100%);
+  height: 64px;
+  flex: none;
+  pointer-events: auto;
+  touch-action: none !important;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  margin-bottom: 8px;
+  border-radius: var(--dock-r);
+  cursor: grab;
+  filter: drop-shadow(0 4px 16px rgba(15, 23, 42, 0.08));
+}
+
+/* Soft ambient shadow */
+.meniscus-dock__cast {
+  display: none;
+}
+
+/* Continuous SVG surface */
+.meniscus-dock__skin {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.meniscus-dock__fill {
+  fill: var(--bar);
+  stroke: var(--rim);
+  stroke-width: 1;
+}
+
+/* Simple Clean Current Tab Bead */
+.meniscus-dock__bead {
+  position: absolute;
+  top: var(--bead-cy);
+  left: 0;
+  width: var(--bead-d);
+  height: var(--bead-d);
+  margin: calc(var(--bead-d) / -2) 0 0 calc(var(--bead-d) / -2);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.32);
+  will-change: transform;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.meniscus-dock:not(.is-ready) .meniscus-dock__bead {
+  opacity: 0;
+}
+
+/* Tabs layer */
+.meniscus-dock__tabs {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 10px;
+  z-index: 20;
+  touch-action: none !important;
+  -webkit-touch-callout: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Individual tab button */
+.meniscus-tab {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 12px;
+  text-decoration: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none !important;
+  touch-action: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  --t: 0; /* 0 = resting · 1 = active in bead */
+}
+
+.meniscus-tab:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
+}
+
+/* Tab icon container */
+.meniscus-tab__icon-wrap {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%) translateY(calc(var(--t) * var(--rise) * -1));
+  will-change: transform;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.meniscus-tab__icon {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+  color: color-mix(in srgb, var(--icon-off) calc((1 - var(--t)) * 100%), var(--icon-on));
+  will-change: color;
+}
+
+/* Tab label */
+.meniscus-tab__label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--label-color);
+  opacity: var(--t);
+  transform: translateY(calc((1 - var(--t)) * 4px));
+  pointer-events: none;
+  line-height: 1;
+  will-change: opacity, transform;
+}
+
+/* Notification badge */
+.meniscus-tab__badge {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f97316;
+  border: 1px solid #ffffff;
+  pointer-events: none;
+}
+
+/* Active tab text visibility & dragging styles */
+.meniscus-tab.is-active .meniscus-tab__label,
+.meniscus-dock.is-dragging .meniscus-tab__label {
+  opacity: var(--t);
+}
+
+.meniscus-dock.is-dragging {
+  cursor: grabbing !important;
+}
+
+.meniscus-dock.is-dragging .meniscus-tab {
+  pointer-events: none !important;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .meniscus-dock__bead,
+  .meniscus-tab__icon-wrap {
+    transition: none !important;
+  }
+}

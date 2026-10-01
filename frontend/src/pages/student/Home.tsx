@@ -9,6 +9,8 @@ import * as api from '../../lib/api';
 import { formatDateShort, formatTimeAgo } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
+import { AnnouncementRenderer } from '../../components/announcements/AnnouncementRenderer';
+import { CsdCricketWidget } from '../../components/widgets/CsdCricketWidget';
 
 const card = (extra: object = {}) => ({
   background: '#ffffff',
@@ -45,6 +47,12 @@ export default function StudentHome() {
     queryFn: api.getRequests,
   });
 
+  const { data: announcements = [] } = useQuery({
+    queryKey: ['announcements'],
+    queryFn: api.getAnnouncements,
+    refetchInterval: 60000,
+  });
+
   const recent = allRequests.slice(0, 3);
 
   const quickActions = [
@@ -67,6 +75,7 @@ export default function StudentHome() {
           .mobile-requests  { display: block !important; }
           .student-id-card  { padding: 20px 16px !important; gap: 16px !important; }
           .student-id-avatar { width: 96px !important; height: 120px !important; }
+          .live-score-card  { max-width: 100% !important; margin: 0 auto 20px !important; }
         }
         @media (min-width: 769px) {
           .stat-item        { border-right: 1px solid #EEF2F7; }
@@ -76,6 +85,12 @@ export default function StudentHome() {
           .student-id-avatar { width: 84px !important; height: 105px !important; }
         }
       `}</style>
+
+      {/* ── Dynamic Opening Animation / Popup Dialog ── */}
+      <AnnouncementRenderer announcements={announcements} placement="POPUP" />
+
+      {/* ── Dynamic Top Announcements / Banners ── */}
+      <AnnouncementRenderer announcements={announcements} placement="HOME_TOP" />
 
       {/* ── Student ID Card (desktop/mobile top) ── */}
       <motion.div
@@ -127,22 +142,37 @@ export default function StudentHome() {
         </div>
       </motion.div>
 
-      {/* ── Attendance Permission Banner (desktop) ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.08, ease: [0.25, 0.1, 0.25, 1] }}
-        whileHover={{ translateY: -1, boxShadow: '0 6px 20px rgba(0,0,0,0.06)' }}
-        className="desktop-form"
+      {/* ── Action & Live Score Row ── */}
+      <div
+        className="student-dashboard-middle"
         style={{
-          ...card({ padding: '22px 28px', marginBottom: 24 }),
-          transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 20,
+          marginBottom: 24,
+          alignItems: 'stretch',
         }}
       >
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* Attendance Permission Banner (desktop) */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.08, ease: [0.25, 0.1, 0.25, 1] }}
+          whileHover={{ translateY: -1, boxShadow: '0 6px 20px rgba(0,0,0,0.06)' }}
+          className="desktop-form"
+          style={{
+            ...card({ padding: '22px 28px' }),
+            flex: '1 1 320px',
+            transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#000000', margin: '0 0 4px' }}>Need Attendance permission?</h2>
+            <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>Apply for academic, medical, or event permission</p>
           </div>
           <motion.button
             whileHover={{ scale: 1.03 }}
@@ -156,6 +186,7 @@ export default function StudentHome() {
               color: '#EA580C',
               fontSize: 13, fontWeight: 700, cursor: 'pointer',
               transition: 'all 0.15s ease',
+              flexShrink: 0,
             }}
             onMouseEnter={e => {
               e.currentTarget.style.background = '#EA580C';
@@ -171,8 +202,19 @@ export default function StudentHome() {
             <Plus size={15} />
             New Request
           </motion.button>
-        </div>
-      </motion.div>
+        </motion.div>
+
+        {/* Dynamic Widgets or Fallback HPL Score Card */}
+        {announcements.some((a) => a.placement === 'HOME_MIDDLE') ? (
+          <div className="flex-1 min-w-[320px]">
+            <AnnouncementRenderer announcements={announcements} placement="HOME_MIDDLE" />
+          </div>
+        ) : (
+          <div className="flex-1 min-w-[320px] max-w-[560px]">
+            <CsdCricketWidget />
+          </div>
+        )}
+      </div>
 
       {/* ── Recent Requests Table ── */}
       <motion.div
@@ -332,6 +374,11 @@ export default function StudentHome() {
           View all requests <ArrowRight size={13} />
         </button>
       </motion.div>
+
+      {/* ── Dynamic Bottom Announcements ── */}
+      <div style={{ marginTop: 24 }}>
+        <AnnouncementRenderer announcements={announcements} placement="HOME_BOTTOM" />
+      </div>
 
     </PageWrapper>
   );

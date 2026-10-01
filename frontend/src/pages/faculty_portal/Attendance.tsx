@@ -1,15 +1,55 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, Building2, ChevronDown, CheckCircle2, AlertCircle,
-  Calendar, Clock, Save, Lock, Check, RefreshCw, X
+  Calendar, Clock, Save, Lock, Check, RefreshCw, X, Copy, Share2
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import * as api from '../../lib/api';
 import type { AttendanceSubmissionItem } from '../../lib/api';
 import { getPeriodsFromRequest, extractRollSuffix } from '../../lib/utils';
+
+export const WhatsappIcon = ({ size = 16, className = "" }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.67-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.572-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.99c-.002 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.05 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.523-8.41" />
+  </svg>
+);
+
+export const formatRollNumberForDisplay = (raw: string): string => {
+  const str = raw.trim();
+  if (/^\d+$/.test(str)) {
+    const num = parseInt(str, 10);
+    return num < 10 ? `0${num}` : `${num}`;
+  }
+  return str;
+};
+
+export const sortRollNumbers = (rolls: string[]): string[] => {
+  return [...rolls].sort((a, b) => {
+    const isNumA = /^\d+$/.test(a);
+    const isNumB = /^\d+$/.test(b);
+    if (isNumA && isNumB) {
+      return parseInt(a, 10) - parseInt(b, 10);
+    }
+    if (isNumA) return -1;
+    if (isNumB) return 1;
+
+    const isLeA = /^LE\d+$/i.test(a);
+    const isLeB = /^LE\d+$/i.test(b);
+    if (isLeA && isLeB) {
+      const numA = parseInt(a.replace(/LE/i, ''), 10);
+      const numB = parseInt(b.replace(/LE/i, ''), 10);
+      return numA - numB;
+    }
+    if (isLeA) return 1;
+    if (isLeB) return -1;
+
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+};
 
 const formatTime = (timeStr?: string) => {
   if (!timeStr) return '';
@@ -222,7 +262,16 @@ export default function FacultyAttendance() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Map of full roll numbers, suffixes, userIds to Student record for fast lookup
+  // Query canonical sections and rosters for the selected academic year
+  const { data: dbSections = [] } = useQuery<api.PublicSectionItem[]>({
+    queryKey: ['public-sections', selectedYear],
+    queryFn: () => api.getPublicSections(selectedYear),
+    enabled: Boolean(selectedYear),
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Map of full roll numbers, display rolls, suffixes, userIds to Student record for fast lookup
   const studentInfoMap = useMemo(() => {
     const map = new Map<string, api.Student>();
     allStudents.forEach(s => {
@@ -244,8 +293,22 @@ export default function FacultyAttendance() {
         map.set(s.id.toUpperCase().trim(), s);
       }
     });
+
+    // Also enrich from dbSections which has explicit displayRoll mapping for any colliding/detained students
+    dbSections.forEach(sec => {
+      sec.students?.forEach(st => {
+        const matchingStudent = allStudents.find(s =>
+          (s.rollNumber && s.rollNumber.toUpperCase() === st.rollNumber.toUpperCase()) ||
+          s.id === st.userId
+        );
+        if (matchingStudent && st.displayRoll) {
+          map.set(st.displayRoll.toUpperCase().trim(), matchingStudent);
+        }
+      });
+    });
+
     return map;
-  }, [allStudents]);
+  }, [allStudents, dbSections]);
 
   // Check if an attendance request is valid for the target date (single day or date range)
   const isRequestOnDate = useCallback((req: api.AttendanceRequest, targetDate: string) => {
@@ -333,13 +396,11 @@ export default function FacultyAttendance() {
     let studentSecLetter = '';
 
     if (student?.section) {
-      const s = student.section.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').trim();
-      if (s === 'A' || s === 'B') studentSecLetter = s;
-    }
-
-    if (!studentSecLetter && rollUpper) {
-      const isSecB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(rollUpper) || rollUpper.includes('95A');
-      studentSecLetter = isSecB ? 'B' : 'A';
+      const s = student.section.toUpperCase().replace(/SECTION/i, '').replace(/SEC/i, '').replace(/[-_—–\s]/g, '').trim();
+      if (s === 'B' || s.endsWith('B')) studentSecLetter = 'B';
+      else studentSecLetter = 'A';
+    } else {
+      studentSecLetter = 'A';
     }
 
     if (isTargetSecB && studentSecLetter !== 'B') return false;
@@ -385,30 +446,48 @@ export default function FacultyAttendance() {
   // Map of roll strings and suffixes for grid button lookup
   const permissionStudentsSet = useMemo(() => {
     const set = new Set<string>();
+    const matchedSec = dbSections.find(s =>
+      s.value === sectionFilter || s.id === sectionFilter || s.key === sectionFilter
+    );
+
     approvedStudentRollsSet.forEach(rollStr => {
       const trimmed = rollStr.trim();
       const upper = trimmed.toUpperCase();
       set.add(trimmed);
       set.add(upper);
 
-      const suffix = extractRollSuffix(trimmed);
-      if (suffix) {
-        const sufUpper = suffix.toUpperCase();
-        set.add(suffix);
-        set.add(sufUpper);
-        const num = parseInt(suffix, 10);
-        if (!isNaN(num)) {
-          set.add(String(num));
-          set.add(String(num).padStart(2, '0'));
+      // Check if student has an explicit displayRoll in this section roster
+      const studentObj = matchedSec?.students?.find(st =>
+        st.rollNumber.toUpperCase() === upper || st.userId.toUpperCase() === upper
+      );
+
+      if (studentObj && studentObj.displayRoll) {
+        set.add(studentObj.displayRoll);
+        set.add(studentObj.displayRoll.toUpperCase());
+      } else {
+        const suffix = extractRollSuffix(trimmed);
+        if (suffix) {
+          const sufUpper = suffix.toUpperCase();
+          set.add(suffix);
+          set.add(sufUpper);
+          const num = parseInt(suffix, 10);
+          if (!isNaN(num)) {
+            set.add(String(num));
+            set.add(String(num).padStart(2, '0'));
+          }
         }
       }
     });
     return set;
-  }, [approvedStudentRollsSet]);
+  }, [approvedStudentRollsSet, dbSections, sectionFilter]);
 
   const permissionMap = useMemo(() => {
     const map = new Map<string, api.AttendanceRequest>();
     if (selectedPeriodIds.length === 0 || !selectedYear || !sectionFilter) return map;
+
+    const matchedSec = dbSections.find(s =>
+      s.value === sectionFilter || s.id === sectionFilter || s.key === sectionFilter
+    );
 
     approvedRequests.forEach(req => {
       if (req.status === 'approved' && isRequestOnDate(req, selectedDate)) {
@@ -430,15 +509,24 @@ export default function FacultyAttendance() {
             map.set(rollStr, req);
             map.set(upper, req);
 
-            const suffix = extractRollSuffix(rollStr);
-            if (suffix) {
-              const sufUpper = suffix.toUpperCase();
-              map.set(suffix, req);
-              map.set(sufUpper, req);
-              const num = parseInt(suffix, 10);
-              if (!isNaN(num)) {
-                map.set(String(num), req);
-                map.set(String(num).padStart(2, '0'), req);
+            const studentRosterItem = matchedSec?.students?.find(st =>
+              st.rollNumber.toUpperCase() === upper || st.userId.toUpperCase() === upper
+            );
+
+            if (studentRosterItem && studentRosterItem.displayRoll) {
+              map.set(studentRosterItem.displayRoll, req);
+              map.set(studentRosterItem.displayRoll.toUpperCase(), req);
+            } else {
+              const suffix = extractRollSuffix(rollStr);
+              if (suffix) {
+                const sufUpper = suffix.toUpperCase();
+                map.set(suffix, req);
+                map.set(sufUpper, req);
+                const num = parseInt(suffix, 10);
+                if (!isNaN(num)) {
+                  map.set(String(num), req);
+                  map.set(String(num).padStart(2, '0'), req);
+                }
               }
             }
           }
@@ -446,7 +534,7 @@ export default function FacultyAttendance() {
       }
     });
     return map;
-  }, [approvedRequests, selectedDate, selectedPeriodIds, selectedYear, sectionFilter, isRequestOnDate, isStudentInSectionAndYear, studentInfoMap]);
+  }, [approvedRequests, selectedDate, selectedPeriodIds, selectedYear, sectionFilter, isRequestOnDate, isStudentInSectionAndYear, studentInfoMap, dbSections]);
 
   // Derive a stable primitive string from the Set so useEffect can use it as a dep
   // without firing on every render due to Set object reference changes.
@@ -523,22 +611,20 @@ export default function FacultyAttendance() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSubmission, permissionRollsKey]);
 
-  // Roll numbers generator for section
+  // Derive roll numbers for section directly from database-backed canonical roster API
   const currentRollNumbers = useMemo(() => {
-    if (sectionFilter.includes('B') || sectionFilter === 'CSIT-B') {
-      const rolls: string[] = [];
-      for (let i = 73; i <= 99; i++) rolls.push(String(i));
-      const series = ['A', 'B', 'C'];
-      series.forEach(prefix => {
-        for (let i = 0; i <= 9; i++) rolls.push(`${prefix}${i}`);
-      });
-      rolls.push('D0', 'D1');
-      for (let i = 1; i <= 13; i++) rolls.push(`LE${i}`);
-      return rolls;
+    if (!sectionFilter || !selectedYear) return [];
+    const matchedSec = dbSections.find(s =>
+      s.value === sectionFilter ||
+      s.id === sectionFilter ||
+      s.key === sectionFilter ||
+      s.key.replace(/[\s—–]/g, '') === sectionFilter.replace(/[\s—–]/g, '')
+    );
+    if (matchedSec && Array.isArray(matchedSec.rollNumbers)) {
+      return matchedSec.rollNumbers;
     }
-    // Section A (CSD, CSD-A, CSIT-A, CSIT A)
-    return Array.from({ length: 72 }, (_, i) => String(i + 1));
-  }, [sectionFilter]);
+    return [];
+  }, [dbSections, sectionFilter, selectedYear]);
 
   // Toggle roll button state
   const handleRollClick = useCallback((roll: string) => {
@@ -678,6 +764,11 @@ export default function FacultyAttendance() {
   });
 
   const handleSubmit = () => {
+    if (currentRollNumbers.length === 0) {
+      showToast('No students available in this section to mark attendance.', true);
+      return;
+    }
+
     if (selectedPeriodIds.length === 0) {
       showToast('Please select at least one period before submitting.', true);
       return;
@@ -718,6 +809,47 @@ export default function FacultyAttendance() {
   const presentCount = useMemo(() => Object.values(markedAttendance).filter(v => v === 'present').length, [markedAttendance]);
   const absentCount = useMemo(() => Object.values(markedAttendance).filter(v => v === 'absent').length, [markedAttendance]);
   const unmarkedCount = totalStudentsCount - (presentCount + absentCount);
+
+  // WhatsApp Share Modal State
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [copiedWhatsApp, setCopiedWhatsApp] = useState(false);
+
+  // Derived Present and Absent Roll Numbers for WhatsApp Share (Ascending order)
+  const whatsAppPresentRolls = useMemo(() => {
+    const present: string[] = [];
+    currentRollNumbers.forEach(roll => {
+      const rawStatus = markedAttendance[roll];
+      const hasPermission = permissionStudentsSet.has(roll);
+      if (rawStatus === 'present' || hasPermission || (!rawStatus && markMode === 'absent' && Object.keys(markedAttendance).length > 0)) {
+        present.push(roll);
+      }
+    });
+    return sortRollNumbers([...new Set(present)]).map(formatRollNumberForDisplay);
+  }, [currentRollNumbers, markedAttendance, permissionStudentsSet, markMode]);
+
+  const whatsAppAbsentRolls = useMemo(() => {
+    const absent: string[] = [];
+    currentRollNumbers.forEach(roll => {
+      const rawStatus = markedAttendance[roll];
+      const hasPermission = permissionStudentsSet.has(roll);
+      if (hasPermission) return; // Approved permissions are never absent
+      if (rawStatus === 'absent' || (!rawStatus && markMode === 'present') || (!rawStatus && Object.keys(markedAttendance).length === 0)) {
+        absent.push(roll);
+      }
+    });
+    return sortRollNumbers([...new Set(absent)]).map(formatRollNumberForDisplay);
+  }, [currentRollNumbers, markedAttendance, permissionStudentsSet, markMode]);
+
+  const formattedWhatsAppText = useMemo(() => {
+    const yearNum = selectedYear.replace(/[^0-9]/g, '') || '3';
+    const presentText = whatsAppPresentRolls.length > 0 ? whatsAppPresentRolls.join(', ') : 'None';
+    const absentText = whatsAppAbsentRolls.length > 0 ? whatsAppAbsentRolls.join(', ') : 'None';
+    const periodsStr = selectedPeriodIds.length > 0
+      ? [...selectedPeriodIds].sort((a, b) => a - b).join(', ')
+      : 'All Periods';
+
+    return `*Year:* ${yearNum} / 4\n*Branch Name:* ${sectionFilter}\n*Date:* ${selectedDate}\n*Periods:* ${periodsStr}\n\n*Presentees:*\n${presentText}\n\n*Absentees:*\n${absentText}`;
+  }, [selectedYear, sectionFilter, selectedDate, selectedPeriodIds, whatsAppPresentRolls, whatsAppAbsentRolls]);
 
   return (
     <PageWrapper role="faculty">
@@ -818,8 +950,8 @@ export default function FacultyAttendance() {
                     ? 'Select Year First...'
                     : !sectionFilter
                       ? 'Choose Section...'
-                      : sectionFilter === 'CSD-A'
-                        ? 'CSD — Section A'
+                      : sectionFilter === 'CSD'
+                        ? 'CSD'
                         : sectionFilter === 'CSIT-A'
                           ? 'CSIT — Section A'
                           : sectionFilter === 'CSIT-B'
@@ -843,11 +975,17 @@ export default function FacultyAttendance() {
                       Please select an Academic Year first
                     </div>
                   ) : (
-                    [
-                      { label: 'CSD - Sec A', value: 'CSD-A' },
-                      { label: 'CSIT - Sec A', value: 'CSIT-A' },
-                      { label: 'CSIT - Sec B', value: 'CSIT-B' },
-                    ].map(sec => (
+                    (dbSections.length > 0
+                      ? dbSections.map(s => ({
+                          label: s.label || s.displayName || s.value,
+                          value: s.value || s.id || 'CSIT-A',
+                        }))
+                      : [
+                          { label: 'CSD', value: 'CSD' },
+                          { label: 'CSIT - Sec A', value: 'CSIT-A' },
+                          { label: 'CSIT - Sec B', value: 'CSIT-B' },
+                        ]
+                    ).map(sec => (
                       <button
                         key={sec.value}
                         type="button"
@@ -1040,6 +1178,17 @@ export default function FacultyAttendance() {
                     </label>
                   </div>
                 </div>
+
+                {/* WhatsApp Quick Action Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsWhatsAppModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-800 border border-emerald-300 font-extrabold text-[12px] flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all"
+                  title="Share attendance formatted message to WhatsApp"
+                >
+                  <WhatsappIcon size={15} className="text-emerald-700" />
+                  <span>Share to WhatsApp</span>
+                </button>
               </div>
 
               {/* Quick Counter Summary */}
@@ -1052,61 +1201,79 @@ export default function FacultyAttendance() {
 
               {/* Stationary Icon-App Launcher Grid */}
               <div className="max-w-[820px] mx-auto pt-2 pb-2">
-                <div className="grid grid-cols-6 xs:grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 justify-items-center">
-                  {currentRollNumbers.map(roll => {
-                    const rawStatus = markedAttendance[roll];
-                    const hasPermission = permissionStudentsSet.has(roll);
+                {currentRollNumbers.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-[13px] font-medium bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                    No students available in this section.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-6 xs:grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 justify-items-center">
+                    {currentRollNumbers.map(roll => {
+                      const rawStatus = markedAttendance[roll];
+                      const hasPermission = permissionStudentsSet.has(roll);
 
-                    let effectiveStatus = rawStatus;
-                    if (!rawStatus) {
-                      if (hasPermission) {
-                        effectiveStatus = 'present';
-                      } else if (Object.keys(markedAttendance).length > 0) {
-                        if (markMode === 'present') {
-                          effectiveStatus = 'absent';
-                        } else if (markMode === 'absent') {
+                      let effectiveStatus = rawStatus;
+                      if (!rawStatus) {
+                        if (hasPermission) {
                           effectiveStatus = 'present';
+                        } else if (Object.keys(markedAttendance).length > 0) {
+                          if (markMode === 'present') {
+                            effectiveStatus = 'absent';
+                          } else if (markMode === 'absent') {
+                            effectiveStatus = 'present';
+                          }
                         }
                       }
-                    }
 
-                    const matchedStudent = studentInfoMap.get(roll.toUpperCase()) ||
-                                           permissionMap.get(roll)?.student;
-                    const studentName = matchedStudent?.name;
+                      const matchedStudent = studentInfoMap.get(roll.toUpperCase()) ||
+                                             permissionMap.get(roll)?.student;
+                      const studentName = matchedStudent?.name;
 
-                    let btnStyle = 'bg-slate-100/90 text-slate-700 hover:bg-slate-200 border-slate-200/80';
-                    if (hasPermission) {
-                      // Yellow Approved Permission — IMMUTABLY Yellow for approved permission students
-                      btnStyle = 'bg-[#FDE047] text-slate-950 border-amber-400 shadow-xs ring-2 ring-amber-400/80 font-black scale-[1.02]';
-                    } else if (effectiveStatus === 'present') {
-                      btnStyle = 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20 scale-[1.02] font-extrabold';
-                    } else if (effectiveStatus === 'absent') {
-                      btnStyle = 'bg-rose-500 text-white border-rose-600 shadow-sm shadow-rose-500/20 scale-[1.02] font-extrabold';
-                    }
+                      let btnStyle = 'bg-slate-100/90 text-slate-700 hover:bg-slate-200 border-slate-200/80';
+                      if (hasPermission) {
+                        // Yellow Approved Permission — IMMUTABLY Yellow for approved permission students
+                        btnStyle = 'bg-[#FDE047] text-slate-950 border-amber-400 shadow-xs ring-2 ring-amber-400/80 font-black scale-[1.02]';
+                      } else if (effectiveStatus === 'present') {
+                        btnStyle = 'bg-emerald-500 text-white border-emerald-600 shadow-sm shadow-emerald-500/20 scale-[1.02] font-extrabold';
+                      } else if (effectiveStatus === 'absent') {
+                        btnStyle = 'bg-rose-500 text-white border-rose-600 shadow-sm shadow-rose-500/20 scale-[1.02] font-extrabold';
+                      }
 
-                    return (
-                      <FacultyRollButton
-                        key={roll}
-                        roll={roll}
-                        studentName={studentName}
-                        hasPermission={hasPermission}
-                        btnStyle={btnStyle}
-                        isOwner={isOwner}
-                        onClick={handleRollClick}
-                        onSelectStudent={handleSelectStudentForPreview}
-                      />
-                    );
-                  })}
-                </div>
+                      return (
+                        <FacultyRollButton
+                          key={roll}
+                          roll={roll}
+                          studentName={studentName}
+                          hasPermission={hasPermission}
+                          btnStyle={btnStyle}
+                          isOwner={isOwner}
+                          onClick={handleRollClick}
+                          onSelectStudent={handleSelectStudentForPreview}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              {/* ── Submit / Update Attendance Button (Positioned at the bottom of the numbers list) ── */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-center">
+              {/* ── Submit / Update Attendance & WhatsApp Share Buttons (Positioned at the bottom of the numbers list) ── */}
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3">
+                {/* Share to WhatsApp Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsWhatsAppModalOpen(true)}
+                  className="w-full sm:w-auto min-w-[200px] py-3 px-5 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2.5 bg-emerald-50 hover:bg-emerald-100 active:scale-[0.98] text-emerald-800 border border-emerald-300 shadow-2xs transition-all cursor-pointer"
+                  title="Export formatted presentees and absentees to WhatsApp"
+                >
+                  <WhatsappIcon size={18} className="text-emerald-700" />
+                  <span>Share to WhatsApp</span>
+                </button>
+
+                {/* Submit / Update Attendance Button */}
                 <button
                   type="button"
                   disabled={!isOwner || submitMutation.isPending}
                   onClick={handleSubmit}
-                  className={`w-full sm:w-auto min-w-[260px] py-3 px-6 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer ${!isOwner
+                  className={`w-full sm:w-auto min-w-[240px] py-3 px-6 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer ${!isOwner
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
                       : submitMutation.isPending
                         ? 'bg-orange-400 text-white cursor-wait'
@@ -1263,6 +1430,124 @@ export default function FacultyAttendance() {
             </div>
           )}
         </AnimatePresence>
+
+        {/* ── WhatsApp Attendance Export Modal ── */}
+        {createPortal(
+          <AnimatePresence>
+            {isWhatsAppModalOpen && (
+              <div className="fixed inset-0 z-[99999] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 text-slate-900"
+                >
+                  {/* Modal Header */}
+                  <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-4 text-emerald-950 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center shadow-xs">
+                        <WhatsappIcon size={22} className="text-emerald-800" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-[16px] text-emerald-950 leading-tight">Send Attendance to WhatsApp</h3>
+                        <p className="text-[11.5px] text-emerald-800 font-medium mt-0.5">Formatted presentees &amp; absentees report</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setIsWhatsAppModalOpen(false)}
+                      className="w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 flex items-center justify-center transition-colors cursor-pointer text-sm font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Modal Body */}
+                  <div className="p-5 space-y-4">
+                    {/* Target Details */}
+                    <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200 text-[12px]">
+                      <div className="flex items-center gap-2">
+                        <Building2 size={15} className="text-emerald-600" />
+                        <span className="font-bold text-slate-700">Section &amp; Period:</span>
+                      </div>
+                      <span className="font-bold text-slate-900 bg-white border border-slate-300 px-3 py-1 rounded-lg">
+                        {selectedYear} • {sectionFilter} (Periods {selectedPeriodIds.length > 0 ? selectedPeriodIds.sort((a, b) => a - b).join(', ') : 'All'})
+                      </span>
+                    </div>
+
+                    {/* Metrics */}
+                    <div className="grid grid-cols-3 gap-2.5 text-center">
+                      <div className="bg-emerald-500/20 border border-emerald-400/90 p-2.5 rounded-xl">
+                        <span className="text-[10px] font-extrabold text-emerald-900 uppercase tracking-wider block">Present</span>
+                        <span className="text-[19px] font-black text-emerald-950 leading-tight mt-0.5">{whatsAppPresentRolls.length}</span>
+                      </div>
+                      <div className="bg-rose-500/20 border border-rose-400/90 p-2.5 rounded-xl">
+                        <span className="text-[10px] font-extrabold text-rose-900 uppercase tracking-wider block">Absent</span>
+                        <span className="text-[19px] font-black text-rose-950 leading-tight mt-0.5">{whatsAppAbsentRolls.length}</span>
+                      </div>
+                      <div className="bg-slate-100/80 border border-slate-200 p-2.5 rounded-xl">
+                        <span className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Total Students</span>
+                        <span className="text-[19px] font-black text-slate-800 leading-tight mt-0.5">{currentRollNumbers.length}</span>
+                      </div>
+                    </div>
+
+                    {/* Message Preview */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                        <span>Formatted WhatsApp Message:</span>
+                        <span className="text-emerald-700 font-mono text-[10.5px] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">Sorted Ascending</span>
+                      </div>
+                      <textarea
+                        readOnly
+                        value={formattedWhatsAppText}
+                        rows={8}
+                        className="w-full p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl font-mono text-[12px] text-slate-800 leading-relaxed focus:outline-none select-all resize-none shadow-inner"
+                      />
+                    </div>
+
+                    {/* Buttons */}
+                    <div className="flex items-center gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(formattedWhatsAppText);
+                          setCopiedWhatsApp(true);
+                          showToast('Copied formatted WhatsApp message to clipboard!');
+                          setTimeout(() => setCopiedWhatsApp(false), 2500);
+                        }}
+                        className="flex-1 h-11 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-[12px] rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-slate-200"
+                      >
+                        {copiedWhatsApp ? (
+                          <>
+                            <Check size={16} className="text-emerald-600" />
+                            <span className="text-emerald-700 font-extrabold">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={16} />
+                            <span>Copy Message</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `https://wa.me/?text=${encodeURIComponent(formattedWhatsAppText)}`;
+                          window.open(url, '_blank');
+                        }}
+                        className="flex-1 h-11 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-950 border border-emerald-400 font-extrabold text-[12px] rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-all hover:scale-[1.02] active:scale-95"
+                      >
+                        <WhatsappIcon size={18} className="text-emerald-800" />
+                        <span>Send to WhatsApp</span>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
 
       </div>
     </PageWrapper>

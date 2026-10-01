@@ -17,8 +17,13 @@ import type { CreateUserBody, UpdateUserBody } from '../../types/user.types.js';
 
 // ── Read queries ──────────────────────────────────────────────────────────────
 
-export async function listAllUsers(): ReturnType<IUserRepository['listAllUsers']> {
+export async function listAllUsers(role?: string): ReturnType<IUserRepository['listAllUsers']> {
+  const where: any = {};
+  if (role) {
+    where.role = role as any;
+  }
   const records = await prisma.user.findMany({
+    where,
     orderBy: [{ role: 'asc' }, { name: 'asc' }],
     omit:    { password: true },
   });

@@ -36,6 +36,56 @@ enum RequestReason {
   other
 }
 
+enum ActivityCategory {
+  internship
+  startup
+  project_work
+  sports
+  house_events
+}
+
+enum ExamType {
+  MID
+  SEM
+  LAB
+  SUPPLEMENTARY
+}
+
+enum AnnouncementType {
+  WIDGET
+  OPENING_ANIMATION
+  BANNER
+}
+
+enum AnnouncementState {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum AnnouncementMediaType {
+  IFRAME
+  VIDEO
+  IMAGE
+  LOTTIE
+  TEXT
+}
+
+enum AnnouncementPlacement {
+  HOME_TOP
+  HOME_MIDDLE
+  HOME_BOTTOM
+  POPUP
+}
+
+enum AnnouncementDisplayMode {
+  EVERY_PAGE_LOAD
+  ONCE_PER_SESSION
+  ONCE_PER_DAY
+  ONCE_PER_LOGIN
+  ONCE_PER_USER
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -63,14 +113,18 @@ model User {
   counselees            User[]                 @relation("FacultyCounselees")
 
   // Relations
-  submittedRequests     Request[]              @relation("StudentRequests")
-  primaryRequests       Request[]              @relation("PrimaryFacultyRequests")
-  assignedRequests      RequestFaculty[]
-  performedActions      RequestAction[]
-  notifications         Notification[]
-  passkeys              UserPasskey[]
-  attendanceSubmissions AttendanceSubmission[]
-  createdShareLinks     PermissionRequestShareLink[] @relation("UserCreatedShareLinks")
+  submittedRequests        Request[]                    @relation("StudentRequests")
+  primaryRequests          Request[]                    @relation("PrimaryFacultyRequests")
+  assignedRequests         RequestFaculty[]
+  performedActions         RequestAction[]
+  notifications            Notification[]
+  passkeys                 UserPasskey[]
+  attendanceSubmissions    AttendanceSubmission[]
+  createdShareLinks        PermissionRequestShareLink[] @relation("UserCreatedShareLinks")
+  invigilationAssignments  InvigilationAssignment[]
+  studentActivities        StudentActivity[]            @relation("StudentActivities")
+  coordinatorAccesses      CoordinatorAccess[]          @relation("FacultyCoordinatorAccess")
+  assignedCoordinators     CoordinatorAccess[]          @relation("AdminAssignedCoordinators")
 
   @@index([role])
   @@index([department])
@@ -90,6 +144,7 @@ model Request {
   date                String
   endDate             String?
   periods             String?
+  grantedPeriods      String?
   startTime           String
   endTime             String
   description         String
@@ -218,8 +273,9 @@ model AttendanceSubmission {
   markedBy     User               @relation(fields: [markedById], references: [userId])
   records      AttendanceRecord[]
 
-  @@unique([date, section, periods])
+  @@unique([date, section, year, periods])
   @@index([date, section])
+  @@index([date, section, year])
   @@index([markedById])
 }
 
@@ -235,4 +291,184 @@ model AttendanceRecord {
   @@unique([submissionId, rollNumber])
 }
 
+// ─── Invigilation Management ──────────────────────────────────────────────────
 
+enum SessionType {
+  MORNING
+  AFTERNOON
+}
+
+/// Invigilation exam session created by admin
+model InvigilationDuty {
+  id          String                    @id @default(cuid())
+  examType    ExamType                  // MID or SEM (existing enum)
+  date        String                    // YYYY-MM-DD (Asia/Kolkata calendar date)
+  session     SessionType               // MORNING | AFTERNOON
+  startTime   String?                   // Optional HH:mm (24h) local IST time, e.g. "09:30"
+  endTime     String?                   // Optional HH:mm (24h) local IST time, e.g. "12:30"
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  assignments InvigilationAssignment[]
+
+  @@index([date])
+  @@index([examType, session])
+}
+
+/// Faculty member assigned to an invigilation duty
+model InvigilationAssignment {
+  id         String            @id @default(cuid())
+  dutyId     String
+  facultyId  String            // references User.id (cuid primary key)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  duty       InvigilationDuty  @relation(fields: [dutyId], references: [id], onDelete: Cascade)
+  faculty    User              @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+
+  @@unique([dutyId, facultyId])
+  @@index([facultyId])
+  @@index([dutyId])
+}
+
+// ─── Student Activities & Coordinator Authorization ────────────────────────────
+
+/// Student participation record in an extra-curricular activity
+model StudentActivity {
+  id                  String           @id @default(cuid())
+  studentId           String           // references User.userId
+  category            ActivityCategory
+  titleOrCompany      String           // Company name, Startup name, Project title, Sport name, or House event
+  roleOrPosition      String?          // Role/Position, Area, Level, or Event role
+  mentorOrAchievement String?          // Faculty mentor, achievement details, or notes
+  startDate           String?          // YYYY-MM-DD
+  endDate             String?          // YYYY-MM-DD
+  status              String           @default("active") // "active" | "completed" | "archived"
+  isActive            Boolean          @default(true) // Soft deletion
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  student             User             @relation("StudentActivities", fields: [studentId], references: [userId], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([category])
+  @@index([isActive])
+  @@index([category, isActive])
+  @@map("student_activities")
+}
+
+/// Faculty Coordinator assignment with secure authorization code
+model CoordinatorAccess {
+  id           String           @id @default(cuid())
+  facultyId    String           // references User.userId
+  category     ActivityCategory
+  codeHash     String           // One-way hash of coordinator code
+  codeMasked   String           // Masked display e.g. "COORD-****-89AB"
+  isActive     Boolean          @default(true)
+  assignedById String           // references User.userId (admin)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  faculty      User             @relation("FacultyCoordinatorAccess", fields: [facultyId], references: [userId], onDelete: Cascade)
+  assignedBy   User             @relation("AdminAssignedCoordinators", fields: [assignedById], references: [userId])
+
+  @@unique([facultyId, category])
+  @@index([facultyId])
+  @@index([category])
+  @@index([isActive])
+  @@map("coordinator_access")
+}
+
+/// Audit log for coordinator and admin activity management operations
+model ActivityAuditLog {
+  id          String   @id @default(cuid())
+  actorId     String   // references User.userId
+  actorName   String
+  actorRole   String
+  action      String   // "ADD" | "EDIT" | "REMOVE" | "BULK_ADD" | "BULK_REMOVE" | "COORDINATOR_ASSIGNED" | "CODE_REGENERATED" | "ACCESS_TOGGLED"
+  category    String
+  studentId   String?
+  studentName String?
+  details     String?  // JSON string containing change details
+  timestamp   DateTime @default(now())
+
+  @@index([category])
+  @@index([actorId])
+  @@index([timestamp(sort: Desc)])
+  @@map("activity_audit_logs")
+}
+
+/// Production-grade dynamic Announcement, Widget, and Opening Animation model
+model AnnouncementWidget {
+  id                String                  @id @default(cuid())
+  title             String
+  type              AnnouncementType
+  mediaType         AnnouncementMediaType
+  state             AnnouncementState       @default(DRAFT)
+  placement         AnnouncementPlacement   @default(HOME_TOP)
+
+  srcUrl            String?
+  externalUrl       String?
+
+  content           String?
+
+  buttonText        String?
+  buttonUrl         String?
+  openInNewTab      Boolean                 @default(true)
+
+  displayOrder      Int                     @default(0)
+  priority          Int                     @default(0)
+
+  targetRoles       String[]                @default(["student"])
+  targetYears       String[]                @default([])
+  targetDepartments String[]                @default([])
+  targetSections    String[]                @default([])
+
+  startsAt          DateTime?
+  endsAt            DateTime?
+
+  displayMode       AnnouncementDisplayMode @default(ONCE_PER_SESSION)
+
+  closable          Boolean                 @default(true)
+  showCloseButton   Boolean                 @default(true)
+  autoCloseSeconds  Int?
+  backdropDismiss   Boolean                 @default(true)
+
+  height            Int?
+  width             Int?
+  mobileHeight      Int?
+  desktopHeight     Int?
+  aspectRatio       String?
+  fullWidth         Boolean                 @default(false)
+
+  createdById       String?
+  updatedById       String?
+
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  views             AnnouncementView[]      @relation("AnnouncementViews")
+
+  @@index([state, startsAt, endsAt])
+  @@index([state, placement, displayOrder])
+  @@index([type, state])
+  @@index([priority])
+  @@map("announcement_widgets")
+}
+
+/// Lightweight interaction & frequency tracker per user
+model AnnouncementView {
+  id             String             @id @default(cuid())
+  announcementId String
+  userId         String
+  viewedAt       DateTime           @default(now())
+  dismissedAt    DateTime?
+  clickedAt      DateTime?
+
+  announcement   AnnouncementWidget @relation("AnnouncementViews", fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId])
+  @@index([announcementId])
+  @@map("announcement_views")
+}

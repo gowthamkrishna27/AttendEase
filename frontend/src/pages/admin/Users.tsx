@@ -11,6 +11,7 @@ import { Modal } from '../../components/shared/Modal';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
+import CoordinatorManagement from './CoordinatorManagement';
 
 interface PreviewData {
   fileName: string;
@@ -23,7 +24,7 @@ interface PreviewData {
 export default function AdminUsers() {
   const queryClient = useQueryClient();
   const [search, setSearch]   = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'student' | 'faculty' | 'hod' | 'admin'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'student' | 'faculty' | 'hod' | 'admin' | 'coordinators'>('all');
 
   // Export progress state
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -635,11 +636,12 @@ export default function AdminUsers() {
         {/* Role Filter Tabs */}
         <div className="flex items-center gap-1 p-1 bg-[#edf0f2] rounded-lg w-fit mb-2">
           {[
-            { id: 'all',     label: 'All Users' },
-            { id: 'student', label: 'Students' },
-            { id: 'faculty', label: 'Faculty' },
-            { id: 'hod',     label: 'HODs' },
-            { id: 'admin',   label: 'Admins' },
+            { id: 'all',          label: 'All Users' },
+            { id: 'student',      label: 'Students' },
+            { id: 'faculty',      label: 'Faculty' },
+            { id: 'hod',          label: 'HODs' },
+            { id: 'admin',        label: 'Admins' },
+            { id: 'coordinators', label: 'Coordinators & Access' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -654,6 +656,13 @@ export default function AdminUsers() {
             </button>
           ))}
         </div>
+
+        {activeTab === 'coordinators' ? (
+          <div className="mt-4">
+            <CoordinatorManagement />
+          </div>
+        ) : (
+          <>
 
         {/* Filter Toolbar & Filter Button */}
         <div className="flex gap-2.5 items-center">
@@ -1120,13 +1129,9 @@ export default function AdminUsers() {
                     onChange={e => setFormSection(e.target.value)}
                     className="w-full h-[40px] px-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-orange-500 font-medium text-slate-700 text-[13px]"
                   >
-                    <option value="CSD-A">CSD-A</option>
-                    <option value="CSD-B">CSD-B</option>
+                    <option value="CSD">CSD</option>
                     <option value="CSIT-A">CSIT-A</option>
                     <option value="CSIT-B">CSIT-B</option>
-                    <option value="Section A">Section A</option>
-                    <option value="Section B">Section B</option>
-                    <option value="Section C">Section C</option>
                   </select>
                 </div>
               </div>
@@ -1358,6 +1363,8 @@ export default function AdminUsers() {
             </motion.div>
           )}
         </AnimatePresence>
+        </>
+        )}
 
       </div>
     </PageWrapper>

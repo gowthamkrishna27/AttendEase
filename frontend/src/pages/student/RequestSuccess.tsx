@@ -1,17 +1,25 @@
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Check, Clock, Home, History } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { WhatsAppShareButton } from '../../components/shared/WhatsAppShareButton';
+import * as api from '../../lib/api';
 
 export default function RequestSuccess() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
-  // Grab the most recently submitted request from the already-cached query
-  const requests: any[] = queryClient.getQueryData(['requests']) ?? [];
-  const latestRequest = requests.length > 0 ? requests[0] : null;
+  const passedRequest = location.state?.request as api.AttendanceRequest | undefined;
+
+  const { data: fetchedRequests } = useQuery({
+    queryKey: ['requests'],
+    queryFn: api.getRequests,
+  });
+
+  const cachedRequests: any[] = queryClient.getQueryData(['requests']) ?? [];
+  const latestRequest = passedRequest || (fetchedRequests && fetchedRequests.length > 0 ? fetchedRequests[0] : (cachedRequests.length > 0 ? cachedRequests[0] : null));
 
   return (
     <PageWrapper role="student">
@@ -156,7 +164,7 @@ export default function RequestSuccess() {
                 <WhatsAppShareButton
                   request={latestRequest}
                   variant="round"
-                  className="w-14 h-14 shadow-lg shadow-[#25D366]/35"
+                  className="w-14 h-14"
                 />
 
                 <button

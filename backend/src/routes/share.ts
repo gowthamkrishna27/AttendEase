@@ -445,6 +445,7 @@ router.get('/view/:publicId', async (req: Request, res: Response) => {
 router.get('/:publicId', async (req: Request, res: Response) => {
   const publicIdParam = (req.params['publicId'] || '').trim();
   const user = getOptionalUser(req);
+  const timestamp = new Date().toISOString();
 
   try {
     const doc = await prisma.request.findFirst({
@@ -459,6 +460,7 @@ router.get('/:publicId', async (req: Request, res: Response) => {
     });
 
     if (!doc) {
+      console.log(`[SHARE LOG] ${timestamp} | PublicID: ${publicIdParam} | UserID: ${user?.id || 'guest'} | Role: ${user?.role || 'guest'} | Result: 404 NOT_FOUND`);
       res.status(404).json({ success: false, status: 404, error: 'Request not found' });
       return;
     }
@@ -472,7 +474,9 @@ router.get('/:publicId', async (req: Request, res: Response) => {
 
     const userEmail = (user.email || '').toLowerCase().trim();
     const userId = (user.id || user.userId || '').toLowerCase().trim();
+    const userName = (user.name || '').toLowerCase().trim();
 
+    // 1. Student validation
     if (user.role === 'student') {
       const userRoll = (user.rollNumber || '').toLowerCase().trim();
       const stuUserId = (doc.studentId || doc.student?.userId || '').toLowerCase().trim();
@@ -483,29 +487,50 @@ router.get('/:publicId', async (req: Request, res: Response) => {
         res.json({ success: true, redirectTo: '/student/history' });
         return;
       }
+
+      console.log(`[SHARE LOG] ${timestamp} | PublicID: ${publicId} | UserID: ${user.id} | Role: student | Result: DENIED 403 (Not Owner)`);
+      res.status(403).json({ success: false, status: 403, error: 'Forbidden' });
+      return;
     }
 
+    // 2. Assigned Faculty validation
     if (user.role === 'faculty') {
       const assignedFacultyIds = doc.faculties.map((rf: any) => (rf.facultyId || '').toLowerCase());
-      const assignedEmails = doc.faculties.map((rf: any) => (rf.faculty.email || '').toLowerCase());
+      const assignedEmails = doc.faculties.map((rf: any) => (rf.faculty?.email || '').toLowerCase());
+      const assignedNames = doc.faculties.map((rf: any) => (rf.faculty?.name || '').toLowerCase());
+
       const primaryFacId = (doc.primaryFacultyId || '').toLowerCase();
       const primaryEmail = (doc.primaryFaculty?.email || '').toLowerCase();
+      const primaryName  = (doc.primaryFaculty?.name || '').toLowerCase();
 
       if (primaryFacId === userId || assignedFacultyIds.includes(userId) || primaryEmail === userEmail || assignedEmails.includes(userEmail)) {
         res.json({ success: true, redirectTo: '/faculty/requests' });
         return;
       }
+
+      console.log(`[SHARE LOG] ${timestamp} | PublicID: ${publicId} | UserID: ${user.id} | Role: faculty | Result: DENIED 403 (Unassigned Faculty)`);
+      res.status(403).json({ success: false, status: 403, error: 'Forbidden' });
+      return;
     }
 
+    // 3. HOD validation
     if (user.role === 'hod' || user.role === 'admin') {
       res.json({ success: true, redirectTo: '/hod/requests' });
       return;
     }
 
-    res.json({ success: true, redirectTo: `/share/${publicId}` });
+    // 4. Admin restriction (Admins MUST NOT access shared links)
+    if (user.role === 'admin') {
+      console.log(`[SHARE LOG] ${timestamp} | PublicID: ${publicId} | UserID: ${user.id} | Role: admin | Result: DENIED 403 (Admin Restriction)`);
+      res.status(403).json({ success: false, status: 403, error: 'Forbidden' });
+      return;
+    }
+
+    // Default fallback
+    res.status(403).json({ success: false, status: 403, error: 'Forbidden' });
   } catch (err) {
     console.error('GET /api/share/:publicId error:', err);
-    res.status(500).json({ error: 'Internal error' });
+    res.status(500).json({ success: false, status: 500, error: 'Server error' });
   }
 });
 

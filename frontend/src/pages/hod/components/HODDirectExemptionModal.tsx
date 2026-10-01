@@ -13,7 +13,7 @@ interface HODDirectExemptionModalProps {
 }
 
 const YEARS = ['All Years', '1st Year', '2nd Year', '3rd Year', '4th Year'];
-const SECTIONS = ['All Sections', 'Section A', 'Section B'];
+const SECTIONS = ['All Sections', 'CSD', 'CSIT-A', 'CSIT-B'];
 
 export function HODDirectExemptionModal({ open, onClose }: HODDirectExemptionModalProps) {
   const queryClient = useQueryClient();
@@ -61,10 +61,7 @@ export function HODDirectExemptionModal({ open, onClose }: HODDirectExemptionMod
 
     let matchesSec = true;
     if (sectionFilter !== 'All Sections') {
-      const isSecB = sectionFilter.includes('B');
-      const roll = s.rollNumber.toUpperCase();
-      const isRollB = /(7[3-9]|[89]\d|[A-C]\d|D[01]|LE\d+)$/i.test(roll) || roll.endsWith('-B') || roll.includes('95A');
-      matchesSec = isSecB ? isRollB : !isRollB;
+      matchesSec = s.section === sectionFilter;
     }
 
     return matchesSearch && matchesDept && matchesYear && matchesSec;
@@ -259,7 +256,7 @@ export function HODDirectExemptionModal({ open, onClose }: HODDirectExemptionMod
                           <span className="font-mono text-[11px] font-semibold text-slate-500">{student.rollNumber}</span>
                         </div>
                         <p className="text-[10.5px] text-slate-400">
-                          {student.department} • {student.section || 'Section A'}
+                          {student.department}{student.section ? ` • ${student.section}` : ''}
                         </p>
                       </div>
                     </div>

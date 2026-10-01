@@ -17,8 +17,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   }
 
   const role = req.user.role;
-  const override = req.headers['x-role-override'];
-  if (role !== 'admin' && role !== 'hod' && override !== 'admin') {
+  if (role !== 'admin' && role !== 'hod') {
     res.status(403).json({ error: 'Forbidden: admin access required' });
     return;
   }

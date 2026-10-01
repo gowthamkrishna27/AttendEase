@@ -6,8 +6,10 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { Button } from '../../components/ui/Button';
+import { SendButton } from '../../components/ui/SendButton';
 import { UploadArea } from '../../components/forms/UploadArea';
 import * as api from '../../lib/api';
+import { getFacultyInitials } from '../../lib/utils';
 
 const card = (extra?: React.CSSProperties): React.CSSProperties => ({
   background: '#ffffff',
@@ -158,7 +160,9 @@ export default function EditRequest() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['request', id] });
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      navigate(`/student/request/${id}`);
+      window.setTimeout(() => {
+        navigate(`/student/request/${id}`);
+      }, 1800);
     },
   });
 
@@ -256,31 +260,55 @@ export default function EditRequest() {
             <div>
               <label style={labelStyle}>Assigned Faculty Reviewers ({selectedFacultyIds.length} selected)</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginTop: 10 }}>
-                {(showAllFaculty ? facultyList : facultyList.slice(0, 6)).map(f => {
-                  const fId = f.id || f.userId || '';
-                  const isSelected = !!fId && selectedFacultyIds.includes(fId);
-                  return (
-                    <div
-                      key={fId}
-                      onClick={() => toggleFaculty(fId)}
-                      style={{
-                        padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
-                        border: isSelected ? '1.5px solid #F97316' : '1px solid #E2E8F0',
-                        background: isSelected ? '#FFF7ED' : '#F8FAFC',
-                        display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s'
-                      }}
-                    >
-                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                        {f.avatarUrl ? <img src={f.avatarUrl} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>{f.name.slice(0, 2)}</span>}
+                {facultyList.length === 0 ? (
+                  <div style={{ gridColumn: '1 / -1', padding: '16px 12px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+                    No faculty available
+                  </div>
+                ) : (
+                  (showAllFaculty ? facultyList : facultyList.slice(0, 6)).map(f => {
+                    const fId = f.id || f.userId || '';
+                    const isSelected = !!fId && selectedFacultyIds.includes(fId);
+                    return (
+                      <div
+                        key={fId}
+                        onClick={() => toggleFaculty(fId)}
+                        style={{
+                          padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
+                          border: isSelected ? '1.5px solid #F97316' : '1px solid #E2E8F0',
+                          background: isSelected ? '#FFF7ED' : '#F8FAFC',
+                          display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s'
+                        }}
+                      >
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 8,
+                          background: '#F97316', color: '#ffffff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          overflow: 'hidden', flexShrink: 0, fontSize: 11, fontWeight: 700,
+                        }}>
+                          {f.avatarUrl ? (
+                            <img
+                              src={f.avatarUrl}
+                              alt={f.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                                if (e.currentTarget.parentElement) {
+                                  e.currentTarget.parentElement.innerText = getFacultyInitials(f.name);
+                                }
+                              }}
+                            />
+                          ) : (
+                            getFacultyInitials(f.name)
+                          )}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{f.name}</span>
+                        </div>
+                        {isSelected && <Check size={14} style={{ color: '#F97316', flexShrink: 0 }} />}
                       </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <p style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</p>
-                        <p style={{ fontSize: 10, color: '#64748B', margin: 0 }}>{f.department || 'CSIT'}</p>
-                      </div>
-                      {isSelected && <Check size={14} style={{ color: '#F97316', flexShrink: 0 }} />}
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
               {facultyList.length > 6 && (
                 <button
@@ -439,19 +467,15 @@ export default function EditRequest() {
             >
               Cancel
             </button>
-            <button
+            <SendButton
               type="submit"
               disabled={isSubmitting}
-              style={{
-                flex: 2, height: 48, borderRadius: 13,
-                background: isSubmitting ? '#FED7AA' : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                boxShadow: '0 4px 14px rgba(249,115,22,0.30)'
-              }}
-            >
-              {isSubmitting ? 'Saving Changes...' : 'Save & Update Request'}
-            </button>
+              variant="primary"
+              size="md"
+              label={isSubmitting ? 'Saving Changes...' : 'Save & Update Request'}
+              sentLabel="Changes Saved!"
+              style={{ flex: 2, height: 48, borderRadius: 13 }}
+            />
           </div>
         </form>
       </div>
