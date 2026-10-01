@@ -284,21 +284,23 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
                 <span style={{ textTransform: 'capitalize' }}>{user.name?.split(' ')[0] || user.role}</span>
               </Link>
 
-              {/* Settings button in top navbar */}
-              <Link
-                to={userSettingsLink}
-                title="Settings & Preferences"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 34, height: 34, borderRadius: 8, background: '#edf0f2',
-                  border: '1px solid #e2e6e9', color: '#64748B', textDecoration: 'none',
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#e2e6e9'; e.currentTarget.style.color = '#18181b'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; e.currentTarget.style.color = '#64748B'; }}
-              >
-                <Settings size={15} />
-              </Link>
+              {/* Settings button in top navbar (hidden for student) */}
+              {user.role !== 'student' && role !== 'student' && (
+                <Link
+                  to={userSettingsLink}
+                  title="Settings & Preferences"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 34, height: 34, borderRadius: 8, background: '#edf0f2',
+                    border: '1px solid #e2e6e9', color: '#64748B', textDecoration: 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#e2e6e9'; e.currentTarget.style.color = '#18181b'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#edf0f2'; e.currentTarget.style.color = '#64748B'; }}
+                >
+                  <Settings size={15} />
+                </Link>
+              )}
             </div>
           )}
         </div>
@@ -398,7 +400,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
               <LogIn size={13} />
               <span>Login</span>
             </Link>
-          ) : (
+          ) : user.role !== 'student' && role !== 'student' ? (
             <Link
               to={userSettingsLink}
               title="Settings"
@@ -412,7 +414,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             >
               <Settings size={14} />
             </Link>
-          )}
+          ) : null}
         </div>
       </header>
 
@@ -552,6 +554,21 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
             >
               Helpline &amp; Contacts
             </button>
+            <span style={{ margin: '0 2px' }}>•</span>
+            <a
+              href="https://forms.gle/girGw3vVdUfCR5zR6"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: '#EA580C',
+                fontWeight: 700,
+                padding: '0 4px',
+                textDecoration: 'underline',
+                fontSize: 12,
+              }}
+            >
+              Feedback &amp; Reports
+            </a>
           </div>
         </motion.main>
       </div>

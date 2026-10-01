@@ -5,7 +5,7 @@ import {
   LogOut,
   Camera, Loader2, Check, Phone, Mail, User,
   Building, Briefcase, Trash2, Fingerprint, KeyRound, ShieldCheck,
-  CheckCircle2, AlertCircle
+  CheckCircle2, AlertCircle, MessageSquare
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { FaceAlignedImage } from '../../components/shared/FaceAlignedImage';
@@ -212,11 +212,23 @@ export default function FacultySettings() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="mb-6"
+          className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
         >
-          <p className="text-[12px] font-bold text-orange-600 uppercase tracking-wider mb-1">Faculty Member</p>
-          <h1 className="text-[26px] font-heading font-bold text-slate-900">Profile &amp; Settings</h1>
-          <p className="text-[14px] text-slate-500 mt-0.5">Manage your personal profile, 4-digit approval PIN, and biometric security</p>
+          <div>
+            <p className="text-[12px] font-bold text-orange-600 uppercase tracking-wider mb-1">Faculty Member</p>
+            <h1 className="text-[26px] font-heading font-bold text-slate-900">Profile &amp; Settings</h1>
+            <p className="text-[14px] text-slate-500 mt-0.5">Manage your personal profile, 4-digit approval PIN, and biometric security</p>
+          </div>
+          <a
+            href="https://forms.gle/girGw3vVdUfCR5zR6"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Give Feedback & Report Issues"
+            className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-orange-50 text-slate-700 hover:text-orange-600 border border-slate-200/90 hover:border-orange-300 shadow-2xs hover:shadow-xs transition-all text-xs font-semibold active:scale-95 group shrink-0"
+          >
+            <MessageSquare size={13.5} className="text-orange-500 group-hover:scale-110 transition-transform" />
+            <span>Feedback</span>
+          </a>
         </motion.div>
 
         {/* ── 1. Profile & Avatar Card ── */}
