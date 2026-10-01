@@ -609,7 +609,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           .desktop-sidebar  { display: none !important; }
           .mobile-topbar    { display: flex !important; }
           .mobile-bottom-nav{ display: ${role === 'viewer' ? 'none' : 'flex'} !important; }
-          .main-content     { padding: ${role === 'viewer' ? '16px 16px 24px' : '16px 16px 88px'} !important; }
+          .main-content     { padding: ${role === 'viewer' ? '16px 16px 24px' : '16px 16px 92px'} !important; }
           .student-portal-badge { display: none !important; }
         }
         /* ── Screen Desktop ── */
@@ -617,7 +617,8 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           .desktop-topbar   { display: flex !important; }
           .desktop-sidebar  { display: flex !important; }
           .mobile-topbar    { display: none !important; }
-          .mobile-bottom-nav, .meniscus-wrapper { display: none !important; }
+          .mobile-bottom-nav { display: none !important; }
+          .meniscus-wrapper   { display: none !important; }
           .main-content     { padding: 24px 32px 48px !important; }
         }
         /* ── Print ── */
