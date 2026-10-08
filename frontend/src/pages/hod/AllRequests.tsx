@@ -554,19 +554,19 @@ export default function HODAllRequests() {
 
             {/* ── Load More Controls ── */}
             {(requestsList.hasMore || filtered.length < (requestsList.total || 0)) && (
-              <div className="py-5 px-4 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-                <div className="text-xs text-slate-500 font-medium">
-                  Showing <span className="font-bold text-slate-800">{filtered.length}</span> of{' '}
-                  <span className="font-bold text-slate-800">{requestsList.total || requestsList.length}</span> requests
-                </div>
+              <div className="py-3.5 px-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between gap-3">
+                <span className="text-[12px] text-slate-400 font-medium">
+                  Showing <span className="font-semibold text-slate-700">{filtered.length}</span> of{' '}
+                  <span className="font-semibold text-slate-700">{requestsList.total || requestsList.length}</span>
+                </span>
                 <button
                   type="button"
                   onClick={() => setDisplayLimit(prev => prev + 25)}
                   disabled={isFetching}
-                  className="px-4 py-2 bg-white hover:bg-orange-50 active:scale-95 text-orange-600 border border-orange-200/90 rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-sm cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-50 active:scale-95 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg text-[12px] font-semibold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {isFetching ? <Loader2 size={13} className="animate-spin text-orange-500" /> : <Check size={14} />}
-                  <span>⚡ Load More (25 more)</span>
+                  {isFetching && <Loader2 size={12} className="animate-spin text-slate-400" />}
+                  <span>Load more</span>
                 </button>
               </div>
             )}
