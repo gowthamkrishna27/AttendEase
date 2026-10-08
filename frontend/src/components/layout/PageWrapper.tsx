@@ -47,7 +47,7 @@ const hodNav = [
 const adminNav = [
   { to: '/admin', label: 'Dashboard', icon: Home },
   { to: '/admin/users', label: 'Accounts & Students', icon: Users },
-  { to: '/admin/invigilation', label: 'Invigilation', icon: CalendarCheck },
+  { to: '/admin/invigilation', label: 'Invigilation Duties & Hours', icon: CalendarCheck },
   { to: '/admin/counseling', label: 'Counseling', icon: UserCheck },
   { to: '/admin/requests', label: 'Request Logs', icon: ClipboardList },
   { to: '/admin/database', label: 'Database Tables', icon: Database },
@@ -662,7 +662,7 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           .desktop-sidebar  { display: none !important; }
           .mobile-topbar    { display: flex !important; }
           .mobile-bottom-nav{ display: ${role === 'viewer' ? 'none' : 'flex'} !important; }
-          .main-content     { padding: ${role === 'viewer' ? '16px 16px 24px' : '16px 16px 88px'} !important; }
+          .main-content     { padding: ${role === 'viewer' ? '16px 16px 24px' : '16px 16px 92px'} !important; }
           .student-portal-badge { display: none !important; }
         }
         /* ── Screen Desktop ── */
@@ -670,7 +670,13 @@ export function PageWrapper({ children, role = 'student' }: PageWrapperProps) {
           .desktop-topbar   { display: flex !important; }
           .desktop-sidebar  { display: flex !important; }
           .mobile-topbar    { display: none !important; }
+<<<<<<< HEAD
+          .mobile-bottom-nav { display: none !important; }
+          .meniscus-wrapper   { display: none !important; }
+          .main-content     { padding: 24px 32px 48px !important; }
+=======
           .mobile-bottom-nav{ display: none !important; }
+>>>>>>> origin/main
         }
         /* ── Print ── */
         @media print {

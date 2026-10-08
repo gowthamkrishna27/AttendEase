@@ -30,8 +30,8 @@ export default function AdminDashboard() {
       tag: `${totalUsers} Accounts`
     },
     {
-      label: 'Invigilation Duties',
-      description: 'Schedule, filter, assign faculty, and manage exam invigilation duties',
+      label: 'Invigilation Duties & Hours',
+      description: 'Schedule exams, assign faculty, and review invigilation duties and hours',
       icon: CalendarCheck,
       to: '/admin/invigilation',
       tag: 'Invigilation'
