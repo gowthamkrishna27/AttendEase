@@ -57,6 +57,7 @@ import AdminSettings from './pages/admin/Settings';
 import PermissionsPage from './pages/Permissions';
 import LandingPage from './pages/LandingPage';
 import Developers from './pages/Developers';
+import Recruitment from './pages/Recruitment';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -176,6 +177,10 @@ function AppRoutes() {
         <Route path="/team" element={<Navigate to="/developers" replace />} />
         <Route path="/pavan" element={<Navigate to="/developers" replace />} />
         <Route path="/manasa" element={<Navigate to="/developers" replace />} />
+        <Route path="/recruitment" element={<Recruitment />} />
+        <Route path="/recruit" element={<Navigate to="/recruitment" replace />} />
+        <Route path="/join" element={<Navigate to="/recruitment" replace />} />
+        <Route path="/apply" element={<Navigate to="/recruitment" replace />} />
         <Route path="/login" element={<LoginPortal />} />
         <Route path="/animation" element={<AnimationShowcasePage />} />
         <Route path="/send-demo" element={<AnimationShowcasePage />} />
