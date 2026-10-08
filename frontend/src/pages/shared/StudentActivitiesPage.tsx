@@ -471,9 +471,6 @@ export default function StudentActivitiesPage({ role = 'faculty' }: StudentActiv
               )}
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Student Activities</h1>
-            <p className="text-sm text-slate-500 font-medium">
-              Manage student participation in Internships, Startups, Projects, Sports, and House Events.
-            </p>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
@@ -503,27 +500,24 @@ export default function StudentActivitiesPage({ role = 'faculty' }: StudentActiv
           </div>
         </div>
 
-        {/* ── Category Navigation Tabs ── */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {(Object.keys(CATEGORY_CONFIG) as ActivityCategory[]).map(catKey => {
-            const config = CATEGORY_CONFIG[catKey];
-            const Icon = config.icon;
-            const isActive = activeTab === catKey;
-            return (
-              <button
-                key={catKey}
-                onClick={() => { setActiveTab(catKey); setSelectedIds([]); }}
-                className={`flex items-center gap-2.5 px-4 py-3 rounded-xl font-bold text-xs transition-all whitespace-nowrap border ${
-                  isActive
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                    : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <Icon size={16} className={isActive ? 'text-orange-400' : config.color} />
-                <span>{config.label}</span>
-              </button>
-            );
-          })}
+        {/* ── Category Dropdown ── */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm w-full md:w-72">
+          <label htmlFor="student-activity-category" className="block mb-2 text-xs font-bold text-slate-600">
+            Category
+          </label>
+          <select
+            id="student-activity-category"
+            value={activeTab}
+            onChange={e => {
+              setActiveTab(e.target.value as ActivityCategory);
+              setSelectedIds([]);
+            }}
+            className="w-full px-3 py-2.5 text-xs font-semibold rounded-xl bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition"
+          >
+            {(Object.keys(CATEGORY_CONFIG) as ActivityCategory[]).map(catKey => (
+              <option key={catKey} value={catKey}>{CATEGORY_CONFIG[catKey].label}</option>
+            ))}
+          </select>
         </div>
 
         {/* ── Audit Logs Drawer / Panel ── */}
