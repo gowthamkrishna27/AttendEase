@@ -12,7 +12,7 @@ import { Avatar } from '../../components/shared/Avatar';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { Button } from '../../components/ui/Button';
 import { formatDate, DEPARTMENTS } from '../../lib/utils';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import type { AttendanceRequest } from '../../types';
 
@@ -42,12 +42,13 @@ export default function FacultyRequests() {
     setTimeout(() => setToastMsg(null), 4000);
   };
 
-  const { data: requestsList = [], isFetching } = useQuery({
+  const { data: requestsList = [], isFetching, isLoading } = useQuery({
     queryKey: ['requests', displayLimit, tab],
     queryFn: () => api.getRequests({
       limit: displayLimit,
       status: tab !== 'all' ? tab : undefined,
     }),
+    placeholderData: keepPreviousData,
     refetchInterval: 30000,
   });
 
@@ -428,7 +429,15 @@ export default function FacultyRequests() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.14 }}
         >
-          {filtered.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center mb-4">
+                <Loader2 size={22} className="text-orange-500 animate-spin" />
+              </div>
+              <h3 className="text-[16px] font-semibold text-[#111111] mb-1">Loading requests...</h3>
+              <p className="text-[14px] text-[#6B7280] max-w-xs">Fetching latest student attendance requests</p>
+            </div>
+          ) : filtered.length === 0 ? (
             <EmptyState
               title="No requests found"
               description="Try adjusting your filters."
