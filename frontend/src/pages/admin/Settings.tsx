@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogOut } from 'lucide-react';
+import { LogOut, MessageSquare } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import { useAuth } from '../../context/AuthContext';
 import logo from '../../assets/logo.png';
@@ -23,12 +23,25 @@ export default function AdminSettings() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
         >
-          <span className="text-[11px] font-semibold text-[#18181b] bg-[#edf0f2] px-2 py-0.5 rounded-[5px]">
-            ADMIN PREFERENCES
-          </span>
-          <h1 className="text-[22px] font-bold text-[#18181b] tracking-tight mt-1">Settings</h1>
-          <p className="text-[13px] text-[#6b7280]">Manage admin credentials and session preferences</p>
+          <div>
+            <span className="text-[11px] font-semibold text-[#18181b] bg-[#edf0f2] px-2 py-0.5 rounded-[5px]">
+              ADMIN PREFERENCES
+            </span>
+            <h1 className="text-[22px] font-bold text-[#18181b] tracking-tight mt-1">Settings</h1>
+            <p className="text-[13px] text-[#6b7280]">Manage admin credentials and session preferences</p>
+          </div>
+          <a
+            href="https://forms.gle/girGw3vVdUfCR5zR6"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Give Feedback & Report Issues"
+            className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-orange-50 text-slate-700 hover:text-orange-600 border border-slate-200 hover:border-orange-300 shadow-2xs transition-all text-xs font-semibold active:scale-95 group shrink-0"
+          >
+            <MessageSquare size={13.5} className="text-orange-500 group-hover:scale-110 transition-transform" />
+            <span>Feedback</span>
+          </a>
         </motion.div>
 
         {/* Profile Card */}

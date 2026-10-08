@@ -193,6 +193,15 @@ export default function Developers() {
           <p className="mt-3 text-sm text-zinc-600 leading-relaxed">
             The team behind AttendEase — built to streamline attendance and digital permission workflows for SRKR Engineering College.
           </p>
+          <div className="mt-4">
+            <Link
+              to="/recruitment"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 border border-orange-200/80 text-orange-700 hover:bg-orange-100 text-xs font-semibold transition-colors"
+            >
+              <span>🚀 AttendEase is recruiting new team members! Apply here</span>
+              <ArrowUpRight size={13} />
+            </Link>
+          </div>
         </header>
 
         {/* Developer Cards Grid */}
@@ -364,6 +373,7 @@ export default function Developers() {
 
           <div className="flex items-center gap-4">
             <Link to="/" className="hover:text-zinc-900 transition-colors">Home</Link>
+            <Link to="/recruitment" className="hover:text-zinc-900 transition-colors font-medium text-orange-600">Recruitment</Link>
             <Link to="/permissions" className="hover:text-zinc-900 transition-colors">Permissions</Link>
             <Link to="/login" className="hover:text-zinc-900 transition-colors">Login</Link>
             <a

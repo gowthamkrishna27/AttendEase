@@ -10,7 +10,6 @@ import { formatDateShort, formatTimeAgo } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import srkrEmblem from '../../assets/srkr-emblem.png';
 import { AnnouncementRenderer } from '../../components/announcements/AnnouncementRenderer';
-import { CsdCricketWidget } from '../../components/widgets/CsdCricketWidget';
 
 const card = (extra: object = {}) => ({
   background: '#ffffff',
@@ -204,14 +203,10 @@ export default function StudentHome() {
           </motion.button>
         </motion.div>
 
-        {/* Dynamic Widgets or Fallback HPL Score Card */}
-        {announcements.some((a) => a.placement === 'HOME_MIDDLE') ? (
+        {/* Dynamic Announcements if available */}
+        {announcements.some((a) => a.placement === 'HOME_MIDDLE') && (
           <div className="flex-1 min-w-[320px]">
             <AnnouncementRenderer announcements={announcements} placement="HOME_MIDDLE" />
-          </div>
-        ) : (
-          <div className="flex-1 min-w-[320px] max-w-[560px]">
-            <CsdCricketWidget />
           </div>
         )}
       </div>
@@ -355,7 +350,7 @@ export default function StudentHome() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: '#000000', margin: '0 0 2px' }}>{req.reasonLabel}</p>
                 <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>
-                  {formatDateShort(req.date)} · {req.reasonLabel}
+                  {formatDateShort(req.date)}
                 </p>
               </div>
               {/* Status + arrow */}

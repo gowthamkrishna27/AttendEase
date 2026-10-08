@@ -349,77 +349,87 @@ export default function RequestDetails() {
         >
           <p className="text-[13.5px] font-bold text-slate-700 mb-6">Approval Timeline</p>
 
-          {/* Stepper row */}
-          <div className="relative flex items-center justify-between max-w-md mx-auto px-4 mb-6">
-            {/* Step 1: Submitted */}
-            <div className="flex flex-col items-center z-10 text-center">
-              <div className="w-8 h-8 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center shadow-xs">
-                1
-              </div>
-              <p className="text-[12px] font-bold text-slate-900 mt-2">Submitted</p>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5 whitespace-nowrap font-mono">
-                {formatSubmittedAt(request.submittedAt) || 'Done'}
-              </p>
-            </div>
-
-            {/* Connector 1 */}
+          {/* Stepper container with perfectly aligned background connector line */}
+          <div className="relative max-w-md mx-auto mb-6">
+            {/* Connecting lines between circle centers */}
             <div
-              className={`h-0.5 flex-1 mx-2 -mt-10 ${request.status !== 'pending' ? 'bg-slate-900' : 'bg-slate-200'
-                }`}
-            />
-
-            {/* Step 2: Faculty Review */}
-            <div className="flex flex-col items-center z-10 text-center">
+              className="absolute top-4 left-0 right-0 flex -translate-y-1/2 pointer-events-none z-0"
+              style={{ paddingLeft: '16.666%', paddingRight: '16.666%' }}
+            >
               <div
-                className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center border shadow-xs ${request.status !== 'pending'
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-600 border-slate-300'
-                  }`}
-              >
-                2
-              </div>
-              <p className="text-[12px] font-bold text-slate-900 mt-2">Faculty Review</p>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
-                {request.status === 'pending'
-                  ? 'Pending'
-                  : request.reviewedAt
-                    ? formatSubmittedAt(request.reviewedAt)
-                    : 'Reviewed'}
-              </p>
-            </div>
-
-            {/* Connector 2 */}
-            <div
-              className={`h-0.5 flex-1 mx-2 -mt-10 ${request.status === 'approved'
-                  ? 'bg-emerald-600'
-                  : request.status === 'rejected'
-                    ? 'bg-rose-600'
-                    : 'bg-slate-200'
+                className={`h-0.5 flex-1 transition-colors duration-200 ${
+                  request.status !== 'pending' ? 'bg-slate-900' : 'bg-slate-200'
                 }`}
-            />
-
-            {/* Step 3: Approved / Rejected */}
-            <div className="flex flex-col items-center z-10 text-center">
+              />
               <div
-                className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center border shadow-xs ${request.status === 'approved'
-                    ? 'bg-emerald-600 text-white border-emerald-600'
+                className={`h-0.5 flex-1 transition-colors duration-200 ${
+                  request.status === 'approved'
+                    ? 'bg-emerald-600'
                     : request.status === 'rejected'
-                      ? 'bg-rose-600 text-white border-rose-600'
+                      ? 'bg-rose-600'
+                      : 'bg-slate-200'
+                }`}
+              />
+            </div>
+
+            {/* Stepper items */}
+            <div className="relative flex items-start justify-between z-10">
+              {/* Step 1: Submitted */}
+              <div className="flex-1 flex flex-col items-center text-center px-1">
+                <div className="w-8 h-8 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                  1
+                </div>
+                <p className="text-[12px] font-bold text-slate-900 mt-2.5 leading-tight">Submitted</p>
+                <p className="text-[11px] text-slate-400 font-medium mt-1 leading-tight font-mono">
+                  {formatSubmittedAt(request.submittedAt) || 'Done'}
+                </p>
+              </div>
+
+              {/* Step 2: Faculty Review */}
+              <div className="flex-1 flex flex-col items-center text-center px-1">
+                <div
+                  className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center border shadow-xs ${
+                    request.status !== 'pending'
+                      ? 'bg-slate-900 text-white border-slate-900'
                       : 'bg-white text-slate-600 border-slate-300'
                   }`}
-              >
-                3
+                >
+                  2
+                </div>
+                <p className="text-[12px] font-bold text-slate-900 mt-2.5 leading-tight">Faculty Review</p>
+                <p className="text-[11px] text-slate-400 font-medium mt-1 leading-tight">
+                  {request.status === 'pending'
+                    ? 'Pending'
+                    : request.reviewedAt
+                      ? formatSubmittedAt(request.reviewedAt)
+                      : 'Reviewed'}
+                </p>
               </div>
-              <p className="text-[12px] font-bold text-slate-900 mt-2">
-                {request.status === 'rejected' ? 'Rejected' : 'Approved'}
-              </p>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
-                {request.status === 'approved'
-                  ? 'Approved'
-                  : request.status === 'rejected'
-                    ? 'Rejected'
-                    : 'Pending'}
-              </p>
+
+              {/* Step 3: Approved / Rejected */}
+              <div className="flex-1 flex flex-col items-center text-center px-1">
+                <div
+                  className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center border shadow-xs ${
+                    request.status === 'approved'
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : request.status === 'rejected'
+                        ? 'bg-rose-600 text-white border-rose-600'
+                        : 'bg-white text-slate-600 border-slate-300'
+                  }`}
+                >
+                  3
+                </div>
+                <p className="text-[12px] font-bold text-slate-900 mt-2.5 leading-tight">
+                  {request.status === 'rejected' ? 'Rejected' : 'Approved'}
+                </p>
+                <p className="text-[11px] text-slate-400 font-medium mt-1 leading-tight">
+                  {request.status === 'approved'
+                    ? 'Approved'
+                    : request.status === 'rejected'
+                      ? 'Rejected'
+                      : 'Pending'}
+                </p>
+              </div>
             </div>
           </div>
 

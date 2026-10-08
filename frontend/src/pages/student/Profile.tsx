@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import {
   User, IdCard, Building2, GraduationCap,
   Mail, Phone, ChevronRight, Lock, CheckCircle2,
-  Circle, Lightbulb, ClipboardList, Check, AlertCircle, Loader2, LogOut
+  Circle, Lightbulb, ClipboardList, Check, AlertCircle, Loader2, LogOut,
+  MessageSquare
 } from 'lucide-react';
 import { PageWrapper } from '../../components/layout/PageWrapper';
 import srkrEmblem from '../../assets/srkr-emblem.png';
@@ -187,20 +188,27 @@ export default function Profile() {
   return (
     <PageWrapper role="student">
       <style>{`
+        .profile-tabs-card { padding: 0 !important; overflow: hidden !important; }
+        .profile-tabs-header { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; width: 100% !important; min-width: 0 !important; }
+        .profile-tab-btn { flex: 1 !important; width: 100% !important; min-width: 0 !important; justify-content: center !important; text-align: center !important; }
         @media (max-width: 768px) {
           .profile-hero-card { flex-direction: column !important; align-items: stretch !important; gap: 16px !important; padding: 20px 16px !important; width: 100% !important; box-sizing: border-box !important; }
           .profile-info-block { width: 100% !important; min-width: 0 !important; }
           .profile-info-chips { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 12px 14px !important; width: 100% !important; }
-          .profile-tabs-card { padding: 0 16px !important; overflow-x: auto !important; }
-          .profile-tabs-header { width: max-content !important; min-width: 100% !important; }
+          .profile-tabs-card { padding: 0 !important; overflow: hidden !important; }
+          .profile-tabs-header { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; width: 100% !important; min-width: 0 !important; }
+          .profile-tab-btn { padding: 13px 4px !important; font-size: 12px !important; gap: 5px !important; }
           .profile-tab-wrapper { flex-direction: column !important; gap: 18px !important; width: 100% !important; align-items: stretch !important; }
-          .profile-main-column { width: 100% !important; flex: none !important; box-sizing: border-box !important; }
+          .profile-main-column { width: 100% !important; flex: none !important; box-sizing: border-box !important; min-width: 0 !important; }
           .profile-section-personal.tab-hidden { display: none !important; }
           .profile-section-account.tab-hidden { display: none !important; }
-          .profile-form-card { padding: 20px 16px !important; width: 100% !important; box-sizing: border-box !important; }
+          .profile-form-card { padding: 20px 16px !important; width: 100% !important; box-sizing: border-box !important; max-width: 100% !important; overflow: hidden !important; }
           .profile-form-row { grid-template-columns: 1fr !important; gap: 14px !important; width: 100% !important; }
           .profile-sidebar { width: 100% !important; box-sizing: border-box !important; }
           .session-mgmt-block { display: none !important; }
+        }
+        @media (max-width: 380px) {
+          .profile-tab-btn { font-size: 11px !important; padding: 11px 2px !important; gap: 4px !important; }
         }
         @media (min-width: 769px) {
           .profile-section-personal.tab-hidden { display: none !important; }
@@ -208,11 +216,41 @@ export default function Profile() {
         }
       `}</style>
 
-      {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, fontSize: 13, color: '#94A3B8' }}>
-        <Link to="/student" style={{ color: '#F97316', textDecoration: 'none', fontWeight: 500 }}>Home</Link>
-        <ChevronRight size={13} />
-        <span style={{ color: '#64748B' }}>Profile</span>
+      {/* Breadcrumb & Small Feedback Button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#94A3B8' }}>
+          <Link to="/student" style={{ color: '#F97316', textDecoration: 'none', fontWeight: 500 }}>Home</Link>
+          <ChevronRight size={13} />
+          <span style={{ color: '#64748B' }}>Profile</span>
+        </div>
+        <a
+          href="https://forms.gle/girGw3vVdUfCR5zR6"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Give Feedback & Report Issues"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '5px 12px', borderRadius: 9999,
+            fontSize: 12, fontWeight: 600,
+            color: '#475569', background: '#FFFFFF',
+            border: '1px solid #E2E8F0', textDecoration: 'none',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = '#EA580C';
+            e.currentTarget.style.background = '#FFF7ED';
+            e.currentTarget.style.borderColor = '#FDBA74';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = '#475569';
+            e.currentTarget.style.background = '#FFFFFF';
+            e.currentTarget.style.borderColor = '#E2E8F0';
+          }}
+        >
+          <MessageSquare size={13.5} style={{ color: '#F97316' }} />
+          <span>Feedback</span>
+        </a>
       </div>
 
       {/* Alert Banner */}
@@ -329,9 +367,9 @@ export default function Profile() {
       <motion.div
         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.26, delay: 0.05 }}
         className="profile-tabs-card"
-        style={{ ...card({ padding: '0 32px', marginBottom: 24 }) }}
+        style={{ ...card({ padding: 0, marginBottom: 24, overflow: 'hidden' }) }}
       >
-        <div className="profile-tabs-header" style={{ display: 'flex', gap: 0, borderBottom: '1px solid #EEF2F7' }}>
+        <div className="profile-tabs-header" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', borderBottom: '1px solid #EEF2F7', width: '100%', minWidth: 0 }}>
           {TABS.map(t => {
             const isActive = tab === t;
             const icons: Record<Tab, React.ElementType> = {
@@ -343,18 +381,22 @@ export default function Profile() {
               <button
                 key={t}
                 onClick={() => setTab(t)}
+                className="profile-tab-btn"
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  padding: '16px 20px', fontSize: 13, fontWeight: isActive ? 700 : 500,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  padding: '15px 16px', fontSize: 13.5, fontWeight: isActive ? 700 : 500,
                   color: isActive ? '#F97316' : '#64748B',
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  borderBottom: isActive ? '2px solid #F97316' : '2px solid transparent',
+                  background: isActive ? '#FFF7ED' : 'transparent',
+                  border: 'none', cursor: 'pointer',
+                  borderBottom: isActive ? '2.5px solid #F97316' : '2.5px solid transparent',
                   marginBottom: -1, whiteSpace: 'nowrap',
-                  transition: 'all 0.15s',
+                  transition: 'all 0.15s ease',
+                  minWidth: 0,
+                  width: '100%',
                 }}
               >
-                <Icon size={14} />
-                {t}
+                <Icon size={14} style={{ flexShrink: 0 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t}</span>
               </button>
             );
           })}
@@ -601,6 +643,7 @@ export default function Profile() {
               All edits saved here persist directly to your database.
             </p>
           </div>
+
 
           {/* Account Settings / Logout Card (Mobile & Desktop) */}
           <div style={{ ...card({ padding: '18px 20px' }) }}>
