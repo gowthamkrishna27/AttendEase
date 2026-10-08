@@ -318,11 +318,39 @@ export async function logout(): Promise<void> {
 
 // ─── Requests ─────────────────────────────────────────────────────────────────
 
-// NOTE: ?department= param intentionally removed — scope is always derived from the
-// JWT on the backend. Param kept in signature to avoid call-site breakage.
-export async function getRequests(_params?: { department?: string } | any): Promise<AttendanceRequest[]> {
-  const res = await apiFetch<{ requests: AttendanceRequest[] }>('/api/requests');
-  return res.requests;
+export interface GetRequestsParams {
+  limit?: number;
+  offset?: number;
+  status?: string;
+  search?: string;
+  department?: string;
+}
+
+export async function getRequests(
+  params?: GetRequestsParams,
+): Promise<AttendanceRequest[] & { total?: number; hasMore?: boolean }> {
+  const query = new URLSearchParams();
+  if (params?.limit !== undefined) query.set('limit', String(params.limit));
+  if (params?.offset !== undefined) query.set('offset', String(params.offset));
+  if (params?.status && params.status !== 'all') query.set('status', params.status);
+  if (params?.search) query.set('search', params.search);
+
+  const url = `/api/requests${query.toString() ? `?${query.toString()}` : ''}`;
+  const res = await apiFetch<{ requests: AttendanceRequest[]; total?: number; hasMore?: boolean }>(url);
+  const arr = (res.requests || []) as AttendanceRequest[] & { total?: number; hasMore?: boolean };
+  arr.total = res.total ?? arr.length;
+  arr.hasMore = res.hasMore ?? false;
+  return arr;
+}
+
+export async function getRequestsSummary(): Promise<{
+  stats: { total: number; pending: number; approved: number; rejected: number };
+  recent: AttendanceRequest[];
+}> {
+  return await apiFetch<{
+    stats: { total: number; pending: number; approved: number; rejected: number };
+    recent: AttendanceRequest[];
+  }>('/api/requests/summary');
 }
 
 export async function getPublicApprovedRequests(params?: {

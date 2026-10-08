@@ -260,6 +260,14 @@ const REQUEST_INCLUDE = {
   shareLinks:     { where: { isActive: true }, orderBy: { createdAt: 'desc' as const }, take: 1 },
 } as const;
 
+// Lightweight include for table/list views (omits heavy audit logs actions)
+const REQUEST_LIST_INCLUDE = {
+  student:        true,
+  primaryFaculty: true,
+  faculties:      { include: { faculty: true } },
+  shareLinks:     { where: { isActive: true }, orderBy: { createdAt: 'desc' as const }, take: 1 },
+} as const;
+
 /** Convert a Prisma request row (with relations) to the frontend API shape */
 function toApi(r: any) {
   const student = r.student;
@@ -395,6 +403,10 @@ function toApi(r: any) {
 router.get('/', async (req: Request, res: Response) => {
   try {
     const user = req.user!;
+    const limitParam = req.query['limit'] ? Math.min(100, Math.max(1, parseInt(String(req.query['limit']), 10))) : undefined;
+    const offsetParam = req.query['offset'] ? Math.max(0, parseInt(String(req.query['offset']), 10)) : 0;
+    const statusParam = req.query['status'] as string | undefined;
+    const searchParam = (req.query['search'] as string | undefined)?.trim();
 
     let where: Prisma.RequestWhereInput = {};
 
@@ -441,15 +453,98 @@ router.get('/', async (req: Request, res: Response) => {
       };
     }
 
+    if (statusParam && statusParam !== 'all') {
+      where = {
+        ...where,
+        status: statusParam as RequestStatus,
+      };
+    }
+
+    if (searchParam) {
+      where = {
+        ...where,
+        OR: [
+          ...(where.OR || []),
+          { reasonLabel: { contains: searchParam, mode: 'insensitive' } },
+          { description: { contains: searchParam, mode: 'insensitive' } },
+          { studentId: { contains: searchParam, mode: 'insensitive' } },
+          { student: { name: { contains: searchParam, mode: 'insensitive' } } },
+          { student: { rollNumber: { contains: searchParam, mode: 'insensitive' } } },
+        ],
+      };
+    }
+
+    const total = await prisma.request.count({ where });
+
     const docs = await prisma.request.findMany({
       where,
-      include:  REQUEST_INCLUDE,
+      include:  REQUEST_LIST_INCLUDE,
       orderBy:  { submittedAt: 'desc' },
+      ...(limitParam !== undefined ? { take: limitParam, skip: offsetParam } : {}),
     });
 
-    res.json({ requests: docs.map(toApi) });
+    res.json({
+      requests: docs.map(toApi),
+      total,
+      hasMore: limitParam !== undefined ? (offsetParam + docs.length) < total : false,
+      offset: offsetParam,
+      limit: limitParam,
+    });
   } catch (err) {
     console.error('GET /requests error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
+ * GET /api/requests/summary — fast summary counts for dashboards without full table dump
+ */
+router.get('/summary', async (req: Request, res: Response) => {
+  try {
+    const user = req.user!;
+    let baseWhere: Prisma.RequestWhereInput = {};
+
+    if (user.role === 'student') {
+      baseWhere = {
+        student: {
+          OR: [
+            { userId: user.id },
+            { email: { equals: user.email, mode: 'insensitive' } },
+            ...(user.rollNumber ? [{ rollNumber: user.rollNumber }] : []),
+          ],
+        },
+      };
+    } else if (user.role === 'faculty') {
+      baseWhere = {
+        OR: [
+          { primaryFacultyId: user.id },
+          { faculties: { some: { facultyId: user.id } } },
+          { primaryFaculty: { email: { equals: user.email, mode: 'insensitive' as const } } },
+          { faculties: { some: { faculty: { email: { equals: user.email, mode: 'insensitive' as const } } } } },
+        ],
+      };
+    }
+
+    const [pending, approved, rejected, recent] = await Promise.all([
+      prisma.request.count({ where: { ...baseWhere, status: 'pending' } }),
+      prisma.request.count({ where: { ...baseWhere, status: 'approved' } }),
+      prisma.request.count({ where: { ...baseWhere, status: 'rejected' } }),
+      prisma.request.findMany({
+        where: baseWhere,
+        include: REQUEST_LIST_INCLUDE,
+        orderBy: { submittedAt: 'desc' },
+        take: 5,
+      }),
+    ]);
+
+    const total = pending + approved + rejected;
+
+    res.json({
+      stats: { total, pending, approved, rejected },
+      recent: recent.map(toApi),
+    });
+  } catch (err) {
+    console.error('GET /requests/summary error:', err);
     res.status(500).json({ error: 'Internal error' });
   }
 });
@@ -1318,33 +1413,62 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
   try {
     const idParam = (req.params['id'] || '').trim();
-    const existing = await prisma.request.findFirst({
-      where: {
-        OR: [
-          { id:        { equals: idParam, mode: 'insensitive' } },
-          { requestId: { equals: idParam, mode: 'insensitive' } },
-          { publicId:  { equals: idParam, mode: 'insensitive' } },
-        ],
-      },
+    // 1. Fast indexed lookup by primary key or unique requestId (1ms)
+    let existing = await prisma.request.findUnique({
+      where: { id: idParam },
       include: REQUEST_INCLUDE,
     });
+    if (!existing) {
+      existing = await prisma.request.findUnique({
+        where: { requestId: idParam },
+        include: REQUEST_INCLUDE,
+      });
+    }
+    if (!existing) {
+      existing = await prisma.request.findFirst({
+        where: {
+          OR: [
+            { publicId:  idParam },
+            { id:        { equals: idParam, mode: 'insensitive' } },
+            { requestId: { equals: idParam, mode: 'insensitive' } },
+            { publicId:  { equals: idParam, mode: 'insensitive' } },
+          ],
+        },
+        include: REQUEST_INCLUDE,
+      });
+    }
 
     if (!existing) {
       res.status(404).json({ error: 'Request not found' });
       return;
     }
 
-    // ── Faculty & HOD authorization check ─────────────────────────────────────────
+    // ── Faculty & HOD authorization check (Fast indexed user lookup) ──
     const tokenUser = req.user!;
-    const dbUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { userId: { equals: tokenUser.id, mode: 'insensitive' } },
-          { id:     { equals: tokenUser.id, mode: 'insensitive' } },
-          { email:  { equals: tokenUser.email, mode: 'insensitive' } },
-        ],
-      },
+    let dbUser = await prisma.user.findUnique({
+      where: { userId: tokenUser.id },
     });
+    if (!dbUser) {
+      dbUser = await prisma.user.findUnique({
+        where: { id: tokenUser.id },
+      });
+    }
+    if (!dbUser && tokenUser.email) {
+      dbUser = await prisma.user.findUnique({
+        where: { email: tokenUser.email },
+      });
+    }
+    if (!dbUser) {
+      dbUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { userId: { equals: tokenUser.id, mode: 'insensitive' } },
+            { id:     { equals: tokenUser.id, mode: 'insensitive' } },
+            { email:  { equals: tokenUser.email, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
 
     const activeUser = dbUser || tokenUser;
 
