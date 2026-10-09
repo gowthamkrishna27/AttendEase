@@ -40,6 +40,21 @@ const CATEGORY_CONFIG: Record<ActivityCategory, { label: string; icon: any; colo
   house_events: { label: 'House Events', icon: Award, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
 };
 
+function StudentStatusDot({ status }: { status?: string | null }) {
+  const normalized = status?.toLowerCase();
+  const isActive = normalized === 'active';
+
+  if (!isActive) return null;
+
+  return (
+    <span
+      className="student-status-dot"
+      role="img"
+      aria-label="Active student"
+    />
+  );
+}
+
 export default function StudentActivitiesPage({ role = 'faculty' }: StudentActivitiesPageProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -632,123 +647,202 @@ export default function StudentActivitiesPage({ role = 'faculty' }: StudentActiv
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
-                    <th className="py-3.5 px-4 text-center w-10">
-                      <button onClick={toggleSelectAll} className="text-slate-400 hover:text-slate-700">
-                        {selectedIds.length === activities.length ? <CheckSquare size={16} className="text-orange-600" /> : <Square size={16} />}
-                      </button>
-                    </th>
-                    <th className="py-3.5 px-4">Student Identity</th>
-                    <th className="py-3.5 px-4">Category Details</th>
-                    <th className="py-3.5 px-4">Role / Mentor / Notes</th>
-                    <th className="py-3.5 px-4">Duration</th>
-                    <th className="py-3.5 px-4 text-center">Status</th>
-                    <th className="py-3.5 px-4 text-center w-24">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {activities.map((act: StudentActivity) => {
-                    const isSelected = selectedIds.includes(act.id);
-                    const config = CATEGORY_CONFIG[act.category] || CATEGORY_CONFIG.internship;
-                    const CategoryIcon = config.icon;
-                    return (
-                      <tr key={act.id} className={`hover:bg-slate-50/80 transition ${isSelected ? 'bg-orange-50/30' : ''}`}>
-                        <td className="py-3.5 px-4 text-center">
-                          <button onClick={() => toggleSelectRow(act.id)} className="text-slate-400 hover:text-slate-700">
-                            {isSelected ? <CheckSquare size={16} className="text-orange-600" /> : <Square size={16} />}
-                          </button>
-                        </td>
+            <>
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full table-fixed text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                      <th className="w-10 py-3.5 px-3 text-center md:px-4">
+                        <button onClick={toggleSelectAll} className="text-slate-400 hover:text-slate-700">
+                          {selectedIds.length === activities.length ? <CheckSquare size={16} className="text-orange-600" /> : <Square size={16} />}
+                        </button>
+                      </th>
+                      <th className="w-[30%] py-3.5 px-3 md:px-4">Student Identity</th>
+                      <th className="w-[22%] py-3.5 px-3 md:px-4">Category Details</th>
+                      <th className="w-[22%] py-3.5 px-3 md:px-4">Role / Mentor / Notes</th>
+                      <th className="w-[16%] py-3.5 px-3 md:px-4">Duration</th>
+                      <th className="w-20 py-3.5 px-3 text-center md:px-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {activities.map((act: StudentActivity) => {
+                      const isSelected = selectedIds.includes(act.id);
+                      const config = CATEGORY_CONFIG[act.category] || CATEGORY_CONFIG.internship;
+                      const CategoryIcon = config.icon;
+                      return (
+                        <tr key={act.id} className={`hover:bg-slate-50/80 transition ${isSelected ? 'bg-orange-50/30' : ''}`}>
+                          <td className="py-3.5 px-3 text-center md:px-4">
+                            <button onClick={() => toggleSelectRow(act.id)} className="text-slate-400 hover:text-slate-700">
+                              {isSelected ? <CheckSquare size={16} className="text-orange-600" /> : <Square size={16} />}
+                            </button>
+                          </td>
 
-                        {/* Student Identity */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-black text-slate-700 text-xs border border-slate-200 shrink-0">
-                              {act.student?.avatarUrl ? (
-                                <img src={act.student.avatarUrl} alt="" className="w-full h-full rounded-xl object-cover" />
-                              ) : (
-                                (act.student?.name || 'S').charAt(0)
-                              )}
-                            </div>
-                            <div>
-                              <p className="font-extrabold text-slate-900 text-xs">{act.student?.name || 'Student'}</p>
-                              <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
-                                <span>{act.student?.rollNumber || act.studentId}</span>
-                                <span>•</span>
-                                <span>{act.student?.department || 'CSD'}</span>
+                          <td className="py-3.5 px-3 md:px-4">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="h-9 w-9 shrink-0 rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center font-black text-slate-700 text-xs">
+                                {act.student?.avatarUrl ? (
+                                  <img src={act.student.avatarUrl} alt="" className="h-full w-full rounded-xl object-cover" />
+                                ) : (
+                                  (act.student?.name || 'S').charAt(0)
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 align-middle">
+                                  <p className="min-w-0 break-words text-xs font-extrabold text-slate-900 leading-tight">
+                                    {act.student?.name || 'Student'}
+                                  </p>
+                                  <StudentStatusDot status={act.status} />
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 font-mono">
+                                  <span>{act.student?.rollNumber || act.studentId}</span>
+                                  <span>•</span>
+                                  <span>{act.student?.department || 'CSD'}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Activity Details */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`p-1.5 rounded-lg ${config.bg} ${config.color} border ${config.border}`}>
-                              <CategoryIcon size={13} />
-                            </span>
-                            <div>
-                              <p className="font-bold text-slate-900">{act.titleOrCompany}</p>
-                              <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wide">{config.label}</span>
+                          <td className="py-3.5 px-3 md:px-4">
+                            <div className="flex items-center gap-2">
+                              <span className={`shrink-0 rounded-lg border p-1.5 ${config.bg} ${config.color} ${config.border}`}>
+                                <CategoryIcon size={13} />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="break-words font-bold text-slate-900">{act.titleOrCompany}</p>
+                                <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wide">{config.label}</span>
+                              </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Role / Mentor */}
-                        <td className="py-3.5 px-4">
-                          <p className="text-slate-700 font-semibold">{act.roleOrPosition || '—'}</p>
-                          {act.mentorOrAchievement && (
-                            <p className="text-[11px] text-slate-500 italic mt-0.5">{act.mentorOrAchievement}</p>
-                          )}
-                        </td>
+                          <td className="py-3.5 px-3 md:px-4">
+                            <p className="break-words text-slate-700 font-semibold">{act.roleOrPosition || '—'}</p>
+                            {act.mentorOrAchievement && (
+                              <p className="mt-0.5 break-words text-[11px] text-slate-500 italic">{act.mentorOrAchievement}</p>
+                            )}
+                          </td>
 
-                        {/* Duration */}
-                        <td className="py-3.5 px-4 text-slate-500 text-[11.5px] font-mono">
-                          {act.startDate ? (
-                            <span>{act.startDate} {act.endDate ? `to ${act.endDate}` : ''}</span>
+                          <td className="py-3.5 px-3 text-slate-500 text-[11.5px] font-mono md:px-4">
+                            {act.startDate ? (
+                              <span>{act.startDate} {act.endDate ? `to ${act.endDate}` : ''}</span>
+                            ) : (
+                              <span className="text-slate-400 italic">N/A</span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-3 text-center md:px-4">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => openEditModal(act)}
+                                title="Edit Record (Requires Coordinator Code)"
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 border border-transparent hover:border-orange-200 transition"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => openDeleteModal(act)}
+                                title="Remove from Activity (Master Student Record Intact)"
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="md:hidden space-y-3 p-3">
+                {activities.map((act: StudentActivity) => {
+                  const isSelected = selectedIds.includes(act.id);
+                  const config = CATEGORY_CONFIG[act.category] || CATEGORY_CONFIG.internship;
+                  const CategoryIcon = config.icon;
+
+                  return (
+                    <div key={act.id} className={`rounded-2xl border border-slate-200 bg-white p-3 shadow-sm ${isSelected ? 'border-orange-200 bg-orange-50/30' : ''}`}>
+                      <div className="flex items-start gap-2.5">
+                        <button onClick={() => toggleSelectRow(act.id)} className="mt-1 text-slate-400 hover:text-slate-700">
+                          {isSelected ? <CheckSquare size={16} className="text-orange-600" /> : <Square size={16} />}
+                        </button>
+
+                        <div className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center font-black text-slate-700 text-xs">
+                          {act.student?.avatarUrl ? (
+                            <img src={act.student.avatarUrl} alt="" className="h-full w-full rounded-xl object-cover" />
                           ) : (
-                            <span className="text-slate-400 italic">N/A</span>
+                            (act.student?.name || 'S').charAt(0)
                           )}
-                        </td>
+                        </div>
 
-                        {/* Status Badge */}
-                        <td className="py-3.5 px-4 text-center">
-                          <span className={`inline-block px-2.5 py-1 rounded-full text-[10.5px] font-bold uppercase tracking-wider ${
-                            act.status === 'completed'
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                              : 'bg-blue-100 text-blue-800 border border-blue-200'
-                          }`}>
-                            {act.status}
-                          </span>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-3.5 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => openEditModal(act)}
-                              title="Edit Record (Requires Coordinator Code)"
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 border border-transparent hover:border-orange-200 transition"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              onClick={() => openDeleteModal(act)}
-                              title="Remove from Activity (Master Student Record Intact)"
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 align-middle">
+                            <p className="min-w-0 break-words text-sm font-extrabold text-slate-900 leading-tight">
+                              {act.student?.name || 'Student'}
+                            </p>
+                            <StudentStatusDot status={act.status} />
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 font-mono">
+                            <span>{act.student?.rollNumber || act.studentId}</span>
+                            <span>•</span>
+                            <span>{act.student?.department || 'CSD'}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <button
+                            onClick={() => openEditModal(act)}
+                            title="Edit Record"
+                            className="p-2 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 border border-transparent hover:border-orange-200 transition"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => openDeleteModal(act)}
+                            title="Remove"
+                            className="p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-2 text-xs">
+                        <div className="flex items-start gap-2">
+                          <span className={`mt-0.5 shrink-0 rounded-lg border p-1.5 ${config.bg} ${config.color} ${config.border}`}>
+                            <CategoryIcon size={12} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="break-words font-bold text-slate-900">{act.titleOrCompany}</p>
+                            <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wide">{config.label}</span>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-1">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Role / Mentor</span>
+                            <p className="mt-0.5 break-words text-slate-700 font-semibold">{act.roleOrPosition || '—'}</p>
+                          </div>
+                          {act.mentorOrAchievement && (
+                            <p className="break-words text-[11px] text-slate-500 italic">{act.mentorOrAchievement}</p>
+                          )}
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Duration</span>
+                            <p className="mt-0.5 text-slate-600 font-mono text-[11px]">
+                              {act.startDate ? (
+                                <span>{act.startDate} {act.endDate ? `to ${act.endDate}` : ''}</span>
+                              ) : (
+                                <span className="text-slate-400 italic">N/A</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>
